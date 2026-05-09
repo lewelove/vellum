@@ -79,11 +79,8 @@
 
       mkAlbum = { 
         pname, 
-        sourceDisk ? { path = ""; hash = ""; },
-        sha256 ? null,
-        sourceTorrent ? null,
-        sourceMagnet ? null,
-        sourceUrl ? null,
+        sourceDisk ? { hash = ""; },
+        sourceTorrent ? { hash = ""; },
         album ? { metadata = {}; },
         tracks ? [], 
         cover ? null

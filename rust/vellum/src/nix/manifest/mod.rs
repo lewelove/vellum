@@ -5,6 +5,7 @@ use std::path::Path;
 
 pub fn run(torrent_path_str: &str, tracks_filter: &str) -> Result<()> {
     let torrent_path = Path::new(torrent_path_str).canonicalize()?;
+    let current_dir = std::env::current_dir()?;
     
     let output = std::process::Command::new("nix")
         .args(["hash", "file", torrent_path.to_str().unwrap()])
@@ -70,7 +71,16 @@ pub fn run(torrent_path_str: &str, tracks_filter: &str) -> Result<()> {
         }
     }
 
-    let torrent_file_name = torrent_path.file_name().unwrap_or_default().to_string_lossy();
+    let rel_torrent = torrent_path
+        .strip_prefix(&current_dir)
+        .map_or_else(|_| torrent_path.clone(), Path::to_path_buf);
+
+    let torrent_nix_path = if rel_torrent.is_absolute() {
+        rel_torrent.to_string_lossy().into_owned()
+    } else {
+        format!("./{}", rel_torrent.to_string_lossy())
+    };
+
     let sanitized_pname = torrent.name.replace(' ', "-").replace(['(', ')', '[', ']', '_'], "-").to_lowercase();
     
     let mut out = String::new();
@@ -78,7 +88,7 @@ pub fn run(torrent_path_str: &str, tracks_filter: &str) -> Result<()> {
     out.push_str("vellum.mkAlbum {\n\n");
     let _ = writeln!(out, "  pname = \"{sanitized_pname}\";\n");
     out.push_str("  sourceTorrent = {\n");
-    let _ = writeln!(out, "    file = ./{torrent_file_name};");
+    let _ = writeln!(out, "    file = {torrent_nix_path};");
     let _ = writeln!(out, "    hash = \"{torrent_hash}\";");
     out.push_str("  };\n\n");
     out.push_str("  sourceDisk.hash = \"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\";\n\n");
