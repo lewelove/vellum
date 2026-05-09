@@ -88,14 +88,14 @@ fn build_album(
         torrent_file_path.to_string_lossy().to_string(),
     );
     vars.insert(
-        "sourceTorrent.sha256".to_string(),
-        album_info.torrent_sha256.clone(),
+        "sourceTorrent.hash".to_string(),
+        album_info.torrent_hash.clone(),
     );
     vars.insert("sourceTorrent.name".to_string(), torrent_name);
 
     run_verification(config, &vars, target)?;
 
-    let truncated_hash = crate::nix::get::get_nix32_truncate(&album_info.torrent_sha256);
+    let truncated_hash = crate::nix::get::get_nix32_truncate(&album_info.torrent_hash);
     let sanitized_pname = album_info.pname.replace('"', "").trim().replace(' ', "-");
     let link_name = format!("{sanitized_pname}-{truncated_hash}");
 
@@ -183,7 +183,7 @@ fn execute_nix_build(
     result_link: &Path,
 ) -> Result<()> {
     let expr =
-        format!("(import ./album.nix {{ vellix = (builtins.getFlake \"{flake_uri}\").lib; }})");
+        format!("(import ./album.nix {{ vellum = (builtins.getFlake \"{flake_uri}\").lib; }})");
     let mut cmd = Command::new("nix");
     cmd.env("VELLUM_STAGING_SRC", staging_src_env);
     cmd.arg("build")
@@ -217,7 +217,7 @@ fn pin_source_and_seed(
     vars: &mut HashMap<String, String>,
 ) -> Result<()> {
     let expr_source = format!(
-        "(import ./album.nix {{ vellix = (builtins.getFlake \"{flake_uri}\").lib; }}).sourceStorePath"
+        "(import ./album.nix {{ vellum = (builtins.getFlake \"{flake_uri}\").lib; }}).sourceStorePath"
     );
     
     let eval_output = Command::new("nix")

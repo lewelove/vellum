@@ -11,7 +11,7 @@ pub struct AlbumInfo {
     pub source_disk_path: String,
     pub source_disk_hash: String,
     pub torrent_file: String,
-    pub torrent_sha256: String,
+    pub torrent_hash: String,
 }
 
 pub fn get_nix32_truncate(hash: &str) -> String {
@@ -34,7 +34,7 @@ pub fn get_nix32_truncate(hash: &str) -> String {
 fn eval_nix_field(path: &Path, field_path: &str) -> Result<String> {
     let path_str = path.to_string_lossy();
     let expr = format!(
-        "let res = (import (/. + \"{path_str}\") {{ vellix = {{ mkAlbum = x: x; }}; }}); in builtins.toString (res.{field_path} or \"\")"
+        "let res = (import (/. + \"{path_str}\") {{ vellum = {{ mkAlbum = x: x; }}; }}); in builtins.toString (res.{field_path} or \"\")"
     );
 
     let output = Command::new("nix")
@@ -66,7 +66,7 @@ pub fn resolve_source_disk(album_info: &AlbumInfo, base_dir: &Path, config: &App
             |n| libvellum::utils::expand_path(&n.store),
         );
 
-        let truncated = get_nix32_truncate(&album_info.torrent_sha256);
+        let truncated = get_nix32_truncate(&album_info.torrent_hash);
         let sanitized_pname = album_info.pname.replace('"', "").trim().replace(' ', "-");
         let link_name = format!("{sanitized_pname}-{truncated}");
         
@@ -103,14 +103,14 @@ pub fn parse_album_nix(path: &Path) -> Result<AlbumInfo> {
     let source_disk_path = eval_nix_field(&abs_path, "sourceDisk.path")?;
     let source_disk_hash = eval_nix_field(&abs_path, "sourceDisk.hash")?;
     let torrent_file = eval_nix_field(&abs_path, "sourceTorrent.file")?;
-    let torrent_sha256 = eval_nix_field(&abs_path, "sourceTorrent.sha256")?;
+    let torrent_hash = eval_nix_field(&abs_path, "sourceTorrent.hash")?;
 
     Ok(AlbumInfo { 
         pname: if pname.is_empty() { "unknown".to_string() } else { pname },
         source_disk_path, 
         source_disk_hash, 
         torrent_file, 
-        torrent_sha256 
+        torrent_hash 
     })
 }
 
@@ -152,8 +152,8 @@ pub fn run(album_path: Option<String>) -> Result<()> {
         .output()?;
     let current_sha256 = String::from_utf8(output.stdout)?.trim().to_string();
 
-    if current_sha256 != album_info.torrent_sha256 {
-        anyhow::bail!("Torrent file hash mismatch! Expected {}, got {}", album_info.torrent_sha256, current_sha256);
+    if current_sha256 != album_info.torrent_hash {
+        anyhow::bail!("Torrent file hash mismatch! Expected {}, got {}", album_info.torrent_hash, current_sha256);
     }
 
     let torrent_file_path = if album_info.torrent_file.starts_with("./") {
@@ -170,7 +170,7 @@ pub fn run(album_path: Option<String>) -> Result<()> {
     let mut vars = std::collections::HashMap::new();
     vars.insert("sourceDisk.path".to_string(), source_disk.to_string_lossy().to_string());
     vars.insert("sourceTorrent.file".to_string(), torrent_file_path.to_string_lossy().to_string());
-    vars.insert("sourceTorrent.sha256".to_string(), album_info.torrent_sha256);
+    vars.insert("sourceTorrent.hash".to_string(), album_info.torrent_hash);
     vars.insert("sourceTorrent.name".to_string(), torrent_name);
 
     let cmd_tpl = cmds.get("get_torrent").context("No 'get_torrent' command configured")?;
