@@ -30,6 +30,7 @@
 
 <style>
   .cover-wrapper {
+    background-color: #1f1f1f;
     flex: 0 1 auto;
     height: 100%;
     max-height: 100%;
