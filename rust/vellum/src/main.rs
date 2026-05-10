@@ -97,6 +97,8 @@ enum NixCommands {
         torrent: String,
         #[arg(long, default_value = "flac,wav")]
         tracks: String,
+        #[arg(long)]
+        metadata: Option<String>,
     },
     Get {
         #[arg(value_name = "PATH")]
@@ -195,7 +197,7 @@ async fn main() -> Result<()> {
             query::run(query_str, flags).await
         }
         Commands::Nix { command } => match command {
-            NixCommands::Manifest { torrent, tracks } => nix::manifest::run(&torrent, &tracks),
+            NixCommands::Manifest { torrent, tracks, metadata } => nix::manifest::run(&torrent, &tracks, metadata),
             NixCommands::Get { path } => nix::get::run(path),
             NixCommands::Build { path } => nix::build::run(path),
         },
