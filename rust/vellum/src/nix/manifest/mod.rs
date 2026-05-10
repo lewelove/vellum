@@ -1,3 +1,5 @@
+pub mod globbing;
+
 use anyhow::Result;
 use lava_torrent::torrent::v1::Torrent;
 use std::fmt::Write;
@@ -19,26 +21,22 @@ pub fn run(torrent_path_str: &str, tracks_filter: &str) -> Result<()> {
     let torrent = Torrent::read_from_file(&torrent_path)
         .map_err(|e| anyhow::anyhow!("Failed to parse torrent: {e}"))?;
         
-    let allowed_exts: Vec<String> = tracks_filter
-        .split(',')
-        .map(|s| format!(".{}", s.trim().to_lowercase()))
-        .collect();
+    let globset = globbing::build_globset(tracks_filter)?;
         
     let mut valid_paths = Vec::new();
     
     if let Some(files) = &torrent.files {
         for f in files {
             let path_buf = f.path.clone();
-            let ext = path_buf.extension().and_then(|e| e.to_str()).map(|e| format!(".{}", e.to_lowercase())).unwrap_or_default();
-            if allowed_exts.contains(&ext) {
+            let path_str = path_buf.to_string_lossy();
+            if globset.is_match(path_str.as_ref()) {
                 valid_paths.push(path_buf);
             }
         }
     } else {
         let name_str = &torrent.name;
-        let path = Path::new(name_str);
-        let ext = path.extension().and_then(|e| e.to_str()).map(|e| format!(".{}", e.to_lowercase())).unwrap_or_default();
-        if allowed_exts.contains(&ext) {
+        if globset.is_match(name_str) {
+            let path = Path::new(name_str);
             valid_paths.push(path.to_path_buf());
         }
     }
