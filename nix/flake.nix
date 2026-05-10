@@ -140,10 +140,27 @@
         rawSrcPath = if stagingSrc != "" then stagingSrc
                      else throw "VELLUM_STAGING_SRC must be set during build initialization";
 
-        realSrc = if builtins.match ".*/[0-9a-df-np-sv-z]{32}-.*" rawSrcPath != null 
-                  then /. + rawSrcPath 
-                  else if sourceDisk.hash == "" then throw "sourceDisk.hash is required to guarantee fixed output integrity"
-                  else builtins.path { name = "${pname}-source"; path = /. + rawSrcPath; sha256 = sourceDisk.hash; };
+        envTorrentName = builtins.getEnv "VELLUM_TORRENT_NAME";
+        srcBaseName = if envTorrentName != "" then envTorrentName
+                      else if (sourceTorrent.name or "") != "" then sourceTorrent.name
+                      else pname;
+
+        realSrc = 
+          let
+            storeMatch = builtins.match ".*(/nix/store/[0-9abcdfghijklmnpqrsvwxyz]{32}-.*)" rawSrcPath;
+            rawVal = if storeMatch != null then builtins.elemAt storeMatch 0 else rawSrcPath;
+            isStore = builtins.isString rawVal && builtins.match "/nix/store/.*" rawVal != null;
+          in
+          if isStore then 
+            builtins.storePath rawVal
+          else if builtins.isPath rawVal then 
+            builtins.path { 
+              name = "${srcBaseName}-source"; 
+              path = rawVal; 
+              sha256 = sourceDisk.hash; 
+            }
+          else 
+            rawVal;
 
         processedCover = if cover != null 
                          then (

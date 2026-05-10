@@ -315,10 +315,27 @@ This section contains the contents of the repository's files.
         rawSrcPath = if stagingSrc != "" then stagingSrc
                      else throw "VELLUM_STAGING_SRC must be set during build initialization";
 
-        realSrc = if builtins.match ".*/[0-9a-df-np-sv-z]{32}-.*" rawSrcPath != null 
-                  then /. + rawSrcPath 
-                  else if sourceDisk.hash == "" then throw "sourceDisk.hash is required to guarantee fixed output integrity"
-                  else builtins.path { name = "${pname}-source"; path = /. + rawSrcPath; sha256 = sourceDisk.hash; };
+        envTorrentName = builtins.getEnv "VELLUM_TORRENT_NAME";
+        srcBaseName = if envTorrentName != "" then envTorrentName
+                      else if (sourceTorrent.name or "") != "" then sourceTorrent.name
+                      else pname;
+
+        realSrc = 
+          let
+            storeMatch = builtins.match ".*(/nix/store/[0-9abcdfghijklmnpqrsvwxyz]{32}-.*)" rawSrcPath;
+            rawVal = if storeMatch != null then builtins.elemAt storeMatch 0 else rawSrcPath;
+            isStore = builtins.isString rawVal && builtins.match "/nix/store/.*" rawVal != null;
+          in
+          if isStore then 
+            builtins.storePath rawVal
+          else if builtins.isPath rawVal then 
+            builtins.path { 
+              name = "${srcBaseName}-source"; 
+              path = rawVal; 
+              sha256 = sourceDisk.hash; 
+            }
+          else 
+            rawVal;
 
         processedCover = if cover != null 
                          then (
@@ -5007,13 +5024,23 @@ fn serialize_manifest(
 
 <file path="rust/vellum/src/nix/build/mod.rs">
 use anyhow::{Context, Result};
-use lava_torrent::torrent::v1::Torrent;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 use libvellum::config::AppConfig;
 use libvellum::utils::expand_path;
+
+#[derive(Clone, Copy)]
+struct PinOptions<'a> {
+    target: &'a Path,
+    store_path: &'a Path,
+    staging_src_env: &'a str,
+    torrent_name: &'a str,
+    flake_uri: &'a str,
+    config: &'a AppConfig,
+    link_name: &'a str,
+}
 
 pub fn run(album_path: Option<String>) -> Result<()> {
     let (config, _, _) = AppConfig::load().context("Failed to load config")?;
@@ -5079,12 +5106,11 @@ fn build_album(
 
     let torrent_file_path = if album_info.torrent_file.starts_with("./") {
         target.join(album_info.torrent_file.trim_start_matches("./"))
+    } else if album_info.torrent_file.starts_with('/') {
+        std::path::PathBuf::from(&album_info.torrent_file)
     } else {
         target.join(&album_info.torrent_file)
     };
-
-    let torrent_name = Torrent::read_from_file(&torrent_file_path)
-        .map_or_else(|_| album_info.pname.clone(), |t| t.name);
 
     let mut vars = HashMap::new();
     vars.insert(
@@ -5099,19 +5125,19 @@ fn build_album(
         "sourceTorrent.hash".to_string(),
         album_info.torrent_hash.clone(),
     );
-    vars.insert("sourceTorrent.name".to_string(), torrent_name);
+    vars.insert("sourceTorrent.name".to_string(), album_info.torrent_name.clone());
 
     run_verification(config, &vars, target)?;
 
     let truncated_hash = crate::nix::get::get_nix32_truncate(&album_info.torrent_hash);
-    let sanitized_pname = album_info.pname.replace('"', "").trim().replace(' ', "-");
-    let link_name = format!("{sanitized_pname}-{truncated_hash}");
+    let sanitized_source = crate::nix::get::sanitize_source_name(&album_info.torrent_name);
+    let link_name = format!("{sanitized_source}-{truncated_hash}");
 
     let gc_roots_albums = store_path.join("gcroots").join("albums");
     fs::create_dir_all(&gc_roots_albums).context("Failed to create gcroots/albums directory")?;
 
-    let result_link = gc_roots_albums.join(&link_name);
-    execute_nix_build(target, store_path, &staging_src_env, flake_uri, &result_link)?;
+    let result_link = gc_roots_albums.join(format!("{}-{}", album_info.pname, truncated_hash));
+    execute_nix_build(target, store_path, &staging_src_env, &sanitized_source, flake_uri, &result_link)?;
 
     let logical_path = fs::read_link(&result_link).with_context(|| {
         format!(
@@ -5125,15 +5151,17 @@ fn build_album(
         
     materialize_output(&physical_store_path, target, store_path)?;
 
-    pin_source_and_seed(
+    let pin_opts = PinOptions {
         target,
         store_path,
-        &staging_src_env,
+        staging_src_env: &staging_src_env,
+        torrent_name: &sanitized_source,
         flake_uri,
         config,
-        &link_name,
-        &mut vars,
-    )?;
+        link_name: &link_name,
+    };
+
+    pin_source_and_seed(pin_opts, &mut vars)?;
 
     Ok(())
 }
@@ -5187,6 +5215,7 @@ fn execute_nix_build(
     target: &Path,
     store_path: &Path,
     staging_src_env: &str,
+    torrent_name: &str,
     flake_uri: &str,
     result_link: &Path,
 ) -> Result<()> {
@@ -5194,6 +5223,7 @@ fn execute_nix_build(
         format!("(import ./album.nix {{ vellum = (builtins.getFlake \"{flake_uri}\").lib; }})");
     let mut cmd = Command::new("nix");
     cmd.env("VELLUM_STAGING_SRC", staging_src_env);
+    cmd.env("VELLUM_TORRENT_NAME", torrent_name);
     cmd.arg("build")
         .arg("--store")
         .arg(store_path)
@@ -5216,28 +5246,25 @@ fn execute_nix_build(
 }
 
 fn pin_source_and_seed(
-    target: &Path,
-    store_path: &Path,
-    staging_src_env: &str,
-    flake_uri: &str,
-    config: &AppConfig,
-    link_name: &str,
+    opts: PinOptions,
     vars: &mut HashMap<String, String>,
 ) -> Result<()> {
     let expr_source = format!(
-        "(import ./album.nix {{ vellum = (builtins.getFlake \"{flake_uri}\").lib; }}).sourceStorePath"
+        "(import ./album.nix {{ vellum = (builtins.getFlake \"{}\").lib; }}).sourceStorePath",
+        opts.flake_uri
     );
     
     let eval_output = Command::new("nix")
-        .env("VELLUM_STAGING_SRC", staging_src_env)
+        .env("VELLUM_STAGING_SRC", opts.staging_src_env)
+        .env("VELLUM_TORRENT_NAME", opts.torrent_name)
         .arg("eval")
         .arg("--store")
-        .arg(store_path)
+        .arg(opts.store_path)
         .arg("--raw")
         .arg("--impure")
         .arg("--expr")
         .arg(&expr_source)
-        .current_dir(target)
+        .current_dir(opts.target)
         .output()?;
 
     let source_store_path_raw = String::from_utf8_lossy(&eval_output.stdout).trim().to_string();
@@ -5247,12 +5274,12 @@ fn pin_source_and_seed(
 
     let mapped_source_store_path = source_store_path_raw.strip_prefix("/").map_or_else(
         || source_store_path_raw.clone(),
-        |stripped| store_path.join(stripped).to_string_lossy().to_string(),
+        |stripped| opts.store_path.join(stripped).to_string_lossy().to_string(),
     );
 
-    let gc_roots_source = store_path.join("gcroots").join("source");
+    let gc_roots_source = opts.store_path.join("gcroots").join("source");
     fs::create_dir_all(&gc_roots_source)?;
-    let source_link = gc_roots_source.join(link_name);
+    let source_link = gc_roots_source.join(opts.link_name);
 
     if source_link.exists() || source_link.symlink_metadata().is_ok() {
         fs::remove_file(&source_link)?;
@@ -5268,7 +5295,7 @@ fn pin_source_and_seed(
 
     vars.insert("sourceStorePath".to_string(), mapped_source_store_path);
 
-    if let Some(nix_cfg) = &config.nix
+    if let Some(nix_cfg) = &opts.config.nix
         && let Some(cmds) = &nix_cfg.commands
         && let Some(seed_cmd_tpl) = cmds.get("seed_torrent")
     {
@@ -5277,7 +5304,7 @@ fn pin_source_and_seed(
         let _ = Command::new("sh")
             .arg("-c")
             .arg(&final_seed_cmd)
-            .current_dir(target)
+            .current_dir(opts.target)
             .status();
     }
 
@@ -5352,7 +5379,19 @@ pub struct AlbumInfo {
     pub source_disk_path: String,
     pub source_disk_hash: String,
     pub torrent_file: String,
+    pub torrent_name: String,
     pub torrent_hash: String,
+}
+
+pub fn sanitize_source_name(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 pub fn get_nix32_truncate(hash: &str) -> String {
@@ -5408,8 +5447,8 @@ pub fn resolve_source_disk(album_info: &AlbumInfo, base_dir: &Path, config: &App
         );
 
         let truncated = get_nix32_truncate(&album_info.torrent_hash);
-        let sanitized_pname = album_info.pname.replace('"', "").trim().replace(' ', "-");
-        let link_name = format!("{sanitized_pname}-{truncated}");
+        let sanitized_source = sanitize_source_name(&album_info.torrent_name);
+        let link_name = format!("{sanitized_source}-{truncated}");
         
         let gc_root = store_root.join("gcroots").join("source").join(&link_name);
         if gc_root.exists() {
@@ -5439,18 +5478,35 @@ pub fn resolve_template(template: &str, vars: &std::collections::HashMap<String,
 
 pub fn parse_album_nix(path: &Path) -> Result<AlbumInfo> {
     let abs_path = path.canonicalize().context("Failed to canonicalize album.nix path")?;
+    let album_dir = abs_path.parent().unwrap();
     
     let pname = eval_nix_field(&abs_path, "pname")?;
     let source_disk_path = eval_nix_field(&abs_path, "sourceDisk.path")?;
     let source_disk_hash = eval_nix_field(&abs_path, "sourceDisk.hash")?;
     let torrent_file = eval_nix_field(&abs_path, "sourceTorrent.file")?;
+    let mut torrent_name = eval_nix_field(&abs_path, "sourceTorrent.name")?;
     let torrent_hash = eval_nix_field(&abs_path, "sourceTorrent.hash")?;
+
+    if torrent_name.is_empty() && !torrent_file.is_empty() {
+        let torrent_path = if torrent_file.starts_with("./") {
+            album_dir.join(torrent_file.trim_start_matches("./"))
+        } else if torrent_file.starts_with('/') {
+            PathBuf::from(&torrent_file)
+        } else {
+            album_dir.join(&torrent_file)
+        };
+
+        if let Ok(t) = Torrent::read_from_file(&torrent_path) {
+            torrent_name = t.name;
+        }
+    }
 
     Ok(AlbumInfo { 
         pname: if pname.is_empty() { "unknown".to_string() } else { pname },
         source_disk_path, 
         source_disk_hash, 
         torrent_file, 
+        torrent_name: if torrent_name.is_empty() { "unknown-source".to_string() } else { torrent_name },
         torrent_hash 
     })
 }
@@ -5483,36 +5539,34 @@ pub fn run(album_path: Option<String>) -> Result<()> {
     let album_info = parse_album_nix(&target_path)?;
     let album_dir = target_path.parent().unwrap();
 
-    let torrent_path = album_dir.join(album_info.torrent_file.trim_start_matches("./"));
-    if !torrent_path.exists() {
-        anyhow::bail!("Torrent file not found: {}", torrent_path.display());
+    let torrent_file_path = if album_info.torrent_file.starts_with("./") {
+        album_dir.join(album_info.torrent_file.trim_start_matches("./"))
+    } else if album_info.torrent_file.starts_with('/') {
+        PathBuf::from(&album_info.torrent_file)
+    } else {
+        album_dir.join(&album_info.torrent_file)
+    };
+
+    if !torrent_file_path.exists() {
+        anyhow::bail!("Torrent file not found: {}", torrent_file_path.display());
     }
 
     let output = Command::new("nix")
-        .args(["hash", "file", torrent_path.to_str().unwrap()])
+        .args(["hash", "file", torrent_file_path.to_str().unwrap()])
         .output()?;
     let current_sha256 = String::from_utf8(output.stdout)?.trim().to_string();
 
     if current_sha256 != album_info.torrent_hash {
         anyhow::bail!("Torrent file hash mismatch! Expected {}, got {}", album_info.torrent_hash, current_sha256);
     }
-
-    let torrent_file_path = if album_info.torrent_file.starts_with("./") {
-        album_dir.join(album_info.torrent_file.trim_start_matches("./"))
-    } else {
-        album_dir.join(&album_info.torrent_file)
-    };
     
     let source_disk = resolve_source_disk(&album_info, album_dir, &config);
-
-    let torrent_name = Torrent::read_from_file(&torrent_file_path)
-        .map_or_else(|_| album_info.pname.clone(), |t| t.name);
 
     let mut vars = std::collections::HashMap::new();
     vars.insert("sourceDisk.path".to_string(), source_disk.to_string_lossy().to_string());
     vars.insert("sourceTorrent.file".to_string(), torrent_file_path.to_string_lossy().to_string());
     vars.insert("sourceTorrent.hash".to_string(), album_info.torrent_hash);
-    vars.insert("sourceTorrent.name".to_string(), torrent_name);
+    vars.insert("sourceTorrent.name".to_string(), album_info.torrent_name);
 
     let cmd_tpl = cmds.get("get_torrent").context("No 'get_torrent' command configured")?;
     let final_cmd = resolve_template(cmd_tpl, &vars);

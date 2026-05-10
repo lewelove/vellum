@@ -1,11 +1,21 @@
 use anyhow::{Context, Result};
-use lava_torrent::torrent::v1::Torrent;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 use libvellum::config::AppConfig;
 use libvellum::utils::expand_path;
+
+#[derive(Clone, Copy)]
+struct PinOptions<'a> {
+    target: &'a Path,
+    store_path: &'a Path,
+    staging_src_env: &'a str,
+    torrent_name: &'a str,
+    flake_uri: &'a str,
+    config: &'a AppConfig,
+    link_name: &'a str,
+}
 
 pub fn run(album_path: Option<String>) -> Result<()> {
     let (config, _, _) = AppConfig::load().context("Failed to load config")?;
@@ -71,12 +81,11 @@ fn build_album(
 
     let torrent_file_path = if album_info.torrent_file.starts_with("./") {
         target.join(album_info.torrent_file.trim_start_matches("./"))
+    } else if album_info.torrent_file.starts_with('/') {
+        std::path::PathBuf::from(&album_info.torrent_file)
     } else {
         target.join(&album_info.torrent_file)
     };
-
-    let torrent_name = Torrent::read_from_file(&torrent_file_path)
-        .map_or_else(|_| album_info.pname.clone(), |t| t.name);
 
     let mut vars = HashMap::new();
     vars.insert(
@@ -91,19 +100,19 @@ fn build_album(
         "sourceTorrent.hash".to_string(),
         album_info.torrent_hash.clone(),
     );
-    vars.insert("sourceTorrent.name".to_string(), torrent_name);
+    vars.insert("sourceTorrent.name".to_string(), album_info.torrent_name.clone());
 
     run_verification(config, &vars, target)?;
 
     let truncated_hash = crate::nix::get::get_nix32_truncate(&album_info.torrent_hash);
-    let sanitized_pname = album_info.pname.replace('"', "").trim().replace(' ', "-");
-    let link_name = format!("{sanitized_pname}-{truncated_hash}");
+    let sanitized_source = crate::nix::get::sanitize_source_name(&album_info.torrent_name);
+    let link_name = format!("{sanitized_source}-{truncated_hash}");
 
     let gc_roots_albums = store_path.join("gcroots").join("albums");
     fs::create_dir_all(&gc_roots_albums).context("Failed to create gcroots/albums directory")?;
 
-    let result_link = gc_roots_albums.join(&link_name);
-    execute_nix_build(target, store_path, &staging_src_env, flake_uri, &result_link)?;
+    let result_link = gc_roots_albums.join(format!("{}-{}", album_info.pname, truncated_hash));
+    execute_nix_build(target, store_path, &staging_src_env, &sanitized_source, flake_uri, &result_link)?;
 
     let logical_path = fs::read_link(&result_link).with_context(|| {
         format!(
@@ -117,15 +126,17 @@ fn build_album(
         
     materialize_output(&physical_store_path, target, store_path)?;
 
-    pin_source_and_seed(
+    let pin_opts = PinOptions {
         target,
         store_path,
-        &staging_src_env,
+        staging_src_env: &staging_src_env,
+        torrent_name: &sanitized_source,
         flake_uri,
         config,
-        &link_name,
-        &mut vars,
-    )?;
+        link_name: &link_name,
+    };
+
+    pin_source_and_seed(pin_opts, &mut vars)?;
 
     Ok(())
 }
@@ -179,6 +190,7 @@ fn execute_nix_build(
     target: &Path,
     store_path: &Path,
     staging_src_env: &str,
+    torrent_name: &str,
     flake_uri: &str,
     result_link: &Path,
 ) -> Result<()> {
@@ -186,6 +198,7 @@ fn execute_nix_build(
         format!("(import ./album.nix {{ vellum = (builtins.getFlake \"{flake_uri}\").lib; }})");
     let mut cmd = Command::new("nix");
     cmd.env("VELLUM_STAGING_SRC", staging_src_env);
+    cmd.env("VELLUM_TORRENT_NAME", torrent_name);
     cmd.arg("build")
         .arg("--store")
         .arg(store_path)
@@ -208,28 +221,25 @@ fn execute_nix_build(
 }
 
 fn pin_source_and_seed(
-    target: &Path,
-    store_path: &Path,
-    staging_src_env: &str,
-    flake_uri: &str,
-    config: &AppConfig,
-    link_name: &str,
+    opts: PinOptions,
     vars: &mut HashMap<String, String>,
 ) -> Result<()> {
     let expr_source = format!(
-        "(import ./album.nix {{ vellum = (builtins.getFlake \"{flake_uri}\").lib; }}).sourceStorePath"
+        "(import ./album.nix {{ vellum = (builtins.getFlake \"{}\").lib; }}).sourceStorePath",
+        opts.flake_uri
     );
     
     let eval_output = Command::new("nix")
-        .env("VELLUM_STAGING_SRC", staging_src_env)
+        .env("VELLUM_STAGING_SRC", opts.staging_src_env)
+        .env("VELLUM_TORRENT_NAME", opts.torrent_name)
         .arg("eval")
         .arg("--store")
-        .arg(store_path)
+        .arg(opts.store_path)
         .arg("--raw")
         .arg("--impure")
         .arg("--expr")
         .arg(&expr_source)
-        .current_dir(target)
+        .current_dir(opts.target)
         .output()?;
 
     let source_store_path_raw = String::from_utf8_lossy(&eval_output.stdout).trim().to_string();
@@ -239,12 +249,12 @@ fn pin_source_and_seed(
 
     let mapped_source_store_path = source_store_path_raw.strip_prefix("/").map_or_else(
         || source_store_path_raw.clone(),
-        |stripped| store_path.join(stripped).to_string_lossy().to_string(),
+        |stripped| opts.store_path.join(stripped).to_string_lossy().to_string(),
     );
 
-    let gc_roots_source = store_path.join("gcroots").join("source");
+    let gc_roots_source = opts.store_path.join("gcroots").join("source");
     fs::create_dir_all(&gc_roots_source)?;
-    let source_link = gc_roots_source.join(link_name);
+    let source_link = gc_roots_source.join(opts.link_name);
 
     if source_link.exists() || source_link.symlink_metadata().is_ok() {
         fs::remove_file(&source_link)?;
@@ -260,7 +270,7 @@ fn pin_source_and_seed(
 
     vars.insert("sourceStorePath".to_string(), mapped_source_store_path);
 
-    if let Some(nix_cfg) = &config.nix
+    if let Some(nix_cfg) = &opts.config.nix
         && let Some(cmds) = &nix_cfg.commands
         && let Some(seed_cmd_tpl) = cmds.get("seed_torrent")
     {
@@ -269,7 +279,7 @@ fn pin_source_and_seed(
         let _ = Command::new("sh")
             .arg("-c")
             .arg(&final_seed_cmd)
-            .current_dir(target)
+            .current_dir(opts.target)
             .status();
     }
 
