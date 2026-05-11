@@ -4,12 +4,14 @@ vellum.mkAlbum {
 
   pname = "";
 
+  sourceDisk = {
+    hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  };
+
   sourceTorrent = {
     file = ./Info/source.torrent;
     hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
   };
-
-  sourceDisk.hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
   cover = {
     file = ./cover.png;
@@ -18,10 +20,6 @@ vellum.mkAlbum {
 
   album = {
     metadata = {
-      albumartist = "";
-      album = "";
-      date = "";
-      genre = "";
     };
     mbid = {
     };
@@ -31,8 +29,6 @@ vellum.mkAlbum {
     {
       file = "";
       metadata = {
-        tracknumber = 1;
-        title = "";
       };
       mbid = {
       };
