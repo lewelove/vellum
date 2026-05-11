@@ -151,8 +151,10 @@ fn verify_hash(target_path: &Path, expected_hash: &str, name: &str) -> Result<()
         anyhow::bail!("{name} path does not exist at: {}", target_path.display());
     }
 
+    let mode = if target_path.is_dir() { "path" } else { "file" };
+
     let hash_output = Command::new("nix")
-        .args(["hash", "path", target_path.to_str().unwrap()])
+        .args(["hash", mode, target_path.to_str().unwrap()])
         .output()
         .context(format!("Failed to compute {name} hash using nix"))?;
 

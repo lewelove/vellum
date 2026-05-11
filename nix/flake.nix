@@ -167,7 +167,12 @@
                            if builtins.isPath cover.file
                            then let
                              realCoverPath = if (cover.hash or "") != "" then
-                               builtins.path { name = "${pname}-cover-src"; path = cover.file; sha256 = cover.hash; }
+                               builtins.path { 
+                                 name = "${pname}-cover-src"; 
+                                 path = cover.file; 
+                                 sha256 = cover.hash; 
+                                 recursive = false;
+                               }
                              else cover.file;
                            in self.lib.mkCover { name = "${pname}-cover"; src = realCoverPath; }
                            else self.lib.mkCover { name = "${pname}-cover"; src = realSrc; relPath = cover.file; }
