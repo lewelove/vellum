@@ -18,8 +18,18 @@
       "tracknumber"
       "discnumber"
       "genre"
+      "styles"
       "label"
       "catalognumber"
+      "country"
+      "original_yyyy_mm"
+      "release_yyyy_mm"
+      "musicbrainz_albumid"
+      "musicbrainz_releasegroupid"
+      "musicbrainz_albumartistid"
+      "musicbrainz_trackid"
+      "musicbrainz_releasetrackid"
+      "musicbrainz_artistid"
       "composer"
       "performer"
       "conductor"
@@ -81,7 +91,7 @@
         pname, 
         sourceDisk ? { hash = ""; },
         sourceTorrent ? { hash = ""; },
-        album ? { metadata = {}; },
+        album ? {},
         tracks ? [], 
         cover ? null
       }: let
@@ -102,21 +112,36 @@
           else if builtins.isList v then "[ " + pkgs.lib.concatMapStringsSep ", " toTomlVal v + " ]"
           else "\"\"";
         
-        albumOrder = [
-          "albumartist"
-          "album"
-          "date"
-          "\n"
-          "genre"
-          "comment"
-        ];
-
-        trackOrder = [
-          "tracknumber"
-          "discnumber"
-          "title"
-          "artist"
-        ];
+        manifests = {
+          metadata = [
+            "albumartist"
+            "album"
+            "date"
+            "\n"
+            "genre"
+            "styles"
+            "\n"
+            "original_yyyy_mm"
+            "\n"
+            "country"
+            "label"
+            "catalognumber"
+            "release_yyyy_mm"
+            "\n"
+            "tracknumber"
+            "discnumber"
+            "title"
+            "artist"
+          ];
+          mbid = [
+            "musicbrainz_albumid"
+            "musicbrainz_releasegroupid"
+            "musicbrainz_albumartistid"
+            "musicbrainz_trackid"
+            "musicbrainz_releasetrackid"
+            "musicbrainz_artistid"
+          ];
+        };
 
         toTomlTable = order: attrs: let
           orderedLines = pkgs.lib.concatMap (k:
@@ -124,16 +149,18 @@
             else if builtins.hasAttr k attrs then [ "${k} = ${toTomlVal attrs.${k}}" ]
             else []
           ) order;
-          remainingKeys = builtins.filter (k: !(builtins.elem k order)) (builtins.attrNames attrs);
-          sortedRemainingKeys = builtins.sort (a: b: a < b) remainingKeys;
-          appendixLines = builtins.map (k: "${k} = ${toTomlVal attrs.${k}}") sortedRemainingKeys;
-          allLines = orderedLines ++ (if builtins.length appendixLines > 0 then [ "" ] ++ appendixLines else[]);
-        in pkgs.lib.concatStringsSep "\n" allLines;
+          remainingKeys = builtins.filter (k: !(builtins.elem k order) && k != "tracknumber" && k != "discnumber") (builtins.attrNames attrs);
+          appendixLines = builtins.map (k: "${k} = ${toTomlVal attrs.${k}}") (builtins.sort (a: b: a < b) remainingKeys);
+          rawLines = orderedLines ++ (if builtins.length appendixLines > 0 then [ "" ] ++ appendixLines else []);
+          cleanLines = pkgs.lib.foldl' (acc: x: if x != "" then acc ++ [x] else if (acc == [] || pkgs.lib.last acc == "") then acc else acc ++ [""]) [] rawLines;
+          tightLines = if cleanLines != [] && pkgs.lib.last cleanLines == "" then pkgs.lib.init cleanLines else cleanLines;
+        in pkgs.lib.concatStringsSep "\n" tightLines;
 
-        albumBlock = "[album]\n${toTomlTable albumOrder album.metadata}";
-        trackBlocks = builtins.map (t: "[[tracks]]\n${toTomlTable trackOrder (t.metadata or {})}") tracks;
-        metadataTomlContent = pkgs.lib.concatStringsSep "\n\n" ([ albumBlock ] ++ trackBlocks) + "\n";
-        metadataToml = pkgs.writeText "metadata.toml" metadataTomlContent;
+        activeTomls = pkgs.lib.mapAttrs (name: keys: let
+          aS = if album ? ${name} then "[album]\n${toTomlTable keys album.${name}}" else "";
+          tS = pkgs.lib.concatMapStringsSep "\n\n" (t: "[[tracks]]\n${toTomlTable keys (t.${name} or {})}") (builtins.filter (t: t ? ${name}) tracks);
+          sep = if aS != "" && tS != "" then "\n\n" else "";
+        in pkgs.writeText "${name}.toml" (aS + sep + tS + "\n")) (pkgs.lib.filterAttrs (n: _: album ? ${n} || pkgs.lib.any (t: t ? ${n}) tracks) manifests);
 
         stagingSrc = builtins.getEnv "VELLUM_STAGING_SRC";
 
@@ -180,21 +207,17 @@
                          else null;
         
         builtTracks = pkgs.lib.lists.imap1 (idx: track: let
-          disc = track.metadata.discnumber or 1;
-          trk = track.metadata.tracknumber or 0;
-          title = track.metadata.title or "Untitled";
-
+          mergedMeta = pkgs.lib.foldl' (acc: n: acc // (album.${n} or {}) // (track.${n} or {})) {} (builtins.attrNames manifests);
+          disc = mergedMeta.discnumber or 1;
+          trk = mergedMeta.tracknumber or 0;
+          title = mergedMeta.title or "Untitled";
           discStr = pkgs.lib.fixedWidthString discPadLen "0" (toString disc);
           trkStr = pkgs.lib.fixedWidthString trackPadLen "0" (toString trk);
-          
           fileName = if maxDisc == 1 then "${trkStr} - ${title}.flac" else "${discStr}.${trkStr} - ${title}.flac";
-
-          mergedMeta = album.metadata // (track.metadata or {});
-          trackName = "${pname}-disc${toString disc}-track${toString trk}";
         in {
           inherit fileName;
           drv = self.lib.mkTrack {
-            name = trackName;
+            name = "${pname}-disc${toString disc}-track${toString trk}";
             src = realSrc;
             relPath = track.file;
             metadata = mergedMeta;
@@ -205,18 +228,16 @@
       in if hasDuplicates then throw "Duplicate discnumber and tracknumber combinations found in tracks." else pkgs.stdenv.mkDerivation {
         name = pname;
         src = realSrc;
-        
         passthru = {
           sourceStorePath = realSrc;
         };
-
         unpackPhase = "true";
         buildPhase = ''
           mkdir -p $out
           ${pkgs.lib.strings.concatMapStringsSep "\n" (t: ''
             ln -s "${t.drv}/track.flac" "$out/${t.fileName}"
           '') builtTracks}
-          cp ${metadataToml} $out/metadata.toml
+          ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: path: "cp ${path} $out/${name}.toml") activeTomls)}
         '';
         installPhase = "true";
       };
