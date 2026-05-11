@@ -79,7 +79,7 @@ fn build_album(
     let is_source_in_store = physical_source_disk.starts_with(store_path);
 
     if is_source_in_store {
-        log::info!("Source disk resides in Nix store. Skipping hash verification.");
+        log::info!("Found sourceDisk.path in store. Skipping verification...");
     } else {
         verify_hash(&physical_source_disk, &album_info.source_disk_hash, "Source disk")?;
     }
@@ -87,7 +87,7 @@ fn build_album(
     if album_info.cover_file.starts_with('/') {
         let cover_path = std::path::PathBuf::from(&album_info.cover_file);
         if cover_path.starts_with(store_path) {
-            log::info!("Cover image resides in Nix store. Skipping hash verification.");
+            log::info!("Found cover.file in store. Skipping verification...");
         } else {
             verify_hash(&cover_path, &album_info.cover_hash, "Cover image")?;
         }
@@ -117,7 +117,6 @@ fn build_album(
     vars.insert("sourceTorrent.name".to_string(), album_info.torrent_name.clone());
 
     if is_source_in_store {
-        log::info!("Source disk resides in Nix store. Skipping seed verification.");
     } else {
         run_verification(config, &vars, target)?;
     }
