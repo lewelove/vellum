@@ -76,12 +76,21 @@ fn build_album(
         .unwrap_or_else(|_| source_disk.clone());
 
     let staging_src_env = physical_source_disk.to_string_lossy().to_string();
+    let is_source_in_store = physical_source_disk.starts_with(store_path);
 
-    verify_hash(&physical_source_disk, &album_info.source_disk_hash, "Source disk")?;
+    if is_source_in_store {
+        log::info!("Source disk resides in Nix store. Skipping hash verification.");
+    } else {
+        verify_hash(&physical_source_disk, &album_info.source_disk_hash, "Source disk")?;
+    }
 
-    if album_info.cover_file.starts_with('/') && !album_info.cover_file.starts_with("/nix/store") {
+    if album_info.cover_file.starts_with('/') {
         let cover_path = std::path::PathBuf::from(&album_info.cover_file);
-        verify_hash(&cover_path, &album_info.cover_hash, "Cover image")?;
+        if cover_path.starts_with(store_path) {
+            log::info!("Cover image resides in Nix store. Skipping hash verification.");
+        } else {
+            verify_hash(&cover_path, &album_info.cover_hash, "Cover image")?;
+        }
     }
 
     let torrent_file_path = if album_info.torrent_file.starts_with("./") {
@@ -107,7 +116,11 @@ fn build_album(
     );
     vars.insert("sourceTorrent.name".to_string(), album_info.torrent_name.clone());
 
-    run_verification(config, &vars, target)?;
+    if is_source_in_store {
+        log::info!("Source disk resides in Nix store. Skipping seed verification.");
+    } else {
+        run_verification(config, &vars, target)?;
+    }
 
     let truncated_hash = crate::nix::get::get_nix32_truncate(&album_info.torrent_hash);
     let sanitized_source = crate::nix::get::sanitize_source_name(&album_info.torrent_name);
