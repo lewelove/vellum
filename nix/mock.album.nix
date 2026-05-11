@@ -11,6 +11,11 @@ vellum.mkAlbum {
 
   sourceDisk.hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
+  cover = {
+    file = ./cover.png;
+    hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  };
+
   album = {
     metadata = {
       albumartist = "";
@@ -18,9 +23,9 @@ vellum.mkAlbum {
       date = "";
       genre = "";
     };
+    mbid = {
+    };
   };
-
-  cover = ./cover.png;
 
   tracks = [
     {
@@ -28,6 +33,8 @@ vellum.mkAlbum {
       metadata = {
         tracknumber = 1;
         title = "";
+      };
+      mbid = {
       };
     }
   ];

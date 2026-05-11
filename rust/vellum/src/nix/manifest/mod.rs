@@ -62,12 +62,27 @@ pub fn run(torrent_path_str: &str, tracks_filter: &str, metadata_paths: Option<S
     });
 
     let merged_meta = merge_metadata_files(effective_paths)?;
+
+    let mut cover_file_name = "cover.png";
+    let mut cover_hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_string();
+
+    if let Ok(out) = Command::new("nix").args(["hash", "file", "cover.png"]).output()
+        && out.status.success() {
+            cover_hash = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    } else if let Ok(out_jpg) = Command::new("nix").args(["hash", "file", "cover.jpg"]).output()
+        && out_jpg.status.success() {
+            cover_file_name = "cover.jpg";
+            cover_hash = String::from_utf8_lossy(&out_jpg.stdout).trim().to_string();
+    }
+
     let output_nix = generate_nix_content(
         &torrent,
         &valid_paths,
         &torrent_hash,
         &torrent_nix_path,
         &merged_meta,
+        cover_file_name,
+        &cover_hash,
     );
 
     println!("{output_nix}");
@@ -97,6 +112,8 @@ fn generate_nix_content(
     torrent_hash: &str,
     torrent_nix_path: &str,
     merged_meta: &Value,
+    cover_file_name: &str,
+    cover_hash: &str,
 ) -> String {
     let album_data = merged_meta.get("album");
     let artist = album_data
@@ -136,6 +153,11 @@ fn generate_nix_content(
         "  sourceDisk.hash = \"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\";\n"
     );
 
+    let _ = writeln!(out, "  cover = {{");
+    let _ = writeln!(out, "    file = ./{cover_file_name};");
+    let _ = writeln!(out, "    hash = \"{cover_hash}\";");
+    let _ = writeln!(out, "  }};\n");
+
     let _ = writeln!(out, "  album = {{");
     let _ = writeln!(out, "    metadata = {{");
     if let Some(data) = album_data {
@@ -143,7 +165,6 @@ fn generate_nix_content(
     }
     let _ = writeln!(out, "    }};\n  }};\n");
 
-    let _ = writeln!(out, "  cover = ./cover.png;\n");
     let _ = writeln!(out, "  tracks = [");
 
     let meta_tracks = merged_meta.get("tracks").and_then(Value::as_array);

@@ -13,6 +13,8 @@ pub struct AlbumInfo {
     pub torrent_file: String,
     pub torrent_name: String,
     pub torrent_hash: String,
+    pub cover_file: String,
+    pub cover_hash: String,
 }
 
 pub fn sanitize_source_name(name: &str) -> String {
@@ -43,10 +45,10 @@ pub fn get_nix32_truncate(hash: &str) -> String {
     hash.trim_start_matches("sha256-").chars().take(32).collect::<String>().replace('/', "_").replace('+', "-")
 }
 
-fn eval_nix_field(path: &Path, field_path: &str) -> Result<String> {
+fn eval_nix_expr(path: &Path, expr_body: &str) -> Result<String> {
     let path_str = path.to_string_lossy();
     let expr = format!(
-        "let res = (import (/. + \"{path_str}\") {{ vellum = {{ mkAlbum = x: x; }}; }}); in builtins.toString (res.{field_path} or \"\")"
+        "let res = (import (/. + \"{path_str}\") {{ vellum = {{ mkAlbum = x: x; }}; }}); in builtins.toString {expr_body}"
     );
 
     let output = Command::new("nix")
@@ -56,10 +58,14 @@ fn eval_nix_field(path: &Path, field_path: &str) -> Result<String> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Nix evaluation failed for field {field_path}: {err}");
+        anyhow::bail!("Nix evaluation failed for expression {expr_body}: {err}");
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn eval_nix_field(path: &Path, field_path: &str) -> Result<String> {
+    eval_nix_expr(path, &format!("(res.{field_path} or \"\")"))
 }
 
 pub fn resolve_source_disk(album_info: &AlbumInfo, base_dir: &Path, config: &AppConfig) -> PathBuf {
@@ -119,6 +125,12 @@ pub fn parse_album_nix(path: &Path) -> Result<AlbumInfo> {
     let mut torrent_name = eval_nix_field(&abs_path, "sourceTorrent.name")?;
     let torrent_hash = eval_nix_field(&abs_path, "sourceTorrent.hash")?;
 
+    let cover_file_expr = "(if res ? cover && res.cover != null then (if res.cover ? file then res.cover.file else res.cover) else \"\")";
+    let cover_file = eval_nix_expr(&abs_path, cover_file_expr)?;
+
+    let cover_hash_expr = "(if res ? cover && res.cover != null && res.cover ? hash then res.cover.hash else \"\")";
+    let cover_hash = eval_nix_expr(&abs_path, cover_hash_expr)?;
+
     if torrent_name.is_empty() && !torrent_file.is_empty() {
         let torrent_path = if torrent_file.starts_with("./") {
             album_dir.join(torrent_file.trim_start_matches("./"))
@@ -139,7 +151,9 @@ pub fn parse_album_nix(path: &Path) -> Result<AlbumInfo> {
         source_disk_hash, 
         torrent_file, 
         torrent_name: if torrent_name.is_empty() { "unknown-source".to_string() } else { torrent_name },
-        torrent_hash 
+        torrent_hash,
+        cover_file,
+        cover_hash,
     })
 }
 

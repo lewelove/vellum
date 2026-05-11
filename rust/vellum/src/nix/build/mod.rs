@@ -77,7 +77,12 @@ fn build_album(
 
     let staging_src_env = physical_source_disk.to_string_lossy().to_string();
 
-    verify_source_hash(&physical_source_disk, &album_info.source_disk_hash)?;
+    verify_hash(&physical_source_disk, &album_info.source_disk_hash, "Source disk")?;
+
+    if album_info.cover_file.starts_with('/') && !album_info.cover_file.starts_with("/nix/store") {
+        let cover_path = std::path::PathBuf::from(&album_info.cover_file);
+        verify_hash(&cover_path, &album_info.cover_hash, "Cover image")?;
+    }
 
     let torrent_file_path = if album_info.torrent_file.starts_with("./") {
         target.join(album_info.torrent_file.trim_start_matches("./"))
@@ -141,21 +146,21 @@ fn build_album(
     Ok(())
 }
 
-fn verify_source_hash(source_disk: &Path, expected_hash: &str) -> Result<()> {
-    if !source_disk.exists() {
-        anyhow::bail!("Source path does not exist at: {}", source_disk.display());
+fn verify_hash(target_path: &Path, expected_hash: &str, name: &str) -> Result<()> {
+    if !target_path.exists() {
+        anyhow::bail!("{name} path does not exist at: {}", target_path.display());
     }
 
     let hash_output = Command::new("nix")
-        .args(["hash", "path", source_disk.to_str().unwrap()])
+        .args(["hash", "path", target_path.to_str().unwrap()])
         .output()
-        .context("Failed to compute source hash using nix")?;
+        .context(format!("Failed to compute {name} hash using nix"))?;
 
     let actual_hash = String::from_utf8_lossy(&hash_output.stdout).trim().to_string();
 
     if expected_hash.is_empty() || expected_hash != actual_hash {
         anyhow::bail!(
-            "Source hash mismatch or missing in manifest.\n\nExpected: '{}'\nActual:   '{}'\n\nPlease update `sourceDisk.hash` in album.nix to the actual value.",
+            "{name} hash mismatch or missing in manifest.\n\nExpected: '{}'\nActual:   '{}'\n\nPlease update the hash in album.nix to the actual value.",
             if expected_hash.is_empty() { "none" } else { expected_hash },
             actual_hash
         );

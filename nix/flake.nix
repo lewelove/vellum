@@ -162,11 +162,15 @@
           else 
             rawVal;
 
-        processedCover = if cover != null 
+        processedCover = if cover != null && cover.file != null
                          then (
-                           if builtins.isPath cover 
-                           then self.lib.mkCover { name = "${pname}-cover"; src = cover; }
-                           else self.lib.mkCover { name = "${pname}-cover"; src = realSrc; relPath = cover; }
+                           if builtins.isPath cover.file
+                           then let
+                             realCoverPath = if (cover.hash or "") != "" then
+                               builtins.path { name = "${pname}-cover-src"; path = cover.file; sha256 = cover.hash; }
+                             else cover.file;
+                           in self.lib.mkCover { name = "${pname}-cover"; src = realCoverPath; }
+                           else self.lib.mkCover { name = "${pname}-cover"; src = realSrc; relPath = cover.file; }
                          )
                          else null;
         
