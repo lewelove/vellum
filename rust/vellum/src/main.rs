@@ -57,8 +57,16 @@ enum Commands {
         silent: bool,
     },
     Manifest {
+        #[arg(value_name = "PATH")]
+        path: Option<String>,
         #[arg(long)]
         force: bool,
+        #[arg(long, required_unless_present = "library", conflicts_with = "library")]
+        album: bool,
+        #[arg(long, required_unless_present = "album", conflicts_with = "album")]
+        library: bool,
+        #[arg(long)]
+        stdout: bool,
     },
     Run {
         #[arg(value_name = "COMMAND", required = true)]
@@ -190,7 +198,12 @@ async fn main() -> Result<()> {
             let expanded = path.map(|p| expand_path(&p));
             update::run(expanded, force, jobs, verbose, silent).await
         }
-        Commands::Manifest { force } => manifest::run(force),
+        Commands::Manifest { force, path, album, library: _, stdout } => {
+            let expanded = path.map(|p| expand_path(&p));
+            let mode = if album { manifest::ManifestMode::Album } else { manifest::ManifestMode::Library };
+            let options = manifest::ManifestOptions { mode, force, stdout };
+            manifest::run(expanded, &options)
+        }
         Commands::Run { script_cmd, path, playing, id } => run::execute(script_cmd, path, playing, id).await,
         Commands::Query { query_str, playing, toml, lock, raw, id } => {
             let flags = query::QueryFlags { playing, toml, lock, raw, id };

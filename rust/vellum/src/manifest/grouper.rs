@@ -1,6 +1,6 @@
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub type GroupedTracks = HashMap<Vec<String>, Vec<(PathBuf, serde_json::Map<String, Value>)>>;
 
@@ -61,7 +61,7 @@ pub fn sort_album_tracks(tracks: &mut[(PathBuf, serde_json::Map<String, Value>)]
 
 pub fn resolve_anchor(
     tracks: &[(PathBuf, serde_json::Map<String, Value>)],
-    library_root: &Path,
+    validate: bool,
     supported_exts: &[String],
 ) -> (Option<PathBuf>, bool) {
     if tracks.is_empty() {
@@ -97,12 +97,9 @@ pub fn resolve_anchor(
     }
 
     let abs_anchor = anchor.canonicalize().unwrap_or(anchor);
-    let abs_lib = library_root
-        .canonicalize()
-        .unwrap_or_else(|_| library_root.to_path_buf());
 
-    if !abs_anchor.starts_with(&abs_lib) {
-        return (Some(abs_anchor), false);
+    if !validate {
+        return (Some(abs_anchor), true);
     }
 
     let mut valid = true;
@@ -130,4 +127,3 @@ pub fn resolve_anchor(
 
     (Some(abs_anchor), valid)
 }
-
