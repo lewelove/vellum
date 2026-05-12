@@ -205,7 +205,7 @@
   }
 
   .album-group-header {
-    padding: 0px 0px 12px 0px;
+    padding: 0px 0px 16px 0px;
     display: flex;
     align-items: center;
     box-sizing: border-box;
@@ -250,7 +250,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 0 0px;
-    margin: 10px 0px 8px 0;
+    margin: 12px 0px 8px 0;
   }
 
   .disc-header-row.first-disc {
