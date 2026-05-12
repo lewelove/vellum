@@ -27,64 +27,34 @@ pub fn calculate_total_discs(tracks: &[Value]) -> u32 {
     }
 }
 
-pub fn resolve_album_info_unix_added(ctx: &AlbumContext, args: &str) -> u64 {
+pub fn resolve_album_info_date_added(ctx: &AlbumContext, _args: &str) -> String {
+    let config_toml_path = ctx.album_root.join("config.toml");
+    if config_toml_path.exists()
+        && let Ok(content) = std::fs::read_to_string(&config_toml_path)
+        && let Ok(parsed) = toml::from_str::<toml::Value>(&content)
+        && let Some(lib) = parsed.get("library")
+        && let Some(da) = lib.get("date_added")
+    {
+        let json_val = serde_json::to_value(da).unwrap_or(Value::Null);
+        return standard::parse_time(Some(&json_val));
+    }
+
     let mut keys = Vec::new();
-    
-    if let Some(fallbacks) = ctx.config.get("compiler").and_then(|c| c.get("unix_added")).and_then(Value::as_array) {
+    if let Some(fallbacks) = ctx.config.get("compiler").and_then(|c| c.get("date_added")).and_then(Value::as_array) {
         for f in fallbacks {
             if let Some(s) = f.as_str() {
                 keys.push(s.to_string());
             }
         }
     }
-    
-    if !args.is_empty() {
-        keys.extend(args.split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from));
-    }
-
-    let mut found_timestamps = Vec::new();
 
     for key in &keys {
         if let Some(val) = ctx.source.get(key) {
-            if let Some(s) = val.as_str() {
-                if let Ok(ts) = s.parse::<u64>() {
-                    found_timestamps.push(ts);
-                }
-            } else if let Some(u) = val.as_u64() {
-                found_timestamps.push(u);
-            }
+            return standard::parse_time(Some(val));
         }
     }
 
-    let smallest_ts = found_timestamps.into_iter().filter(|&ts| ts > 0).min();
-
-    if let Some(ts) = smallest_ts {
-        return ts;
-    }
-
-    if let Some(val) = ctx.source.get("unix_generated") {
-        if let Some(s) = val.as_str() {
-            if let Ok(ts) = s.parse::<u64>() {
-                return ts;
-            }
-        } else if let Some(u) = val.as_u64() {
-            return u;
-        }
-    }
-
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
-
-pub fn resolve_album_info_date_added(ctx: &AlbumContext, _args: &str) -> Option<Value> {
-    let ts = resolve_album_info_unix_added(ctx, "");
-    if let Some(fmt) = ctx.config.get("compiler").and_then(|c| c.get("date_added")).and_then(Value::as_str)
-        && let Some(dt) = chrono::DateTime::from_timestamp(i64::try_from(ts).unwrap_or(0), 0) {
-            return Some(json!(dt.format(fmt).to_string()));
-        }
-    None
+    standard::parse_time(None)
 }
 
 pub fn rel_path(target: &Path, base: &Path) -> String {
@@ -229,4 +199,3 @@ pub fn resolve_lyrics_path(
 
     candidates.first().map(|(path, _)| path.clone())
 }
-

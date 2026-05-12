@@ -9,7 +9,6 @@ use anyhow::{Context, Result};
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 use walkdir::WalkDir;
 
 pub enum ManifestMode {
@@ -91,26 +90,30 @@ pub fn run(target_path: Option<PathBuf>, options: &ManifestOptions) -> Result<()
                 })
                 .collect();
 
-            let (mut album_pool, track_pools) =
+            let (album_pool, track_pools) =
                 compressor::compress(clean_tracks, manifest_layout.as_ref());
-
-            let unix_generated = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            album_pool.insert(
-                "unix_generated".to_string(),
-                serde_json::Value::Number(serde_json::Number::from(unix_generated)),
-            );
 
             let toml_content = serialize_manifest(&album_pool, &track_pools, manifest_layout.as_ref());
 
             if options.stdout {
                 println!("{toml_content}");
-            } else if let Err(e) = fs::write(&meta_path, toml_content) {
-                log::error!("Failed to write {}: {}", meta_path.display(), e);
             } else {
-                log::info!("Generated manifest: {}", meta_path.display());
+                let config_toml_path = anchor.join("config.toml");
+                if !config_toml_path.exists() {
+                    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+                    let config_content = format!("[library]\n\ndate_added = \"{now}\"\n");
+                    if let Err(e) = fs::write(&config_toml_path, config_content) {
+                        log::error!("Failed to write {}: {}", config_toml_path.display(), e);
+                    } else {
+                        log::info!("Generated config: {}", config_toml_path.display());
+                    }
+                }
+
+                if let Err(e) = fs::write(&meta_path, toml_content) {
+                    log::error!("Failed to write {}: {}", meta_path.display(), e);
+                } else {
+                    log::info!("Generated manifest: {}", meta_path.display());
+                }
             }
         }
     }

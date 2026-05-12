@@ -25,6 +25,43 @@ pub fn get_raw_value<'a>(source: &'a Value, key: &str, args: &str) -> Option<&'a
     None
 }
 
+pub fn parse_time(val: Option<&Value>) -> String {
+    let now = chrono::Utc::now();
+    let dt = match val {
+        Some(Value::Number(n)) => n.as_i64().map_or(now, |i| {
+            if i > 253_402_300_799 {
+                chrono::DateTime::from_timestamp_millis(i).unwrap_or(now)
+            } else {
+                chrono::DateTime::from_timestamp(i, 0).unwrap_or(now)
+            }
+        }),
+        Some(Value::String(s)) => {
+            let trimmed = s.trim();
+            trimmed.parse::<i64>().map_or_else(
+                |_| {
+                    chrono::DateTime::parse_from_rfc3339(trimmed)
+                        .map(Into::into)
+                        .unwrap_or(now)
+                },
+                |i| {
+                    if i > 253_402_300_799 {
+                        chrono::DateTime::from_timestamp_millis(i).unwrap_or(now)
+                    } else {
+                        chrono::DateTime::from_timestamp(i, 0).unwrap_or(now)
+                    }
+                },
+            )
+        }
+        _ => now,
+    };
+    dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+}
+
+pub fn resolve_generic_time(source: &Value, key: &str, args: &str) -> Value {
+    let raw = get_raw_value(source, key, args);
+    json!(parse_time(raw))
+}
+
 pub fn resolve_generic_string(source: &Value, key: &str, args: &str, default: &str) -> Value {
     get_raw_value(source, key, args).map_or_else(
         || json!(default),
@@ -122,4 +159,3 @@ pub fn format_ms(ms: u64) -> String {
         format!("{m}:{s:02}")
     }
 }
-

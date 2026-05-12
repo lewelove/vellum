@@ -23,7 +23,7 @@ select = "CAST(COALESCE(json_extract(metadata, '$.album.info.total_discs'), 1) A
 
 [groupers.year_added]
 label = "Year Added"
-select = "strftime('%Y', datetime(json_extract(metadata, '$.album.info.unix_added'), 'unixepoch'))"
+select = "substr(json_extract(metadata, '$.album.info.date_added'), 1, 4)"
 
 [groupers.chroma]
 label = "Chroma"
@@ -57,7 +57,7 @@ order_by = "CAST(json_extract(metadata, '$.album.tags.cover_entropy') AS INT) DE
 
 [sorters.date_added]
 label = "Date Added"
-order_by = "CAST(json_extract(metadata, '$.album.info.unix_added') AS INT) DESC"
+order_by = "json_extract(metadata, '$.album.info.date_added') DESC"
 
 [sorters.last_edited]
 label = "Last Edited"
@@ -74,4 +74,4 @@ filter = "1=1"
 [shelves.recently_added]
 label = "Recently Added"
 filter = "1=1"
-order_by = "CAST(json_extract(metadata, '$.album.info.unix_added') AS INT) DESC"
+order_by = "json_extract(metadata, '$.album.info.date_added') DESC"

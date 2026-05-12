@@ -71,7 +71,7 @@ pub fn render_toml_block(
         .keys()
         .filter(|k| {
             let s_k = sanitize_key(k);
-            !layout_keys.contains(&s_k) && s_k != "unix_generated"
+            !layout_keys.contains(&s_k)
         })
         .cloned()
         .collect();
@@ -82,13 +82,6 @@ pub fn render_toml_block(
             let s_k = sanitize_key(&k);
             lines.push(format!("{} = {}", s_k, format_toml_value_with_cast(v, &s_k)));
         }
-    }
-
-    if let Some(v) = pool.get("unix_generated") {
-        if !lines.is_empty() && lines.last().is_some_and(|s| !s.is_empty()) {
-            lines.push(String::new());
-        }
-        lines.push(format!("unix_generated = {}", format_toml_value(v)));
     }
 
     lines

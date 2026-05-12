@@ -61,8 +61,7 @@ pub struct ManifestConfig {
 pub struct CompilerConfig {
     pub scan_depth: Option<usize>,
     pub keys: Option<HashMap<String, KeyConfig>>,
-    pub unix_added: Option<Vec<String>>,
-    pub date_added: Option<String>,
+    pub date_added: Option<Vec<String>>,
     pub file_subset_match: Option<Vec<String>>,
     pub cover_palette: Option<PaletteConfig>,
     pub manifests: Option<Vec<String>>,

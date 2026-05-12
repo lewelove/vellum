@@ -47,7 +47,6 @@ pub fn resolve_album_key(key: &str, meta: &Value, ctx: &AlbumContext) -> Option<
             "original_yyyy_mm" => Some(json!(native::resolve_yyyy_mm(ctx, "original_yyyy_mm", args))),
             "release_yyyy_mm" => Some(json!(native::resolve_yyyy_mm(ctx, "release_yyyy_mm", args))),
             "comment" => Some(json!(native::resolve_comment(ctx, args))),
-            "unix_added" => Some(json!(native::resolve_album_info_unix_added(ctx, args))),
             _ => {
                 log::warn!("Native function for key '{key}' not found, falling back to generic.");
                 None
@@ -60,6 +59,7 @@ pub fn resolve_album_key(key: &str, meta: &Value, ctx: &AlbumContext) -> Option<
 
     if standard::get_raw_value(ctx.source, key, args).is_some() {
         match type_ {
+            "time" => Some(standard::resolve_generic_time(ctx.source, key, args)),
             "list" => Some(standard::resolve_generic_list(ctx.source, key, args)),
             "integer" => Some(standard::resolve_generic_integer(ctx.source, key, args)),
             "float" => Some(standard::resolve_generic_float(ctx.source, key, args)),
@@ -100,6 +100,7 @@ pub fn resolve_track_key(key: &str, meta: &Value, ctx: &TrackContext) -> Option<
     };
 
     source.map(|src| match type_ {
+        "time" => standard::resolve_generic_time(src, key, args),
         "list" => standard::resolve_generic_list(src, key, args),
         "integer" => standard::resolve_generic_integer(src, key, args),
         "float" => standard::resolve_generic_float(src, key, args),
@@ -107,4 +108,3 @@ pub fn resolve_track_key(key: &str, meta: &Value, ctx: &TrackContext) -> Option<
         _ => standard::resolve_generic_string(src, key, args, ""),
     })
 }
-
