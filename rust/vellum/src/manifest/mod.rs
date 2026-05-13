@@ -98,21 +98,21 @@ pub fn run(target_path: Option<PathBuf>, options: &ManifestOptions) -> Result<()
             if options.stdout {
                 println!("{toml_content}");
             } else {
-                let config_toml_path = anchor.join("config.toml");
-                if !config_toml_path.exists() {
+                let library_toml_path = anchor.join("library.toml");
+                if !library_toml_path.exists() {
                     let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-                    let config_content = format!("[library]\n\ndate_added = \"{now}\"\n");
-                    if let Err(e) = fs::write(&config_toml_path, config_content) {
-                        log::error!("Failed to write {}: {}", config_toml_path.display(), e);
+                    let library_toml_content = format!("[library]\n\ndate_added = \"{now}\"\n");
+                    if let Err(e) = fs::write(&library_toml_path, library_toml_content) {
+                        log::error!("Failed to write {}: {}", library_toml_path.display(), e);
                     } else {
-                        log::info!("Generated config: {}", config_toml_path.display());
+                        log::info!("Generated library manifest: {}", library_toml_path.display());
                     }
                 }
 
                 if let Err(e) = fs::write(&meta_path, toml_content) {
                     log::error!("Failed to write {}: {}", meta_path.display(), e);
                 } else {
-                    log::info!("Generated manifest: {}", meta_path.display());
+                    log::info!("Generated metadata manifest: {}", meta_path.display());
                 }
             }
         }

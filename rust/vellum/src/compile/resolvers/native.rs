@@ -28,9 +28,9 @@ pub fn calculate_total_discs(tracks: &[Value]) -> u32 {
 }
 
 pub fn resolve_album_info_date_added(ctx: &AlbumContext, _args: &str) -> String {
-    let config_toml_path = ctx.album_root.join("config.toml");
-    if config_toml_path.exists()
-        && let Ok(content) = std::fs::read_to_string(&config_toml_path)
+    let library_toml_path = ctx.album_root.join("library.toml");
+    if library_toml_path.exists()
+        && let Ok(content) = std::fs::read_to_string(&library_toml_path)
         && let Ok(parsed) = toml::from_str::<toml::Value>(&content)
         && let Some(lib) = parsed.get("library")
         && let Some(da) = lib.get("date_added")
