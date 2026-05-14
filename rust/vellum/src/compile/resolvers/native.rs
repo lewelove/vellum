@@ -89,9 +89,9 @@ pub fn resolve_comment(ctx: &AlbumContext, _args: &str) -> String {
     if country.is_empty() && label.is_empty() && cat.is_empty() {
         return String::new();
     }
-    let yyyy_mm = resolve_yyyy_mm(ctx, "release_yyyy_mm", "");
-    let year = if yyyy_mm.len() >= 4 {
-        &yyyy_mm[0..4]
+    let dt = resolve_date(ctx, "release_date", "");
+    let year = if dt.len() >= 4 {
+        &dt[0..4]
     } else {
         ""
     };
@@ -111,7 +111,7 @@ pub fn resolve_comment(ctx: &AlbumContext, _args: &str) -> String {
         .join(" ")
 }
 
-pub fn resolve_yyyy_mm(ctx: &AlbumContext, key: &str, _args: &str) -> String {
+pub fn resolve_date(ctx: &AlbumContext, key: &str, _args: &str) -> String {
     if let Some(v) = ctx.source.get(key).and_then(Value::as_str) {
         return v.to_string();
     }

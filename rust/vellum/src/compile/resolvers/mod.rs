@@ -19,8 +19,8 @@ pub fn resolve_top_level_album_key(key: &str, ctx: &AlbumContext) -> Value {
             list
         },
         "comment" => json!(native::resolve_comment(ctx, "")),
-        "original_yyyy_mm" => json!(native::resolve_yyyy_mm(ctx, "original_yyyy_mm", "")),
-        "release_yyyy_mm" => json!(native::resolve_yyyy_mm(ctx, "release_yyyy_mm", "")),
+        "original_date" => json!(native::resolve_date(ctx, "original_date", "")),
+        "release_date" => json!(native::resolve_date(ctx, "release_date", "")),
         _ => Value::Null,
     }
 }
@@ -44,8 +44,8 @@ pub fn resolve_album_key(key: &str, meta: &Value, ctx: &AlbumContext) -> Option<
         let res = match key {
             "cover_chroma" => native::resolve_cover_chroma(ctx, args),
             "cover_entropy" => native::resolve_cover_entropy(ctx, args),
-            "original_yyyy_mm" => Some(json!(native::resolve_yyyy_mm(ctx, "original_yyyy_mm", args))),
-            "release_yyyy_mm" => Some(json!(native::resolve_yyyy_mm(ctx, "release_yyyy_mm", args))),
+            "original_date" => Some(json!(native::resolve_date(ctx, "original_date", args))),
+            "release_date" => Some(json!(native::resolve_date(ctx, "release_date", args))),
             "comment" => Some(json!(native::resolve_comment(ctx, args))),
             _ => {
                 log::warn!("Native function for key '{key}' not found, falling back to generic.");

@@ -95,14 +95,10 @@ pub struct AlbumLock {
     pub original_date: String,
     #[serde(rename = "original_year", default)]
     pub original_year: String,
-    #[serde(rename = "original_yyyy_mm", default)]
-    pub original_yyyy_mm: String,
     #[serde(rename = "release_date", default)]
     pub release_date: String,
     #[serde(rename = "release_year", default)]
     pub release_year: String,
-    #[serde(rename = "release_yyyy_mm", default)]
-    pub release_yyyy_mm: String,
     #[serde(default)]
     pub tags: HashMap<String, serde_json::Value>,
 }

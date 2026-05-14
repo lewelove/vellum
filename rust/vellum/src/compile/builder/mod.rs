@@ -404,8 +404,8 @@ fn build_album(
     obj.insert("date".to_string(), resolvers::resolve_top_level_album_key("date", ctx));
     obj.insert("genre".to_string(), resolvers::resolve_top_level_album_key("genre", ctx));
     obj.insert("comment".to_string(), resolvers::resolve_top_level_album_key("comment", ctx));
-    obj.insert("original_yyyy_mm".to_string(), resolvers::resolve_top_level_album_key("original_yyyy_mm", ctx));
-    obj.insert("release_yyyy_mm".to_string(), resolvers::resolve_top_level_album_key("release_yyyy_mm", ctx));
+    obj.insert("original_date".to_string(), resolvers::resolve_top_level_album_key("original_date", ctx));
+    obj.insert("release_date".to_string(), resolvers::resolve_top_level_album_key("release_date", ctx));
 
     let mut tags = serde_json::Map::new();
     for (key, meta) in registry {
@@ -413,7 +413,7 @@ fn build_album(
             continue;
         }
 
-        if["album", "albumartist", "date", "genre", "comment", "original_yyyy_mm", "release_yyyy_mm"].contains(&key.as_str()) {
+        if["album", "albumartist", "date", "genre", "comment", "original_date", "release_date"].contains(&key.as_str()) {
             continue;
         }
         let val = resolvers::resolve_album_key(key, meta, ctx).unwrap_or(Value::Null);
