@@ -1,12 +1,28 @@
 use crate::harvest::sanitize_key;
 use indexmap::IndexMap;
+use libvellum::config::ManifestKeyConfig;
 use serde_json::Value;
 use std::collections::HashSet;
-use toml::Value as TomlValue;
+
+pub fn get_key_manifests(key: &str, layout: Option<&IndexMap<String, ManifestKeyConfig>>) -> Vec<String> {
+    let s_key = sanitize_key(key);
+    if let Some(lay) = layout {
+        for (k, cfg) in lay {
+            if sanitize_key(k) == s_key {
+                if let Some(manifests_str) = &cfg.manifests {
+                    return manifests_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                }
+                break;
+            }
+        }
+    }
+    vec!["metadata".to_string()]
+}
 
 pub fn compress(
     mut raw_tracks: Vec<serde_json::Map<String, Value>>,
-    manifest_layout: Option<&IndexMap<String, TomlValue>>,
+    manifest_layout: Option<&IndexMap<String, ManifestKeyConfig>>,
+    target_manifest: &str,
 ) -> (
     serde_json::Map<String, Value>,
     Vec<serde_json::Map<String, Value>>,
@@ -17,12 +33,18 @@ pub fn compress(
 
     let mut forced_track_keys = HashSet::new();
     if let Some(layout) = manifest_layout {
-        for (key, meta) in layout {
-            if let Some(table) = meta.as_table()
-                && table.get("level").and_then(|v| v.as_str()) == Some("track") {
-                    forced_track_keys.insert(sanitize_key(key));
-                }
+        for (key, cfg) in layout {
+            if cfg.level == "track" || cfg.level == "tracks" {
+                forced_track_keys.insert(sanitize_key(key));
+            }
         }
+    }
+
+    for track in &mut raw_tracks {
+        track.retain(|k, _| {
+            let manifest_names = get_key_manifests(k, manifest_layout);
+            manifest_names.contains(&target_manifest.to_string())
+        });
     }
 
     let first_track = &raw_tracks[0];

@@ -54,7 +54,17 @@ pub struct ShaderConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ManifestConfig {
     pub supported_extensions: Option<Vec<String>>,
-    pub keys: Option<IndexMap<String, Value>>,
+    pub keys: Option<IndexMap<String, ManifestKeyConfig>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ManifestKeyConfig {
+    pub level: String,
+    #[serde(rename = "type")]
+    pub type_: Option<String>,
+    #[serde(default)]
+    pub newline: bool,
+    pub manifests: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

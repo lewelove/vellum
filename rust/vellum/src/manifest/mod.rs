@@ -7,6 +7,7 @@ use libvellum::utils::expand_path;
 use libvellum::harvest::harvest_file;
 use anyhow::{Context, Result};
 use rayon::prelude::*;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -52,72 +53,112 @@ pub fn run(target_path: Option<PathBuf>, options: &ManifestOptions) -> Result<()
     }
 
     let harvested = harvest_audio_files(dirs_to_harvest, &supported_exts, options);
-
     if harvested.is_empty() {
         return Ok(());
     }
 
     let buckets = grouper::group_tracks(harvested, &grouping_keys);
+    let unique_manifests = get_unique_manifests(manifest_layout.as_ref());
 
-    for (_group_id, mut tracks) in buckets {
-        let validate_exclusivity = match options.mode {
-            ManifestMode::Album => false,
-            ManifestMode::Library => true,
-        };
-        let (anchor_opt, is_valid) = grouper::resolve_anchor(&tracks, validate_exclusivity, &supported_exts);
-        
-        if !is_valid {
+    for (_group_id, tracks) in buckets {
+        process_album_group(tracks, &unique_manifests, &supported_exts, manifest_layout.as_ref(), options)?;
+    }
+
+    Ok(())
+}
+
+fn get_unique_manifests(layout: Option<&indexmap::IndexMap<String, libvellum::config::ManifestKeyConfig>>) -> Vec<String> {
+    let mut unique_manifests = HashSet::new();
+    unique_manifests.insert("metadata".to_string());
+    if let Some(lay) = layout {
+        for cfg in lay.values() {
+            if let Some(manifests_str) = &cfg.manifests {
+                for m in manifests_str.split(',') {
+                    let m = m.trim();
+                    if !m.is_empty() {
+                        unique_manifests.insert(m.to_string());
+                    }
+                }
+            }
+        }
+    }
+    let mut sorted = unique_manifests.into_iter().collect::<Vec<_>>();
+    sorted.sort();
+    sorted
+}
+
+fn process_album_group(
+    mut tracks: Vec<(PathBuf, serde_json::Map<String, serde_json::Value>)>,
+    manifest_names: &[String],
+    supported_exts: &[String],
+    manifest_layout: Option<&indexmap::IndexMap<String, libvellum::config::ManifestKeyConfig>>,
+    options: &ManifestOptions,
+) -> Result<()> {
+    let validate_exclusivity = match options.mode {
+        ManifestMode::Album => false,
+        ManifestMode::Library => true,
+    };
+    
+    let (anchor_opt, is_valid) = grouper::resolve_anchor(&tracks, validate_exclusivity, supported_exts);
+    if !is_valid {
+        return Ok(());
+    }
+
+    let Some(anchor) = anchor_opt else { return Ok(()); };
+
+    grouper::sort_album_tracks(&mut tracks);
+    let clean_tracks: Vec<_> = tracks
+        .into_iter()
+        .map(|(_, mut t)| {
+            t.remove("track_path_absolute");
+            t
+        })
+        .collect();
+
+    for manifest_name in manifest_names {
+        let (album_pool, track_pools) =
+            compressor::compress(clean_tracks.clone(), manifest_layout, manifest_name);
+
+        let toml_content = serialize_manifest(&album_pool, &track_pools, manifest_layout, manifest_name);
+        if toml_content.trim().is_empty() {
             continue;
         }
 
-        if let Some(anchor) = anchor_opt {
-            let meta_path = anchor.join("metadata.toml");
-
-            if meta_path.exists() && !options.force {
+        if options.stdout {
+            if manifest_names.len() > 1 {
+                println!("--- {manifest_name}.toml ---");
+            }
+            println!("{toml_content}");
+        } else {
+            let out_path = anchor.join(format!("{manifest_name}.toml"));
+            if !options.force && out_path.exists() {
                 log::warn!(
-                    "Existing metadata.toml detected in {}. Use --force to overwrite.",
+                    "Existing {manifest_name}.toml detected in {}. Use --force to overwrite.",
                     anchor.display()
                 );
                 continue;
             }
 
-            grouper::sort_album_tracks(&mut tracks);
-            let clean_tracks: Vec<_> = tracks
-                .into_iter()
-                .map(|(_, mut t)| {
-                    t.remove("track_path_absolute");
-                    t
-                })
-                .collect();
-
-            let (album_pool, track_pools) =
-                compressor::compress(clean_tracks, manifest_layout.as_ref());
-
-            let toml_content = serialize_manifest(&album_pool, &track_pools, manifest_layout.as_ref());
-
-            if options.stdout {
-                println!("{toml_content}");
-            } else {
-                let library_toml_path = anchor.join("library.toml");
-                if !library_toml_path.exists() {
-                    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-                    let library_toml_content = format!("[library]\n\ndate_added = \"{now}\"\n");
-                    if let Err(e) = fs::write(&library_toml_path, library_toml_content) {
-                        log::error!("Failed to write {}: {}", library_toml_path.display(), e);
-                    } else {
-                        log::info!("Generated library manifest: {}", library_toml_path.display());
-                    }
-                }
-
-                if let Err(e) = fs::write(&meta_path, toml_content) {
-                    log::error!("Failed to write {}: {}", meta_path.display(), e);
-                } else {
-                    log::info!("Generated metadata manifest: {}", meta_path.display());
-                }
-            }
+            fs::write(&out_path, &toml_content)?;
+            log::info!("Generated {manifest_name} manifest: {}", out_path.display());
         }
     }
 
+    if !options.stdout {
+        write_library_toml(&anchor)?;
+    }
+
+    Ok(())
+}
+
+fn write_library_toml(anchor: &Path) -> Result<()> {
+    let library_toml_path = anchor.join("library.toml");
+    if !library_toml_path.exists() {
+        let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let library_toml_content = format!("[library]\n\ndate_added = \"{now}\"\n");
+        fs::write(&library_toml_path, library_toml_content)?;
+        log::info!("Generated library manifest: {}", library_toml_path.display());
+    }
     Ok(())
 }
 
@@ -205,19 +246,24 @@ fn harvest_audio_files(
 fn serialize_manifest(
     album_pool: &serde_json::Map<String, serde_json::Value>,
     track_pools: &[serde_json::Map<String, serde_json::Value>],
-    manifest_layout: Option<&indexmap::IndexMap<String, toml::Value>>,
+    manifest_layout: Option<&indexmap::IndexMap<String, libvellum::config::ManifestKeyConfig>>,
+    target_manifest: &str,
 ) -> String {
     let mut toml_content = String::new();
-    toml_content.push_str("[album]\n");
-    let album_lines = engine::render_toml_block(album_pool, manifest_layout, "album");
-    toml_content.push_str(&album_lines.join("\n"));
-    toml_content.push_str("\n\n");
+    let album_lines = engine::render_toml_block(album_pool, manifest_layout, "album", target_manifest);
+    if !album_lines.is_empty() {
+        toml_content.push_str("[album]\n");
+        toml_content.push_str(&album_lines.join("\n"));
+        toml_content.push_str("\n\n");
+    }
 
     for tp in track_pools {
-        toml_content.push_str("[[tracks]]\n");
-        let track_lines = engine::render_toml_block(tp, manifest_layout, "track");
-        toml_content.push_str(&track_lines.join("\n"));
-        toml_content.push_str("\n\n");
+        let track_lines = engine::render_toml_block(tp, manifest_layout, "track", target_manifest);
+        if !track_lines.is_empty() {
+            toml_content.push_str("[[tracks]]\n");
+            toml_content.push_str(&track_lines.join("\n"));
+            toml_content.push_str("\n\n");
+        }
     }
 
     toml_content
