@@ -13,9 +13,12 @@
 
   in {
     packages.${system} = {
-      vellum-deps = pkgs.symlinkJoin {
-        name = "vellum-deps";
-        paths = vellumPackages;
+      env = pkgs.symlinkJoin {
+        name = "vellum-env";
+        paths = vellumPackages ++ [
+          pkgs.stdenv
+          nixpkgs
+        ];
       };
     };
 

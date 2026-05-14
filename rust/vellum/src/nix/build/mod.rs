@@ -68,6 +68,9 @@ fn build_album(
     config: &AppConfig,
 ) -> Result<()> {
     let target = target_path.parent().unwrap();
+    
+    sync_env(store_path, flake_uri, target)?;
+    
     let album_info = crate::nix::get::parse_album_nix(target_path)?;
     let source_disk = crate::nix::get::resolve_source_disk(&album_info, target, config);
 
@@ -155,6 +158,31 @@ fn build_album(
 
     pin_source_and_seed(pin_opts, &mut vars)?;
 
+    Ok(())
+}
+
+fn sync_env(store_path: &Path, flake_uri: &str, target_dir: &Path) -> Result<()> {
+    let gc_roots_profiles = store_path.join("gcroots").join("profiles");
+    fs::create_dir_all(&gc_roots_profiles).context("Failed to create gcroots/profiles directory")?;
+    let active_env_link = gc_roots_profiles.join("env");
+
+    let mut cmd = Command::new("nix");
+    cmd.arg("build")
+        .arg("--store")
+        .arg(store_path)
+        .arg("--impure")
+        .arg(format!("{flake_uri}#env"))
+        .arg("--out-link")
+        .arg(&active_env_link)
+        .current_dir(target_dir);
+
+    let status = cmd.status().context("Failed to execute nix build for env")?;
+    if !status.success() {
+        anyhow::bail!(
+            "Nix build failed with exit code {} for env",
+            status.code().unwrap_or(-1)
+        );
+    }
     Ok(())
 }
 
