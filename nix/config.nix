@@ -1,0 +1,59 @@
+{
+  allowedTags = [
+    "album"
+    "albumartist"
+    "artist"
+    "title"
+    "date"
+    "tracknumber"
+    "discnumber"
+    "genre"
+    "styles"
+    "label"
+    "catalognumber"
+    "country"
+    "original_date"
+    "release_date"
+    "musicbrainz_albumid"
+    "musicbrainz_releasegroupid"
+    "musicbrainz_albumartistid"
+    "musicbrainz_trackid"
+    "musicbrainz_releasetrackid"
+    "musicbrainz_artistid"
+    "composer"
+    "performer"
+    "conductor"
+  ];
+
+  keys = {
+    album = [
+      "\n"
+      "metadata.albumartist"
+      "metadata.album"
+      "metadata.date"
+      "\n"
+      "metadata.genre"
+      "metadata.styles"
+      "\n"
+      "metadata.original_date"
+      "\n"
+      "metadata.country"
+      "metadata.label"
+      "metadata.catalognumber"
+      "metadata.release_date"
+      "\n"
+      "mbid.musicbrainz_albumid"
+      "mbid.musicbrainz_releasegroupid"
+      "mbid.musicbrainz_albumartistid"
+    ];
+    tracks = [
+      "metadata.discnumber"
+      "metadata.tracknumber"
+      "metadata.title"
+      "metadata.artist"
+      "mbid.musicbrainz_trackid"
+      "mbid.musicbrainz_releasetrackid"
+      "mbid.musicbrainz_artistid"
+    ];
+  };
+}

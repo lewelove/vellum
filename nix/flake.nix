@@ -8,38 +8,21 @@
   outputs = { self, nixpkgs }: let
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
-    
-    allowedTags = [
-      "album"
-      "albumartist"
-      "artist"
-      "title"
-      "date"
-      "tracknumber"
-      "discnumber"
-      "genre"
-      "styles"
-      "label"
-      "catalognumber"
-      "country"
-      "original_date"
-      "release_date"
-      "musicbrainz_albumid"
-      "musicbrainz_releasegroupid"
-      "musicbrainz_albumartistid"
-      "musicbrainz_trackid"
-      "musicbrainz_releasetrackid"
-      "musicbrainz_artistid"
-      "composer"
-      "performer"
-      "conductor"
-    ];
+    vellumConfig = import ./config.nix;
+    vellumPackages = import ./packages.nix { inherit pkgs; };
 
   in {
+    packages.${system} = {
+      vellum-deps = pkgs.symlinkJoin {
+        name = "vellum-deps";
+        paths = vellumPackages;
+      };
+    };
+
     lib = {
       splitCueImage = { name ? "split", cue, image }: pkgs.stdenv.mkDerivation {
         inherit name cue image;
-        buildInputs = [ pkgs.shntool pkgs.cuetools pkgs.flac ];
+        buildInputs = vellumPackages;
         unpackPhase = "true";
         buildPhase = ''
           mkdir -p $out
@@ -50,7 +33,7 @@
 
       mkCover = { name, src, relPath ? null }: pkgs.stdenv.mkDerivation {
         inherit name src relPath;
-        buildInputs = [ pkgs.imagemagick ];
+        buildInputs = vellumPackages;
         unpackPhase = "true";
         buildPhase = ''
           INPUT_FILE="${if relPath == null then "$src" else "$src/$relPath"}"
@@ -63,11 +46,11 @@
       };
 
       mkTrack = { name, src, relPath, metadata ? {}, cover ? null }: let
-        filteredMeta = pkgs.lib.filterAttrs (k: v: builtins.elem (pkgs.lib.toLower k) allowedTags) metadata;
+        filteredMeta = pkgs.lib.filterAttrs (k: v: builtins.elem (pkgs.lib.toLower k) vellumConfig.allowedTags) metadata;
         metaJson = pkgs.writeText "meta.json" (builtins.toJSON filteredMeta);
       in pkgs.stdenv.mkDerivation {
         inherit name src relPath;
-        buildInputs = [ pkgs.flac pkgs.jq ];
+        buildInputs = vellumPackages;
         unpackPhase = "true";
         buildPhase = ''
           cp "$src/$relPath" track.flac
@@ -95,12 +78,16 @@
         tracks ? [], 
         cover ? null
       }: let
-        trackIds = builtins.map (t: "${toString (t.metadata.discnumber or 1)}-${toString (t.metadata.tracknumber or 0)}") tracks;
+        getMergedTrackMeta = t: let
+          attrKeys = builtins.filter (k: builtins.isAttrs (album.${k} or null) || builtins.isAttrs (t.${k} or null)) (pkgs.lib.unique (builtins.attrNames album ++ builtins.attrNames t));
+        in pkgs.lib.foldl' (acc: n: acc // (if builtins.isAttrs (album.${n} or null) then album.${n} else {}) // (if builtins.isAttrs (t.${n} or null) then t.${n} else {})) {} attrKeys;
+
+        trackIds = builtins.map (t: let m = getMergedTrackMeta t; in "${toString (m.discnumber or 1)}-${toString (m.tracknumber or 0)}") tracks;
         uniqueTrackIds = pkgs.lib.unique trackIds;
         hasDuplicates = builtins.length trackIds != builtins.length uniqueTrackIds;
 
-        maxDisc = builtins.foldl' (acc: t: pkgs.lib.max acc (t.metadata.discnumber or 1)) 1 tracks;
-        maxTrack = builtins.foldl' (acc: t: pkgs.lib.max acc (t.metadata.tracknumber or 0)) 1 tracks;
+        maxDisc = builtins.foldl' (acc: t: pkgs.lib.max acc ((getMergedTrackMeta t).discnumber or 1)) 1 tracks;
+        maxTrack = builtins.foldl' (acc: t: pkgs.lib.max acc ((getMergedTrackMeta t).tracknumber or 0)) 1 tracks;
         
         discPadLen = builtins.stringLength (toString maxDisc);
         trackPadLen = pkgs.lib.max 2 (builtins.stringLength (toString maxTrack));
@@ -112,55 +99,35 @@
           else if builtins.isList v then "[ " + pkgs.lib.concatMapStringsSep ", " toTomlVal v + " ]"
           else "\"\"";
         
-        manifests = {
-          metadata = [
-            "albumartist"
-            "album"
-            "date"
-            "\n"
-            "genre"
-            "styles"
-            "\n"
-            "original_date"
-            "\n"
-            "country"
-            "label"
-            "catalognumber"
-            "release_date"
-            "\n"
-            "tracknumber"
-            "discnumber"
-            "title"
-            "artist"
-          ];
-          mbid = [
-            "musicbrainz_albumid"
-            "musicbrainz_releasegroupid"
-            "musicbrainz_albumartistid"
-            "musicbrainz_trackid"
-            "musicbrainz_releasetrackid"
-            "musicbrainz_artistid"
-          ];
-        };
-
-        toTomlTable = order: attrs: let
-          orderedLines = pkgs.lib.concatMap (k:
-            if k == "\n" then [ "" ]
-            else if builtins.hasAttr k attrs then [ "${k} = ${toTomlVal attrs.${k}}" ]
-            else []
+        toTomlTable = order: data: let
+          orderedLines = pkgs.lib.concatMap (pathStr:
+            if pathStr == "\n" then [ "" ]
+            else let
+              parts = pkgs.lib.splitString "." pathStr;
+              manifest = builtins.elemAt parts 0;
+              key = builtins.elemAt parts 1;
+            in if builtins.isAttrs (data.${manifest} or null) && data.${manifest} ? ${key}
+               then [ "${key} = ${toTomlVal data.${manifest}.${key}}" ]
+               else []
           ) order;
-          remainingKeys = builtins.filter (k: !(builtins.elem k order) && k != "tracknumber" && k != "discnumber") (builtins.attrNames attrs);
-          appendixLines = builtins.map (k: "${k} = ${toTomlVal attrs.${k}}") (builtins.sort (a: b: a < b) remainingKeys);
-          rawLines = orderedLines ++ (if builtins.length appendixLines > 0 then [ "" ] ++ appendixLines else []);
-          cleanLines = pkgs.lib.foldl' (acc: x: if x != "" then acc ++ [x] else if (acc == [] || pkgs.lib.last acc == "") then acc else acc ++ [""]) [] rawLines;
+          
+          rawLines = orderedLines;
+          cleanLines = pkgs.lib.foldl' (acc: x: 
+            if x != "" 
+            then acc ++ [x] 
+            else if (acc != [] && pkgs.lib.last acc == "") 
+            then acc 
+            else acc ++ [x]
+          ) [] rawLines;
           tightLines = if cleanLines != [] && pkgs.lib.last cleanLines == "" then pkgs.lib.init cleanLines else cleanLines;
         in pkgs.lib.concatStringsSep "\n" tightLines;
 
-        activeTomls = pkgs.lib.mapAttrs (name: keys: let
-          aS = if album ? ${name} then "[album]\n${toTomlTable keys album.${name}}" else "";
-          tS = pkgs.lib.concatMapStringsSep "\n\n" (t: "[[tracks]]\n${toTomlTable keys (t.${name} or {})}") (builtins.filter (t: t ? ${name}) tracks);
+        metadataToml = let
+          aTable = toTomlTable vellumConfig.keys.album album;
+          aS = if aTable != "" then "[album]\n${aTable}" else "";
+          tS = pkgs.lib.concatMapStringsSep "\n\n" (t: let table = toTomlTable vellumConfig.keys.tracks t; in if table != "" then "[[tracks]]\n${table}" else "[[tracks]]") tracks;
           sep = if aS != "" && tS != "" then "\n\n" else "";
-        in pkgs.writeText "${name}.toml" (aS + sep + tS + "\n")) (pkgs.lib.filterAttrs (n: _: album ? ${n} || pkgs.lib.any (t: t ? ${n}) tracks) manifests);
+        in pkgs.writeText "metadata.toml" (aS + sep + tS + "\n");
 
         stagingSrc = builtins.getEnv "VELLUM_STAGING_SRC";
 
@@ -207,7 +174,7 @@
                          else null;
         
         builtTracks = pkgs.lib.lists.imap1 (idx: track: let
-          mergedMeta = pkgs.lib.foldl' (acc: n: acc // (album.${n} or {}) // (track.${n} or {})) {} (builtins.attrNames manifests);
+          mergedMeta = getMergedTrackMeta track;
           disc = mergedMeta.discnumber or 1;
           trk = mergedMeta.tracknumber or 0;
           title = mergedMeta.title or "Untitled";
@@ -237,7 +204,7 @@
           ${pkgs.lib.strings.concatMapStringsSep "\n" (t: ''
             ln -s "${t.drv}/track.flac" "$out/${t.fileName}"
           '') builtTracks}
-          ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: path: "cp ${path} $out/${name}.toml") activeTomls)}
+          cp ${metadataToml} $out/metadata.toml
         '';
         installPhase = "true";
       };
