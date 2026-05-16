@@ -72,25 +72,46 @@ fn build_album(
     sync_env(store_path, flake_uri, target)?;
     
     let album_info = crate::nix::get::parse_album_nix(target_path)?;
-    let source_disk = crate::nix::get::resolve_source_disk(&album_info, target, config);
 
-    let physical_source_disk = source_disk
-        .canonicalize()
-        .unwrap_or_else(|_| source_disk.clone());
+    let truncated_hash = crate::nix::get::get_nix32_truncate(&album_info.torrent_hash);
+    let sanitized_source = crate::nix::get::sanitize_source_name(&album_info.torrent_name);
+    let link_name = format!("{sanitized_source}-{truncated_hash}");
+    
+    let gc_roots_source = store_path.join("gcroots").join("source");
+    let source_link = gc_roots_source.join(&link_name);
+    
+    let mut is_source_in_store = false;
+    let mut staging_src_env = String::new();
 
-    let staging_src_env = physical_source_disk.to_string_lossy().to_string();
-    let is_source_in_store = physical_source_disk.starts_with(store_path);
+    if fs::symlink_metadata(&source_link).is_ok()
+        && let Ok(logical_target) = fs::read_link(&source_link)
+    {
+        let logical_str = logical_target.to_string_lossy();
+        if let Some(stripped) = logical_str.strip_prefix("/") {
+            let physical_target = store_path.join(stripped);
+            if physical_target.exists() {
+                is_source_in_store = true;
+                staging_src_env = logical_str.to_string();
+            }
+        }
+    }
+
+    if !is_source_in_store {
+        let source_disk = crate::nix::get::resolve_source_disk(&album_info, target, config);
+        let physical_source_disk = source_disk.canonicalize().unwrap_or_else(|_| source_disk.clone());
+        staging_src_env = physical_source_disk.to_string_lossy().to_string();
+    }
 
     if is_source_in_store {
-        log::info!("Found sourceDisk.path in store. Skipping verification...");
+        log::info!("Found pinned source in store. Skipping verification...");
     } else {
-        verify_hash(&physical_source_disk, &album_info.source_disk_hash, "Source disk")?;
+        verify_hash(Path::new(&staging_src_env), &album_info.source_disk_hash, "Source disk")?;
     }
 
     if album_info.cover_file.starts_with('/') {
         let cover_path = std::path::PathBuf::from(&album_info.cover_file);
-        if cover_path.starts_with(store_path) {
-            log::info!("Found cover.file in store. Skipping verification...");
+        if cover_path.starts_with("/nix/store") {
+            log::info!("Found cover.file logically in store. Skipping verification...");
         } else {
             verify_hash(&cover_path, &album_info.cover_hash, "Cover image")?;
         }
@@ -107,7 +128,7 @@ fn build_album(
     let mut vars = HashMap::new();
     vars.insert(
         "sourceDisk.path".to_string(),
-        physical_source_disk.to_string_lossy().to_string(),
+        staging_src_env.clone(),
     );
     vars.insert(
         "sourceTorrent.file".to_string(),
@@ -119,14 +140,9 @@ fn build_album(
     );
     vars.insert("sourceTorrent.name".to_string(), album_info.torrent_name.clone());
 
-    if is_source_in_store {
-    } else {
+    if !is_source_in_store {
         run_verification(config, &vars, target)?;
     }
-
-    let truncated_hash = crate::nix::get::get_nix32_truncate(&album_info.torrent_hash);
-    let sanitized_source = crate::nix::get::sanitize_source_name(&album_info.torrent_name);
-    let link_name = format!("{sanitized_source}-{truncated_hash}");
 
     let gc_roots_albums = store_path.join("gcroots").join("albums");
     fs::create_dir_all(&gc_roots_albums).context("Failed to create gcroots/albums directory")?;
@@ -294,11 +310,6 @@ fn pin_source_and_seed(
         return Ok(());
     }
 
-    let mapped_source_store_path = source_store_path_raw.strip_prefix("/").map_or_else(
-        || source_store_path_raw.clone(),
-        |stripped| opts.store_path.join(stripped).to_string_lossy().to_string(),
-    );
-
     let gc_roots_source = opts.store_path.join("gcroots").join("source");
     fs::create_dir_all(&gc_roots_source)?;
     let source_link = gc_roots_source.join(opts.link_name);
@@ -307,22 +318,26 @@ fn pin_source_and_seed(
         fs::remove_file(&source_link)?;
     }
 
-    if let Err(e) = std::os::unix::fs::symlink(&mapped_source_store_path, &source_link) {
+    if let Err(e) = std::os::unix::fs::symlink(&source_store_path_raw, &source_link) {
         log::warn!(
-            "Failed to create source GC root link {}: {}",
+            "Failed to create logical source GC root link {}: {}",
             source_link.display(),
             e
         );
     }
 
-    vars.insert("sourceStorePath".to_string(), mapped_source_store_path);
+    let physical_store_path_for_seeder = source_store_path_raw.strip_prefix("/").map_or_else(
+        || source_store_path_raw.clone(),
+        |stripped| opts.store_path.join(stripped).to_string_lossy().to_string(),
+    );
+
+    vars.insert("sourceStorePath".to_string(), physical_store_path_for_seeder);
 
     if let Some(nix_cfg) = &opts.config.nix
         && let Some(cmds) = &nix_cfg.commands
         && let Some(seed_cmd_tpl) = cmds.get("seed_torrent")
     {
         let final_seed_cmd = crate::nix::get::resolve_template(seed_cmd_tpl, vars);
-        log::info!("Executing seed command: {final_seed_cmd}");
         let _ = Command::new("sh")
             .arg("-c")
             .arg(&final_seed_cmd)
@@ -334,9 +349,22 @@ fn pin_source_and_seed(
 }
 
 fn materialize_output(store_dir: &Path, target_dir: &Path, store_path: &Path) -> Result<()> {
+    if let Ok(entries) = fs::read_dir(target_dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if let Ok(meta) = fs::symlink_metadata(&path)
+                && meta.is_symlink()
+                && let Ok(target) = fs::read_link(&path)
+                && target.starts_with(store_path)
+            {
+                let _ = fs::remove_file(&path);
+            }
+        }
+    }
+
     let entries = fs::read_dir(store_dir).with_context(|| {
         format!(
-            "Could not read nix store directory: {}",
+            "Could read nix store directory: {}",
             store_dir.display()
         )
     })?;
@@ -371,17 +399,18 @@ fn materialize_output(store_dir: &Path, target_dir: &Path, store_path: &Path) ->
             } else {
                 store_file = resolved_path;
             }
+        } else if store_file.starts_with("/nix/store") {
+            let stripped = store_file.strip_prefix("/").unwrap();
+            store_file = store_path.join(stripped);
         }
 
-        if fs::hard_link(&store_file, &target_file).is_err() {
-            std::os::unix::fs::symlink(&store_file, &target_file).with_context(|| {
-                format!(
-                    "Failed to create link (hard or sym) for {} at {}",
-                    store_file.display(),
-                    target_file.display()
-                )
-            })?;
-        }
+        std::os::unix::fs::symlink(&store_file, &target_file).with_context(|| {
+            format!(
+                "Failed to create symlink for {} at {}",
+                store_file.display(),
+                target_file.display()
+            )
+        })?;
     }
     Ok(())
 }

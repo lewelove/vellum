@@ -79,23 +79,13 @@ pub fn resolve_source_disk(album_info: &AlbumInfo, base_dir: &Path, config: &App
             base_dir.join(p)
         }
     } else {
-        let store_root = config.nix.as_ref().map_or_else(
-            || base_dir.join(".vellum/store"),
-            |n| libvellum::utils::expand_path(&n.store),
-        );
-
-        let truncated = get_nix32_truncate(&album_info.torrent_hash);
-        let sanitized_source = sanitize_source_name(&album_info.torrent_name);
-        let link_name = format!("{sanitized_source}-{truncated}");
-        
-        let gc_root = store_root.join("gcroots").join("source").join(&link_name);
-        if gc_root.exists() {
-            return gc_root;
-        }
-
         let stage_root = config.nix.as_ref()
             .and_then(|n| n.stage.clone())
             .map_or_else(|| base_dir.join(".vellum/stage"), |s| libvellum::utils::expand_path(&s));
+        
+        let truncated = get_nix32_truncate(&album_info.torrent_hash);
+        let sanitized_source = sanitize_source_name(&album_info.torrent_name);
+        let link_name = format!("{sanitized_source}-{truncated}");
         
         stage_root.join(link_name)
     }
@@ -161,6 +151,7 @@ pub fn run(album_path: Option<String>) -> Result<()> {
     let (config, _, _) = AppConfig::load().context("Failed to load config")?;
     let nix_config = config.nix.as_ref().context("Missing [nix] configuration")?;
     let cmds = nix_config.commands.as_ref().context("Missing [nix.commands] configuration")?;
+    let store_path = expand_path(&nix_config.store).canonicalize().context("Invalid store path")?;
 
     let target_path = if let Some(a) = album_path {
         let p = expand_path(&a)
@@ -184,6 +175,17 @@ pub fn run(album_path: Option<String>) -> Result<()> {
 
     let album_info = parse_album_nix(&target_path)?;
     let album_dir = target_path.parent().unwrap();
+
+    let truncated = get_nix32_truncate(&album_info.torrent_hash);
+    let sanitized_source = sanitize_source_name(&album_info.torrent_name);
+    let link_name = format!("{sanitized_source}-{truncated}");
+    let gc_roots_source = store_path.join("gcroots").join("source");
+    let source_link = gc_roots_source.join(&link_name);
+
+    if source_link.exists() {
+        log::info!("Source is already pinned logically in the Nix store. Skipping download.");
+        return Ok(());
+    }
 
     let torrent_file_path = if album_info.torrent_file.starts_with("./") {
         album_dir.join(album_info.torrent_file.trim_start_matches("./"))
