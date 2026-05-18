@@ -72,17 +72,8 @@ pub fn resolve_anchor(
     let mut group_paths_set = HashSet::new();
 
     for (p, _) in tracks {
-        if let Ok(canon) = p.canonicalize() {
-            paths.push(canon.clone());
-            group_paths_set.insert(canon);
-        } else {
-            paths.push(p.clone());
-            group_paths_set.insert(p.clone());
-        }
-    }
-
-    if paths.is_empty() {
-        return (None, false);
+        paths.push(p.clone());
+        group_paths_set.insert(p.clone());
     }
 
     let mut anchor = paths[0].parent().unwrap_or(&paths[0]).to_path_buf();
@@ -96,27 +87,22 @@ pub fn resolve_anchor(
         }
     }
 
-    let abs_anchor = anchor.canonicalize().unwrap_or(anchor);
-
     if !validate {
-        return (Some(abs_anchor), true);
+        return (Some(anchor), true);
     }
 
     let mut valid = true;
-    for entry in walkdir::WalkDir::new(&abs_anchor).into_iter().filter_map(Result::ok) {
+    for entry in walkdir::WalkDir::new(&anchor).into_iter().filter_map(Result::ok) {
         if !entry.file_type().is_file() {
             continue;
         }
-        let p = entry
-            .path()
-            .canonicalize()
-            .unwrap_or_else(|_| entry.path().to_path_buf());
+        let p = entry.path().to_path_buf();
         if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
             let ext_lower = format!(".{}", ext.to_lowercase());
             if supported_exts.contains(&ext_lower) && !group_paths_set.contains(&p) {
                 log::warn!(
                     "Exclusivity Violation: {}\nCollision from: {}",
-                    abs_anchor.display(),
+                    anchor.display(),
                     p.display()
                 );
                 valid = false;
@@ -125,5 +111,5 @@ pub fn resolve_anchor(
         }
     }
 
-    (Some(abs_anchor), valid)
+    (Some(anchor), valid)
 }

@@ -25,7 +25,7 @@ pub struct ManifestOptions {
 
 pub fn run(target_path: Option<PathBuf>, options: &ManifestOptions) -> Result<()> {
     let (config, _raw_config, _): (AppConfig, toml::Value, PathBuf) = AppConfig::load().context("Failed to load config")?;
-    let lib_root = expand_path(&config.storage.library_root).canonicalize()?;
+    let lib_root = expand_path(&config.storage.library_root);
 
     let manifest_cfg = config.manifest.context("Missing [manifest] configuration")?;
     let supported_exts: Vec<String> = manifest_cfg
