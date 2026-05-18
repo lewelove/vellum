@@ -21,12 +21,23 @@ Vellum is in active development. To ensure a reproducible environment it is mana
 
 ### 1. Setup the Environment
 
-Clone the repository and drop into the development shell:
+Clone the repository:
 
 ```
-git clone https://github.com/lewelove/Vellum.git vellum
+git clone https://github.com/lewelove/vellum.git
 cd vellum
+```
+
+Drop into the development shell:
+
+```
 nix develop
+```
+
+or if you have direnv installed
+
+```
+direnv allow
 ```
 
 Once inside the Nix shell, install `node_modules` with bun:
