@@ -52,6 +52,7 @@
     if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName ?? "")) return;
     
     const code = e.code;
+    const key = e.key;
     
     if (code === 'Space') {
       e.preventDefault();
@@ -60,28 +61,44 @@
       return;
     }
 
-    if (code === 'Enter') {
+    if (key === 'Enter' || code === 'NumpadEnter') {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
 
-    const key = e.key.toLowerCase();
+    const lowerKey = key.toLowerCase();
     
-    if (key === 'escape' && isModalVisible) {
+    if (lowerKey === 'escape' && isModalVisible) {
+      e.preventDefault();
+      e.stopPropagation();
       library.closeFocus();
       return;
     }
 
-    if (key === '1' || key === 'h') setTab('home');
-    if (key === '2' || key === 'q') setTab('queue');
-    if (key === '3' || key === 's') setTab('shelves');
+    if (lowerKey === '1' || lowerKey === 'h') setTab('home');
+    if (lowerKey === '2' || lowerKey === 'q') setTab('queue');
+    if (lowerKey === '3' || lowerKey === 's') setTab('shelves');
+  }
+
+  function handleFocusIn(e: FocusEvent) {
+    if (!e.target) return;
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+      if (e.target !== document.body) {
+        document.body.focus({ preventScroll: true });
+      }
+    }
   }
 
   onMount(() => {
     library.init();
     window.addEventListener("keydown", handleKeydown, { capture: true });
-    return () => window.removeEventListener("keydown", handleKeydown, { capture: true });
+    window.addEventListener("focusin", handleFocusIn, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", handleKeydown, { capture: true });
+      window.removeEventListener("focusin", handleFocusIn, { capture: true });
+    };
   });
 </script>
 
@@ -89,7 +106,7 @@
   <link rel="stylesheet" href="/api/theme/css?v={library.themeVersion}" />
 </svelte:head>
 
-<main>
+<main tabindex="-1">
   
   <div class="view-layer home" class:visible={isHomeVisible} class:active={isHomeActive} aria-hidden={!isHomeActive}>
     <HomeView />
@@ -117,6 +134,7 @@
     height: 100%;
     overflow: hidden;
     background-color: var(--background-main);
+    outline: none;
   }
 
   .view-layer {
@@ -162,4 +180,3 @@
     background-color: var(--background-main);
   }
 </style>
-

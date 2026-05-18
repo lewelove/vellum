@@ -95,9 +95,6 @@
     <div 
       class="expanded-backdrop" 
       onclick={toggleExpand}
-      role="button"
-      tabindex="0"
-      onkeydown={(e) => { if(e.key === 'Enter') toggleExpand(); }}
       transition:fade={{ duration: 200 }}
     >
       <div 
@@ -244,4 +241,3 @@
     pointer-events: none;
   }
 </style>
-

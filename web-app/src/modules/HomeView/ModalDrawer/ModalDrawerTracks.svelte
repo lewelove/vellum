@@ -72,12 +72,6 @@
       }
     }
   }
-
-  function handleKeydown(e: KeyboardEvent, index: number) {
-    if (e.key === 'Enter') {
-      handlePlay(index);
-    }
-  }
 </script>
 
 <div class="tracks-list">
@@ -105,11 +99,8 @@
     <div 
       class="v-track-row track-row" 
       class:active={selectedIndex === i}
-      tabindex="0"
       onclick={() => handleSelect(i)}
       ondblclick={() => handlePlay(i)}
-      onkeydown={(e) => handleKeydown(e, i)}
-      role="button"
       aria-label="Track {track.tracknumber}: {track.title}"
     >
       <span class="v-mono v-track-index track-index">{track.tracknumber}</span>
@@ -204,4 +195,3 @@
     color: #888888;
   }
 </style>
-

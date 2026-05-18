@@ -12,9 +12,6 @@
     class:clickable={!!coverHash}
     bind:clientWidth={width}
     {onclick}
-    role="button"
-    tabindex="0"
-    onkeydown={(e) => { if(e.key === 'Enter') onclick?.(); }}
   >
     <div class="cover-absolute-wrapper">
       {#if width > 0}
@@ -68,4 +65,3 @@
     justify-content: center;
   }
 </style>
-

@@ -142,8 +142,6 @@
           class="v-track-row track-row" 
           class:active={track.isPlaying}
           ondblclick={() => handleJump(track.id)}
-          role="button"
-          tabindex="0"
         >
           <div class="v-track-body track-body">
             <span class="v-truncate v-track-title track-title">{track.title}</span>
@@ -291,4 +289,3 @@
     margin-top: 4px;
   }
 </style>
-
