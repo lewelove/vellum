@@ -16,7 +16,7 @@ Think of an album folder the same way you think of a code repository. It contain
 Vellum is in active development. To ensure a reproducible environment it is managed by Nix.
 
 **Prerequisites:** 
-* Nix
+* `nix`
 * A running `mpd` instance
 
 ### 1. Setup the Environment
@@ -34,7 +34,7 @@ Drop into the development shell:
 nix develop
 ```
 
-or if you have direnv installed
+Or if you have `direnv` installed:
 
 ```
 direnv allow
