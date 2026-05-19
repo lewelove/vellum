@@ -155,25 +155,25 @@
 
 <div class="control-container">
   <div class="progress-track" bind:clientHeight={height}>
-    {#if height > 0}
-      <svg xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <clipPath id="wave-fill-clip">
-            <rect 
-              x="-5" 
-              y="-10"
-              width="34" 
-              height={Math.max(0, waveData.targetY + 10)} 
-            />
-          </clipPath>
-        </defs>
-        <path d={waveData.d} class="wave-bg" />
-        <g class="wave-fill-group">
-          <path d={waveData.d} clip-path="url(#wave-fill-clip)" />
-          <circle cx={waveData.cx} cy={waveData.cy} r={waveData.thumbR} />
-        </g>
-      </svg>
-    {/if}
+    <!-- {#if height > 0} -->
+    <!--   <svg xmlns="http://www.w3.org/2000/svg"> -->
+    <!--     <defs> -->
+    <!--       <clipPath id="wave-fill-clip"> -->
+    <!--         <rect  -->
+    <!--           x="-5"  -->
+    <!--           y="-10" -->
+    <!--           width="34"  -->
+    <!--           height={Math.max(0, waveData.targetY + 10)}  -->
+    <!--         /> -->
+    <!--       </clipPath> -->
+    <!--     </defs> -->
+    <!--     <path d={waveData.d} class="wave-bg" /> -->
+    <!--     <g class="wave-fill-group"> -->
+    <!--       <path d={waveData.d} clip-path="url(#wave-fill-clip)" /> -->
+    <!--       <circle cx={waveData.cx} cy={waveData.cy} r={waveData.thumbR} /> -->
+    <!--     </g> -->
+    <!--   </svg> -->
+    <!-- {/if} -->
   </div>
   <div class="buttons">
     <button class="v-btn-icon control-btn-lesser" onclick={prev} title="Previous">
@@ -231,25 +231,25 @@
   .buttons {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
   }
 
   .control-btn {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     margin: 0 2px;
-    border-radius: 20px;
+    border-radius: 18px;
     flex-shrink: 0;
   }
 
   .control-btn img {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
   }
 
   .control-btn-lesser {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     margin: 0 4px;
     border-radius: 20px;
     flex-shrink: 0;

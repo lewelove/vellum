@@ -35,7 +35,7 @@
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
-    padding: 12px;
+    padding: 10px;
     box-sizing: border-box;
     box-shadow: var(--panel-shadow);
     z-index: 100;
@@ -50,7 +50,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
   }
 
@@ -59,17 +59,17 @@
   }
 
   .nav-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     box-shadow: var(--button-shadow-lesser);
     flex-shrink: 0;
     pointer-events: auto;
   }
 
   .nav-icon {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
   }
 </style>
 

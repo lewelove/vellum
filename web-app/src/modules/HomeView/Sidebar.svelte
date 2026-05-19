@@ -197,7 +197,7 @@
     display: flex;
     flex-direction: column;
     background-color: var(--background-drawer); 
-    padding: 12px; 
+    padding: 10px; 
     box-sizing: border-box;
     font-family: var(--font-stack);
   }
@@ -206,7 +206,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding-bottom: 12px;
+    padding-bottom: 10px;
     border-bottom: 1px solid oklch(100% 0 0 / 0.05);
     margin-bottom: 0px;
     flex-shrink: 0;
@@ -287,7 +287,7 @@
     display: block;
     width: 100%;
     text-align: left;
-    padding: 6px 12px;
+    padding: 6px 10px;
     margin-bottom: 2px;
     background: none;
     border: none;
@@ -343,7 +343,7 @@
     width: 100%;
     background-color: transparent;
     border: none;
-    padding: 6px 12px;
+    padding: 6px 10px;
     margin-bottom: 2px;
     cursor: pointer;
     color: var(--text-muted);

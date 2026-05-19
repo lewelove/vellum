@@ -79,7 +79,7 @@
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
-    padding: 12px;
+    padding: 10px;
     box-sizing: border-box;
     z-index: 100;
     flex-shrink: 0;
@@ -88,13 +88,13 @@
   .nav-group {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
   .queue-nav-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     box-shadow: var(--button-shadow-lesser);
     flex-shrink: 0;
     pointer-events: auto;
@@ -107,8 +107,8 @@
   }
 
   .queue-act-button {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 20px;
     box-shadow: var(--button-shadow-lesser);
     flex-shrink: 0;
@@ -122,13 +122,13 @@
   }
 
   .nav-icon {
-    width: 22px;
+    width: 20px;
     height: 22px;
   }
 
   .act-icon {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
 </style>
 
