@@ -1,6 +1,5 @@
 <script lang="ts">
   import { nav, setTab } from "../../navigation.svelte.ts";
-  import Control from "./Control.svelte";
 
   let { variant = "solid" } = $props();
 </script>
@@ -22,10 +21,6 @@
     {@render NavButton({ icon: "icons/outlined/24px/queue_music.svg", tab: "queue" })}
     {@render NavButton({ icon: "icons/outlined/24px/newsstand.svg", tab: "shelves" })}
   </div>
-
-  <div class="nav-group bottom">
-    <Control />
-  </div>
 </nav>
 
 <style>
@@ -35,7 +30,7 @@
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
-    padding: 10px;
+    padding: 8px;
     box-sizing: border-box;
     box-shadow: var(--panel-shadow);
     z-index: 100;
@@ -50,12 +45,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
-  }
-
-  .nav-group.bottom {
-    flex: 1;
   }
 
   .nav-button {
@@ -72,4 +63,3 @@
     height: 20px;
   }
 </style>
-

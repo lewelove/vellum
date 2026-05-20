@@ -1,26 +1,8 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { player } from "../player.svelte.ts";
   import { library } from "../../library.svelte.ts";
   import { jumpToQueueIndex } from "../../api.ts";
   import ClearCover from "../ClearCover.svelte";
-
-  let tickingElapsed = $state(0);
-
-  function tick() {
-    if (player.state === "play") {
-      const delta = (performance.now() - player.lastUpdated) / 1000;
-      tickingElapsed = Math.min(player.elapsed + delta, player.duration || 0);
-    } else {
-      tickingElapsed = player.elapsed || 0;
-    }
-    requestAnimationFrame(tick);
-  }
-
-  onMount(() => {
-    const raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  });
 
   function formatDuration(str: string) {
     if (!str) return "0:00";
@@ -207,6 +189,8 @@
     display: flex;
     align-items: center;
     box-sizing: border-box;
+    border-bottom: 1px solid oklch(100% 0 0 / 0.07);
+    margin-bottom: 16px;
   }
 
   .header-content {

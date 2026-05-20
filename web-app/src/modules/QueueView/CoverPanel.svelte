@@ -6,7 +6,11 @@
   let isStopped = $derived(player.state === "stop");
 </script>
 
-<div class="cover-wrapper" class:v-glass={isStopped}>
+<div 
+  class="cover-wrapper" 
+  class:stopped={isStopped}
+  style="background-color: {isStopped ? 'var(--background-drawer)' : 'transparent'};"
+>
   <div 
     class="cover-panel" 
     class:clickable={!!coverHash}
@@ -27,20 +31,21 @@
 
 <style>
   .cover-wrapper {
-    background-color: #1f1f1f;
-    flex: 0 1 auto;
     height: 100%;
     max-height: 100%;
-    max-width: 60%;
+    max-width: 60vw;
     aspect-ratio: 1 / 1;
-    align-self: flex-start;
-    min-width: 0;
-    min-height: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     position: relative;
     z-index: 10;
+    transition: background-color 0.3s ease;
+    box-sizing: border-box;
+  }
+
+  .cover-wrapper.stopped {
+    box-shadow: var(--album-cover-shadow);
   }
 
   .cover-panel {

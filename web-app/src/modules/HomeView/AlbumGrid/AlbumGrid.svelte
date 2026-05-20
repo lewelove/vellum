@@ -12,6 +12,7 @@
 
   const activeKeys = new Set();
   const SCROLL_SPEED = 0.20;
+  let isAnimating = false;
 
   let renderY = $derived(ctrl.scroll.currentY);
 
@@ -22,8 +23,24 @@
 
     if (delta !== 0) ctrl.scrollRow(delta);
 
-    ctrl.update(null, dpr);
-    rafId = requestAnimationFrame(loop);
+    const idealTargetY = ctrl.scroll.targetSlot * ctrl.layout.rowHeight;
+    const snappedTargetY = Math.round(idealTargetY * dpr) / dpr;
+    const diff = Math.abs(snappedTargetY - ctrl.scroll.currentY);
+
+    if (delta !== 0 || diff > 0.01) {
+      ctrl.update(null, dpr);
+      rafId = requestAnimationFrame(loop);
+    } else {
+      ctrl.update(null, dpr);
+      isAnimating = false;
+    }
+  }
+
+  function wakeUp() {
+    if (!isAnimating) {
+      isAnimating = true;
+      loop();
+    }
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -34,6 +51,7 @@
     if (['j', 'k', 'arrowdown', 'arrowup'].includes(key)) {
       e.preventDefault();
       activeKeys.add(key);
+      wakeUp();
     }
   }
 
@@ -52,6 +70,7 @@
       const topAlbumIdx = ctrl.scroll.targetSlot * prevCols;
       const newSlot = Math.floor(topAlbumIdx / ctrl.layout.cols);
       ctrl.scroll.syncToSlot(newSlot);
+      wakeUp();
     }
     prevCols = ctrl.layout.cols;
   });
@@ -59,6 +78,7 @@
   $effect(() => {
     const _v = version;
     ctrl.resetScroll();
+    wakeUp();
   });
 
   onMount(() => {
@@ -66,7 +86,7 @@
     window.addEventListener("keydown", handleKeydown);
     window.addEventListener("keyup", handleKeyup);
     window.addEventListener("blur", handleBlur);
-    loop();
+    wakeUp();
   });
 
   onDestroy(() => {
@@ -86,6 +106,7 @@
       if (activeAlbumId) return;
       e.preventDefault(); 
       ctrl.handleWheel(e); 
+      wakeUp();
     }}
   >
     <div 
@@ -168,4 +189,3 @@
         height: 100%;
     }
 </style>
-

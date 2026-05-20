@@ -23,8 +23,6 @@
   --text-muted: var(--palette-400);
   --border-muted: var(--palette-300);
 
-  --glass-bg: oklch(32% 0 0 / 0.6);
-  --glass-bg: oklch(26% 0 0 / 0.8);
   --glass-bg: oklch(32% 0 0 / 0.5);
 
   --font-size-title: 14px;
@@ -153,7 +151,6 @@ main {
   backdrop-filter: blur(0px);
   background-color: var(--glass-bg);
   box-shadow: var(--panel-shadow);
-  text-shadow: 0 1px 3px oklch(0% 0 0 / 0.3);
   transition: background-color 0.3s ease;
 }
 
@@ -164,13 +161,28 @@ main {
 .v-btn-icon {
   opacity: 0.8;
   background-color: oklch(100% 0 0 / 0.0);
-  border: 2px solid oklch(100% 0 0 / 0.15);
+  border: 2px solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   box-shadow: var(--button-shadow);
   box-sizing: border-box;
+  position: relative;
+}
+
+.v-btn-icon::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, oklch(100% 0 0 / 0.3) 0%, oklch(100% 0 0 / 0.1) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .v-btn-icon img {

@@ -11,20 +11,17 @@
   const gapY = $derived(theme.albumGrid["gap-y"]);
   const textGap = $derived(theme.albumGrid["text-gap-main"]);
 
-  const occlusionBoundary = 0;
-
   let absoluteY = $derived(rowY - scrollY);
   let metadataTop = $derived(absoluteY + gapY + coverSize + textGap);
   
   let opacity = $derived.by(() => {
     const fadeDistance = 40;
-    const diff = metadataTop - occlusionBoundary;
-    return Math.max(0, Math.min(1, diff / fadeDistance));
-  });
-
-  let clipAmount = $derived.by(() => {
-    const diff = occlusionBoundary - metadataTop;
-    return Math.max(0, diff);
+    const diff = metadataTop; 
+    
+    if (diff >= fadeDistance) return 1;
+    if (diff <= 0) return 0;
+    
+    return diff / fadeDistance;
   });
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -169,7 +166,6 @@
     class="album-info" 
     style="
       opacity: {opacity};
-      clip-path: inset({clipAmount}px 0 0 0);
       z-index: 1;
       height: {textBlockHeight}px;
     "
@@ -227,6 +223,6 @@
   .album-info {
     display: block;
     position: relative;
-    will-change: opacity, clip-path;
+    will-change: opacity;
   }
 </style>

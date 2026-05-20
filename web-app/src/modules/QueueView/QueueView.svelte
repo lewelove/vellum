@@ -19,7 +19,7 @@
   
   let fullAlbum = $derived(activeId ? library.fullAlbumCache[activeId] : null);
 
-  let palette = $derived(fullAlbum?.album?.tags?.cover_palette || activeAlbum?.tags?.cover_palette ||[]);
+  let palette = $derived(fullAlbum?.album?.tags?.cover_palette || activeAlbum?.tags?.cover_palette || []);
   let hasPalette = $derived(palette && palette.length > 0);
   let hasLyrics = $derived(fullAlbum?.tracks?.some((t: any) => !!t.info?.lyrics_path || t.tags?.instrumental === true) ?? false);
 
@@ -89,7 +89,7 @@
 >
   <BackgroundShader colors={palette} coverSize={moduleWidth} visible={isViewVisible} {isPlaying} />
 
-  <NavBar variant="glass" />
+  <NavBar variant={library.isShaderActive && hasPalette ? 'glass' : 'solid'} />
 
   {#if isExpanded}
     <div 
@@ -117,31 +117,33 @@
   <div class="view-content-wrapper">
     <div class="queue-modules">
       
-      {#if showLyricsPanel}
-        <div class="side-column">
-          <div class="module-panel lyrics-panel v-glass">
+      <div class="side-column lyrics-col">
+        {#if showLyricsPanel}
+          <div class="module-panel v-glass">
             <div class="panel-inner">
               <LyricsPanel />
             </div>
           </div>
-        </div>
-      {/if}
+        {/if}
+      </div>
 
-      <CoverPanel 
-        {coverHash} 
-        bind:width={moduleWidth} 
-        onclick={toggleExpand} 
-      />
+      <div class="center-column">
+        <CoverPanel 
+          {coverHash} 
+          bind:width={moduleWidth} 
+          onclick={toggleExpand} 
+        />
+      </div>
 
-      {#if showTracksPanel}
-        <div class="side-column">
-          <div class="module-panel tracks-panel v-glass">
+      <div class="side-column tracks-col">
+        {#if showTracksPanel}
+          <div class="module-panel v-glass">
             <div class="panel-inner">
               <TracklistPanel />
             </div>
           </div>
-        </div>
-      {/if}
+        {/if}
+      </div>
 
     </div>
   </div>
@@ -165,7 +167,7 @@
     position: relative;
     height: 100%;
     min-width: 0;
-    padding: 24px; 
+    padding: 0;
     box-sizing: border-box;
     z-index: 1;
     display: flex;
@@ -175,51 +177,54 @@
 
   .queue-modules {
     width: 100%;
-    flex: 1;
-    min-height: 0;
-    min-width: 0;
+    height: 100%;
     display: flex;
     flex-direction: row;
-    justify-content: center;
     align-items: stretch;
   }
 
   .side-column {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    flex: 1;
-    gap: 16px;
     height: 100%;
     min-width: 0;
-    justify-content: flex-start;
+    overflow: visible;
+  }
+
+  .lyrics-col .module-panel {
+    clip-path: inset(0 -30px 0 0);
+  }
+
+  .tracks-col .module-panel {
+    clip-path: inset(0 0 0 -30px);
+  }
+
+  .center-column {
+    flex: 0 0 auto;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 0;
+    padding: 24px;
+    box-sizing: border-box;
   }
 
   .module-panel {
-    min-width: 250px;
-    border-radius: 16px;
+    flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-  }
-
-  .tracks-panel {
-    flex: 1;
-    min-height: 0;
-    border-radius: 0 20px 20px 0;
-  }
-
-  .lyrics-panel {
-    flex: 1;
-    min-height: 0;
-    border-radius: 20px 0 0 20px;
   }
 
   .panel-inner {
     flex: 1;
-    padding: 24px;
+    padding: 20px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    text-shadow: 0 1px 3px oklch(0% 0 0 / 0.3);
     min-height: 0;
   }
 
