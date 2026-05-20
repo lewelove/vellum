@@ -377,6 +377,7 @@ fn get_mtime_sum(dir: &Path, meta: &Path, exts: &[String], manifests: Option<&Ve
     let mut t_mtime = 0;
     for entry in walkdir::WalkDir::new(dir)
         .max_depth(3)
+        .follow_links(true)
         .into_iter()
         .filter_map(Result::ok)
     {

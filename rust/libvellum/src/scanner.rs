@@ -9,6 +9,7 @@ pub fn find_target_albums(path: &Path, max_depth: usize) -> Result<Vec<PathBuf>,
     } else {
         for entry in WalkDir::new(path)
             .max_depth(max_depth)
+            .follow_links(true)
         {
             match entry {
                 Ok(e) => {
@@ -33,6 +34,7 @@ pub fn find_target_albums(path: &Path, max_depth: usize) -> Result<Vec<PathBuf>,
 pub fn scan_audio_files(root: &Path, extensions: &[&str]) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = WalkDir::new(root)
         .max_depth(3)
+        .follow_links(true)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())

@@ -92,7 +92,7 @@ pub fn resolve_anchor(
     }
 
     let mut valid = true;
-    for entry in walkdir::WalkDir::new(&anchor).into_iter().filter_map(Result::ok) {
+    for entry in walkdir::WalkDir::new(&anchor).follow_links(true).into_iter().filter_map(Result::ok) {
         if !entry.file_type().is_file() {
             continue;
         }

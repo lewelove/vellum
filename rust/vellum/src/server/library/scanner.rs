@@ -20,6 +20,7 @@ impl Library {
         log::info!("Scanning Library at {}", self.root.display());
 
         let entries: Vec<PathBuf> = WalkDir::new(&self.root)
+            .follow_links(true)
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.file_name() == "metadata.lock.json")
@@ -63,4 +64,3 @@ impl Library {
         UpdateResult::Removed(alb_id)
     }
 }
-

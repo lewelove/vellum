@@ -164,7 +164,7 @@ fn write_library_toml(anchor: &Path) -> Result<()> {
 
 fn find_harvestable_directories(scan_root: &Path, force: bool, supported_exts: &[String]) -> Vec<PathBuf> {
     let mut dirs_to_harvest = Vec::new();
-    let mut it = WalkDir::new(scan_root).into_iter();
+    let mut it = WalkDir::new(scan_root).follow_links(true).into_iter();
 
     while let Some(Ok(entry)) = it.next() {
         if entry.file_type().is_dir() {
@@ -178,7 +178,7 @@ fn find_harvestable_directories(scan_root: &Path, force: bool, supported_exts: &
                 .map(|mut d| {
                     d.any(|e| {
                         if let Ok(f) = e
-                            && f.file_type().is_ok_and(|ft| ft.is_file())
+                            && f.path().is_file()
                                 && let Some(ext) = f.path().extension().and_then(|e| e.to_str()) {
                                     let ext_lower = format!(".{}", ext.to_lowercase());
                                     return supported_exts.contains(&ext_lower);
@@ -207,7 +207,7 @@ fn harvest_audio_files(
             ManifestMode::Album => 1,
             ManifestMode::Library => usize::MAX,
         };
-        for entry in walkdir::WalkDir::new(&dir).max_depth(max_depth).into_iter().filter_map(Result::ok) {
+        for entry in walkdir::WalkDir::new(&dir).max_depth(max_depth).follow_links(true).into_iter().filter_map(Result::ok) {
             let path = entry.path();
             if path.is_file()
                 && let Some(ext) = path.extension().and_then(|e| e.to_str()) {
