@@ -57,7 +57,7 @@ class LibraryState {
   fullAlbumCache: Record<string, any> = $state({});
   isShaderEnabled: boolean = $state(true);
   isShaderActive: boolean = $derived(this.isShaderEnabled && player.state !== "stop");
-  queuePanels: Record<string, boolean> = $state({ lyrics: false, tracks: true });
+  queuePanels: Record<string, boolean> = $state({ hud: true });
   themeVersion: number = $state(Date.now());
   
   sidebarWidth: number = $state(280);
@@ -117,10 +117,10 @@ class LibraryState {
       const isShelves = (nav.activeTab === "shelves");
       
       if (isShelves) {
-        this.shelfViewIds = json.ids ||[];
+        this.shelfViewIds = json.ids || [];
         if (this._pendingViewReset) this.shelfVersion++;
       } else {
-        this.libraryViewIds = json.ids ||[];
+        this.libraryViewIds = json.ids || [];
         if (this._pendingViewReset) this.libraryVersion++;
       }
       
@@ -222,8 +222,15 @@ class LibraryState {
       this.activeFilter = state.filter || { key: null, val: null };
       this.activeShelf = state.activeShelf || null;
       this.isShaderEnabled = state.isShaderEnabled ?? true;
-      this.queuePanels = state.queuePanels || { lyrics: false, tracks: true };
       this.sidebarWidth = state.sidebarWidth || 280;
+      
+      this.queuePanels = state.queuePanels || { hud: true };
+      if (this.queuePanels.hud === undefined) {
+        this.queuePanels.hud = this.queuePanels.control !== false;
+        delete this.queuePanels.control;
+        delete this.queuePanels.tracks;
+        delete this.queuePanels.lyrics;
+      }
   }
 
   persistState() {
@@ -278,9 +285,9 @@ class LibraryState {
   getSidebarGroup(key: string): any[] {
     if (!this.sidebarGroups.has(key) && this._ws?.readyState === WebSocket.OPEN) {
         this.refreshSidebar();
-        return[];
+        return [];
     }
-    return this.sidebarGroups.get(key) ||[];
+    return this.sidebarGroups.get(key) || [];
   }
 
   getTrackByPath(path: string): any {

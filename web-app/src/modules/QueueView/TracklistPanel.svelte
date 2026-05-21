@@ -2,21 +2,29 @@
   import { player } from "../player.svelte.ts";
   import { library } from "../../library.svelte.ts";
   import { jumpToQueueIndex } from "../../api.ts";
-  import ClearCover from "../ClearCover.svelte";
+  import { setTab } from "../../navigation.svelte.ts";
+
+  let { showHud, hasPalette } = $props();
+
+  let activeId = $derived(player.currentAlbumId);
+  let isStopped = $derived(player.state === "stop");
+
+  async function handleFocus() {
+    if (activeId) {
+      await setTab("home");
+      await library.setFocus({ id: activeId });
+    }
+  }
 
   function formatDuration(str: string) {
     if (!str) return "0:00";
-    
     let parts = str.split(':');
-    
     while (parts.length > 2 && parseInt(parts[0]) === 0) {
       parts.shift();
     }
-    
     if (parts[0].length > 1 && parts[0].startsWith('0')) {
       parts[0] = parts[0].substring(1);
     }
-    
     return parts.join(':');
   }
 
@@ -26,12 +34,8 @@
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
     const s = totalSeconds % 60;
-    
     const pad = (num: number) => String(num).padStart(2, '0');
-
-    if (h > 0) {
-      return `${h}:${pad(m)}:${pad(s)}`;
-    }
+    if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
     return `${m}:${pad(s)}`;
   }
 
@@ -49,7 +53,6 @@
   let mappedTracks = $derived(player.queue.map(item => {
     const meta = library.getTrackByPath(item.file);
     const albumId = meta?.albumId || null;
-    
     const title = meta ? meta.title : (item.title || item.file);
     const artist = meta ? meta.artist : (item.artist || "");
 
@@ -68,7 +71,7 @@
   }));
 
   let groupedQueue = $derived.by(() => {
-    const groups: any[] =[];
+    const groups: any[] = [];
     mappedTracks.forEach(track => {
       if (groups.length === 0 || groups[groups.length - 1].albumId !== track.albumId) {
         const albumMeta = library.dict[track.albumId];
@@ -85,62 +88,168 @@
   });
 </script>
 
-<div class="tracks-list-container">
-  <div class="tracks-list">
-    {#each groupedQueue as group}
-      {#if group.albumMeta}
-        <div class="album-group-header">
-          <div class="header-content">
-            <div class="header-row">
-              <span class="v-truncate header-album">{group.albumMeta.album}</span>
-              <span class="v-mono header-meta">{group.albumMeta.date?.substring(0,4)}</span>
-            </div>
-            <div class="header-row">
-              <span class="v-truncate header-artist">{group.albumMeta.albumartist}</span>
-              <span class="v-mono header-meta">{group.albumMeta.album_duration_time}</span>
-            </div>
-          </div>
-        </div>
-      {/if}
+{#snippet NavButton({ icon, label, disabled, active, onclick }: { icon: string, label: string, disabled?: boolean, active?: boolean, onclick: () => void })}
+  <button class="v-btn-icon queue-nav-button" class:active {disabled} {onclick} title={label}>
+    <img src="/{icon}" alt={label} class="nav-icon" />
+  </button>
+{/snippet}
 
-      {@const isMultiDiscAlbum = group.albumMeta && parseInt(group.albumMeta.total_discs || "1") > 1}
+{#snippet NavButtons()}
+  {@render NavButton({ icon: "icons/outlined/24px/side_navigation.svg", label: "Toggle HUD", active: showHud, onclick: () => library.toggleQueuePanel('hud') })}
+  {#if hasPalette}
+    {@render NavButton({ 
+      icon: "icons/outlined/24px/colors.svg", 
+      label: "Toggle Shader", 
+      active: library.isShaderEnabled, 
+      disabled: isStopped,
+      onclick: () => library.toggleShader() 
+    })}
+  {/if}
+  {@render NavButton({
+    icon: "icons/outlined/24px/album.svg",
+    label: "Focus Album",
+    disabled: !activeId,
+    onclick: handleFocus
+  })}
+{/snippet}
 
-      {#each group.tracks as track, i (track.id)}
-        {@const showDiscHeader = isMultiDiscAlbum && (i === 0 || track.discNo !== group.tracks[i-1].discNo)}
-        
-        {#if showDiscHeader}
-          {#if i > 0}
-            <div class="disc-separator"></div>
-          {/if}
-          <div class="disc-header-row" class:first-disc={i === 0}>
-            <span class="disc-label">Disc {track.discNo}</span>
-            <div class="disc-header-right">
-              <span class="v-mono disc-duration-label">{getDiscDuration(group.tracks, track.discNo)}</span>
-            </div>
-          </div>
-        {/if}
-
-        <div 
-          class="v-track-row track-row" 
-          class:active={track.isPlaying}
-          ondblclick={() => handleJump(track.id)}
-        >
-          <div class="v-track-body track-body">
-            <span class="v-truncate v-track-title track-title">{track.title}</span>
-            {#if track.artist && group.albumMeta && track.artist.toLowerCase() !== group.albumMeta.albumartist.toLowerCase()}
-              <span class="v-truncate v-track-artist track-artist">{track.artist}</span>
+{#if showHud}
+  <div class="module-panel v-glass">
+    <div class="panel-inner">
+      <div class="tracks-list-container">
+        <div class="tracks-list">
+          {#each groupedQueue as group}
+            {#if group.albumMeta}
+              <div class="album-group-header">
+                <div class="header-content">
+                  <div class="header-row">
+                    <span class="v-truncate header-album">{group.albumMeta.album}</span>
+                    <span class="v-mono header-meta">{group.albumMeta.date?.substring(0,4)}</span>
+                  </div>
+                  <div class="header-row">
+                    <span class="v-truncate header-artist">{group.albumMeta.albumartist}</span>
+                    <span class="v-mono header-meta">{group.albumMeta.album_duration_time}</span>
+                  </div>
+                </div>
+              </div>
             {/if}
-          </div>
-          <span class="v-mono v-track-meta track-meta">
-            {formatDuration(track.duration)}
-          </span>
+
+            {@const isMultiDiscAlbum = group.albumMeta && parseInt(group.albumMeta.total_discs || "1") > 1}
+
+            {#each group.tracks as track, i (track.id)}
+              {@const showDiscHeader = isMultiDiscAlbum && (i === 0 || track.discNo !== group.tracks[i-1].discNo)}
+              
+              {#if showDiscHeader}
+                {#if i > 0}
+                  <div class="disc-separator"></div>
+                {/if}
+                <div class="disc-header-row" class:first-disc={i === 0}>
+                  <span class="disc-label">Disc {track.discNo}</span>
+                  <div class="disc-header-right">
+                    <span class="v-mono disc-duration-label">{getDiscDuration(group.tracks, track.discNo)}</span>
+                  </div>
+                </div>
+              {/if}
+
+              <div 
+                class="v-track-row track-row" 
+                class:active={track.isPlaying}
+                ondblclick={() => handleJump(track.id)}
+              >
+                <div class="v-track-body track-body">
+                  <span class="v-truncate v-track-title track-title">{track.title}</span>
+                  {#if track.artist && group.albumMeta && track.artist.toLowerCase() !== group.albumMeta.albumartist.toLowerCase()}
+                    <span class="v-truncate v-track-artist track-artist">{track.artist}</span>
+                  {/if}
+                </div>
+                <span class="v-mono v-track-meta track-meta">
+                  {formatDuration(track.duration)}
+                </span>
+              </div>
+            {/each}
+          {/each}
         </div>
-      {/each}
-    {/each}
+      </div>
+    </div>
+    
+    <div class="panel-splitter"></div>
+    
+    <div class="sidebar-buttons">
+      {@render NavButtons()}
+    </div>
   </div>
-</div>
+{:else}
+  <div class="floating-buttons">
+    {@render NavButtons()}
+  </div>
+{/if}
 
 <style>
+  .module-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    clip-path: inset(0 0 0 -30px);
+  }
+
+  .panel-inner {
+    flex: 1;
+    padding: 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    text-shadow: 0 1px 3px oklch(0% 0 0 / 0.3);
+    min-height: 0;
+  }
+
+  .panel-splitter {
+    height: 1px;
+    background-color: oklch(100% 0 0 / 0.07);
+    margin: 0 20px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    flex-shrink: 0;
+  }
+
+  .floating-buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    margin-top: auto;
+  }
+
+  .queue-nav-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    box-shadow: var(--button-shadow-lesser);
+    flex-shrink: 0;
+    pointer-events: auto;
+  }
+
+  .queue-nav-button:disabled {
+    opacity: 0.3;
+    pointer-events: none;
+    box-shadow: none;
+  }
+
+  .nav-icon {
+    width: 20px;
+    height: 20px;
+  }
+
   .header-album,
   .track-title {
     color: oklch(100% 0 0);

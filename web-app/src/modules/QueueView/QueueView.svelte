@@ -6,8 +6,7 @@
   import { fade } from "svelte/transition";
   
   import TracklistPanel from "./TracklistPanel.svelte";
-  import Sidebar from "./Sidebar.svelte";
-  import LyricsPanel from "./LyricsPanel.svelte";
+  import ControlPanel from "./ControlPanel.svelte";
   import ClearCover from "../ClearCover.svelte";
   import BackgroundShader from "./BackgroundShader.svelte";
   import NavBar from "../NavigationBar/NavBar.svelte";
@@ -16,18 +15,14 @@
   let activeId = $derived(player.currentAlbumId);
   let activeAlbum = $derived(activeId ? library.dict[activeId] : null);
   let coverHash = $derived(activeAlbum?.cover_hash || "");
-  
   let fullAlbum = $derived(activeId ? library.fullAlbumCache[activeId] : null);
 
   let palette = $derived(fullAlbum?.album?.tags?.cover_palette || activeAlbum?.tags?.cover_palette || []);
   let hasPalette = $derived(palette && palette.length > 0);
-  let hasLyrics = $derived(fullAlbum?.tracks?.some((t: any) => !!t.info?.lyrics_path || t.tags?.instrumental === true) ?? false);
 
   let isViewVisible = $derived(nav.activeTab === 'queue');
   let isPlaying = $derived(player.state === "play");
-
-  let showLyricsPanel = $derived(library.queuePanels.lyrics && hasLyrics);
-  let showTracksPanel = $derived(library.queuePanels.tracks);
+  let showHud = $derived(library.queuePanels.hud);
 
   let moduleWidth = $state(0);
 
@@ -42,42 +37,29 @@
 
   let glassOpacity = $derived.by(() => {
     if (!palette || palette.length === 0) return 0.5;
-    
     const lValues = palette.map((entry: any) => {
       if (!Array.isArray(entry) || entry.length < 2) return 0.5;
       const match = entry[1].match(/oklch\(([\d.]+)%/);
       return match ? parseFloat(match[1]) / 100 : 0.5;
     });
-
     const maxL = Math.max(...lValues);
     return (Math.abs(maxL - 0.5) * 0.6 + 0.2).toFixed(3);
   });
 
   $effect(() => {
-    if (activeId) {
-      library.ensureFullAlbum(activeId);
-    }
+    if (activeId) library.ensureFullAlbum(activeId);
   });
 
   function toggleExpand() {
-    if (coverHash) {
-      isExpanded = !isExpanded;
-    }
+    if (coverHash) isExpanded = !isExpanded;
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (isExpanded && e.key === "Escape") {
-      isExpanded = false;
-    }
+    if (isExpanded && e.key === "Escape") isExpanded = false;
   }
 
-  onMount(() => {
-    window.addEventListener("keydown", handleKeydown);
-  });
-
-  onDestroy(() => {
-    window.removeEventListener("keydown", handleKeydown);
-  });
+  onMount(() => window.addEventListener("keydown", handleKeydown));
+  onDestroy(() => window.removeEventListener("keydown", handleKeydown));
 </script>
 
 <svelte:window bind:innerWidth={windowWidth} bind:innerHeight={windowHeight} />
@@ -88,8 +70,6 @@
   style="--glass-bg: oklch(26% 0 0 / {glassOpacity});"
 >
   <BackgroundShader colors={palette} coverSize={moduleWidth} visible={isViewVisible} {isPlaying} />
-
-  <NavBar variant={library.isShaderActive && hasPalette ? 'glass' : 'solid'} />
 
   {#if isExpanded}
     <div 
@@ -104,51 +84,28 @@
         role="presentation"
       >
         <div in:fade={{ duration: 200 }}>
-          <ClearCover 
-            hash={coverHash} 
-            width={expandedSize} 
-            height={expandedSize} 
-          />
+          <ClearCover hash={coverHash} width={expandedSize} height={expandedSize} />
         </div>
       </div>
     </div>
   {/if}
-  
-  <div class="view-content-wrapper">
-    <div class="queue-modules">
-      
-      <div class="side-column lyrics-col">
-        {#if showLyricsPanel}
-          <div class="module-panel v-glass">
-            <div class="panel-inner">
-              <LyricsPanel />
-            </div>
-          </div>
-        {/if}
-      </div>
 
-      <div class="center-column">
-        <CoverPanel 
-          {coverHash} 
-          bind:width={moduleWidth} 
-          onclick={toggleExpand} 
-        />
-      </div>
+  <div class="queue-layout">
+    <div class="left-wing">
+      <NavBar variant={library.isShaderActive && hasPalette ? 'glass' : 'solid'} />
+      {#if showHud}
+        <ControlPanel />
+      {/if}
+    </div>
 
-      <div class="side-column tracks-col">
-        {#if showTracksPanel}
-          <div class="module-panel v-glass">
-            <div class="panel-inner">
-              <TracklistPanel />
-            </div>
-          </div>
-        {/if}
-      </div>
+    <div class="center-wing">
+      <CoverPanel {coverHash} bind:width={moduleWidth} onclick={toggleExpand} />
+    </div>
 
+    <div class="right-wing">
+      <TracklistPanel {showHud} {hasPalette} />
     </div>
   </div>
-
-  <Sidebar {hasLyrics} {hasPalette} />
 </div>
 
 <style>
@@ -158,74 +115,40 @@
     background-color: transparent;
     position: relative;
     overflow: hidden;
-    display: flex;
-    flex-direction: row;
   }
 
-  .view-content-wrapper {
-    flex: 1;
-    position: relative;
-    height: 100%;
-    min-width: 0;
-    padding: 0;
-    box-sizing: border-box;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .queue-modules {
+  .queue-layout {
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: row;
-    align-items: stretch;
+    z-index: 1;
+    position: relative;
   }
 
-  .side-column {
-    flex: 1;
+  .left-wing, .right-wing {
+    flex: 1 1 0%;
     display: flex;
-    flex-direction: column;
-    height: 100%;
     min-width: 0;
-    overflow: visible;
+    height: 100%;
   }
 
-  .lyrics-col .module-panel {
-    clip-path: inset(0 -30px 0 0);
+  .left-wing {
+    flex-direction: row;
   }
 
-  .tracks-col .module-panel {
-    clip-path: inset(0 0 0 -30px);
+  .right-wing {
+    flex-direction: column;
   }
 
-  .center-column {
+  .center-wing {
     flex: 0 0 auto;
     height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-width: 0;
-    padding: 24px;
     box-sizing: border-box;
-  }
-
-  .module-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .panel-inner {
-    flex: 1;
-    padding: 20px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    text-shadow: 0 1px 3px oklch(0% 0 0 / 0.3);
-    min-height: 0;
+    min-width: 0;
   }
 
   .expanded-backdrop {

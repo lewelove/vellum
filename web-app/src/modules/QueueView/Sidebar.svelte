@@ -2,9 +2,8 @@
   import { library } from "../../library.svelte.ts";
   import { player } from "../player.svelte.ts";
   import { setTab } from "../../navigation.svelte.ts";
-  import Control from "./Control.svelte";
 
-  let { hasLyrics, hasPalette }: { hasLyrics: boolean, hasPalette: boolean } = $props();
+  let { hasPalette }: { hasPalette: boolean } = $props();
 
   let activeId = $derived(player.currentAlbumId);
   let isStopped = $derived(player.state === "stop");
@@ -24,14 +23,8 @@
 {/snippet}
 
 <div class="queue-bar v-glass">
-  <div class="nav-group top">
-    <Control />
-  </div>
-
   <div class="nav-group bottom">
-    {#if hasLyrics}
-      {@render NavButton({ icon: "icons/outlined/24px/menu_book.svg", label: "Lyrics", active: library.queuePanels.lyrics, onclick: () => library.toggleQueuePanel('lyrics') })}
-    {/if}
+    {@render NavButton({ icon: "icons/outlined/24px/menu_book.svg", label: "Control", active: library.queuePanels.control, onclick: () => library.toggleQueuePanel('control') })}
     {@render NavButton({ icon: "icons/outlined/24px/format_list_bulleted.svg", label: "Track List", active: library.queuePanels.tracks, onclick: () => library.toggleQueuePanel('tracks') })}
     {#if hasPalette}
       {@render NavButton({ 
@@ -56,7 +49,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     padding: 8px;
     gap: 10px;
@@ -69,11 +62,6 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
-
-  .nav-group.top {
-    flex: 1;
-    width: 100%;
   }
 
   .queue-nav-button {
