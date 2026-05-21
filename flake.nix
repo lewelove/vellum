@@ -131,7 +131,6 @@
             pkgs.openssl 
             pkgs.nix
             pkgs.git
-            pkgs.intermodal
           ];
           text = ''
             ROOT=$(git rev-parse --show-toplevel)
@@ -146,7 +145,7 @@
               ui-npm)
                 cd "$ROOT/web-app" && npm run dev
                 ;;
-              server|manifest|compile|update|harvest|run|query|nix)
+              server|manifest|compile|update|harvest|run|query)
                 if [ ! -f "$BIN" ]; then
                   echo "Error: vellum binary not found at $BIN. Run 'build vellum --release' first."
                   exit 1
@@ -182,7 +181,6 @@
                 echo "  compile         : Compile metadata locks"
                 echo "  update          : Update library"
                 echo "  query           : Run SQL queries against the library"
-                echo "  nix             : Orchestrate reproducible builds via Nix"
                 echo "  generate        : Initialize metadata from files"
                 echo "  harvest         : Harvest raw metadata to JSON"
                 echo "  write           : Sync metadata to audio tags"
@@ -216,7 +214,6 @@
           cargo-deny
           glib
           gtk3
-          intermodal
         ] ++ runtimeLibs;
       in
       {

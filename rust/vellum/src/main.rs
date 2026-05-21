@@ -1,7 +1,6 @@
 mod compile;
 mod harvest;
 mod manifest;
-mod nix;
 mod query;
 mod run;
 mod server;
@@ -91,30 +90,6 @@ enum Commands {
         raw: bool,
         #[arg(long)]
         id: bool,
-    },
-    Nix {
-        #[command(subcommand)]
-        command: NixCommands,
-    },
-}
-
-#[derive(Subcommand)]
-enum NixCommands {
-    Manifest {
-        #[arg(long)]
-        torrent: String,
-        #[arg(long, default_value = "flac,wav")]
-        tracks: String,
-        #[arg(long)]
-        metadata: Option<String>,
-    },
-    Get {
-        #[arg(value_name = "PATH")]
-        path: Option<String>,
-    },
-    Build {
-        #[arg(value_name = "PATH")]
-        path: Option<String>,
     },
 }
 
@@ -209,10 +184,5 @@ async fn main() -> Result<()> {
             let flags = query::QueryFlags { playing, toml, lock, raw, id };
             query::run(query_str, flags).await
         }
-        Commands::Nix { command } => match command {
-            NixCommands::Manifest { torrent, tracks, metadata } => nix::manifest::run(&torrent, &tracks, metadata),
-            NixCommands::Get { path } => nix::get::run(path),
-            NixCommands::Build { path } => nix::build::run(path),
-        },
     }
 }
