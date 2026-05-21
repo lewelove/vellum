@@ -78,10 +78,10 @@ pub async fn get_resized_cover(
 
         resizer.resize(&src_image, &mut dst_image, &options).ok()?;
 
-        let mut buf = Vec::new();
+        let mut buf = Vec::with_capacity((width * width * 3 + 54) as usize);
         let img_buffer = image::RgbImage::from_raw(width, width, dst_image.into_vec())?;
         let mut cursor = std::io::Cursor::new(&mut buf);
-        img_buffer.write_to(&mut cursor, image::ImageFormat::Png).ok()?;
+        img_buffer.write_to(&mut cursor, image::ImageFormat::Bmp).ok()?;
         
         Some(buf)
     }).await;
@@ -89,8 +89,8 @@ pub async fn get_resized_cover(
     match result {
         Ok(Some(buf)) => {
             ([
-                (header::CONTENT_TYPE, HeaderValue::from_static("image/png")),
-                (header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400")),
+                (header::CONTENT_TYPE, HeaderValue::from_static("image/bmp")),
+                (header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=3600")),
                 (header::ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*")),
             ], buf).into_response()
         },
@@ -268,4 +268,3 @@ async fn serve_image(path: PathBuf, is_immutable: bool) -> Response {
     }
     StatusCode::NOT_FOUND.into_response()
 }
-
