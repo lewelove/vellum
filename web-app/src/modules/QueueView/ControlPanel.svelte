@@ -280,7 +280,7 @@
   }
 
   .time-display {
-    font-size: 11px;
+    font-size: 12px;
     color: oklch(100% 0 0 / 0.6);
     user-select: none;
     width: 40px;
