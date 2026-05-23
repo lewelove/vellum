@@ -20,9 +20,9 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             (q.dict.clone(), q.track_lookup.clone(), q.manifest.clone())
         };
         let ui_data = state.ui_state.read().await.clone();
-        let (thumbnail_size, shader) = {
+        let (covers, shader) = {
             let c = state.config.read().await;
-            (c.thumbnail_size, c.shader.clone())
+            (c.covers.clone(), c.shader.clone())
         };
         
         json!({
@@ -32,7 +32,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             "manifest": manifest,
             "ui_state": ui_data,
             "config": {
-                "thumbnail_size": thumbnail_size,
+                "covers": covers,
                 "shader": shader
             }
         })
@@ -94,4 +94,3 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
         }
     }
 }
-

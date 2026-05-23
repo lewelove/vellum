@@ -65,7 +65,10 @@ class LibraryState {
   manifest: Record<string, any> = $state({ collections: {}, groupers: {}, sorters: {}, shelves: {} });
 
   config: Record<string, any> = $state({
-    thumbnail_size: 200,
+    covers: {
+        master: { interpolation: "mitchell", size: 1080 },
+        thumbnail: { interpolation: "lanczos", size: 190 }
+    },
     shader: null
   });
 
@@ -296,8 +299,10 @@ class LibraryState {
 
   getThumbnailUrl(album: any): string {
     if (!album || !album.cover_hash) return "";
-    const size = this.config.thumbnail_size || 200;
-    return `/api/covers/${size}px/${album.cover_hash}`;
+    const thumbConf = this.config.covers?.thumbnail || { interpolation: "lanczos", size: 190 };
+    const algo = thumbConf.interpolation || "lanczos";
+    const size = thumbConf.size || 190;
+    return `/api/covers/${algo}/${size}px/${album.cover_hash}`;
   }
 
   getAlbumCoverUrl(albumId: string): string {

@@ -35,7 +35,6 @@ fn default_state() -> String {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ThemeConfig {
-    pub thumbnail_size: Option<u32>,
     pub shader: Option<ShaderConfig>,
 }
 
@@ -74,6 +73,14 @@ pub struct CompilerConfig {
     pub file_subset_match: Option<Vec<String>>,
     pub cover_palette: Option<PaletteConfig>,
     pub manifests: Option<Vec<String>>,
+    #[serde(default)]
+    pub covers: IndexMap<String, CoversConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CoversConfig {
+    pub interpolation: Option<String>,
+    pub size: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -104,7 +111,30 @@ impl AppConfig {
         let mut visited = std::collections::HashSet::new();
         let raw_value = Self::load_recursive(&config_path, &mut visited)?;
 
-        let config: Self = Value::try_into(raw_value.clone())?;
+        let mut config: Self = Value::try_into(raw_value.clone())?;
+
+        if let Some(ref mut compiler) = config.compiler {
+            if compiler.covers.is_empty() {
+                compiler.covers.insert("master".to_string(), CoversConfig { interpolation: Some("mitchell".to_string()), size: 1080 });
+                compiler.covers.insert("thumbnail".to_string(), CoversConfig { interpolation: Some("lanczos".to_string()), size: 190 });
+            } else if !compiler.covers.contains_key("master") {
+                compiler.covers.insert("master".to_string(), CoversConfig { interpolation: Some("mitchell".to_string()), size: 1080 });
+            }
+        } else {
+            let mut covers = IndexMap::new();
+            covers.insert("master".to_string(), CoversConfig { interpolation: Some("mitchell".to_string()), size: 1080 });
+            covers.insert("thumbnail".to_string(), CoversConfig { interpolation: Some("lanczos".to_string()), size: 190 });
+            config.compiler = Some(CompilerConfig {
+                scan_depth: None,
+                keys: None,
+                date_added: None,
+                file_subset_match: None,
+                cover_palette: None,
+                manifests: None,
+                covers,
+            });
+        }
+
         Ok((config, raw_value, config_path))
     }
 

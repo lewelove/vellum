@@ -29,7 +29,7 @@ pub fn build(
 
     let (c_path, c_hash, c_mtime, c_size) = assets::resolve_cover_info(album_root);
     let loaded_image =
-        assets::load_or_create_thumbnail(config, album_root, c_path.as_deref(), &c_hash);
+        assets::pregenerate_covers(config, album_root, c_path.as_deref(), &c_hash);
 
     let cover_metrics = resolve_cover_metrics(config, &c_hash, loaded_image.as_ref(), &manifest_data);
 
@@ -335,7 +335,7 @@ fn build_track(
             continue;
         }
 
-        if["title", "artist", "tracknumber", "discnumber"].contains(&key.as_str()) {
+        if ["title", "artist", "tracknumber", "discnumber"].contains(&key.as_str()) {
             continue;
         }
         let val = resolvers::resolve_track_key(key, meta, ctx).unwrap_or(Value::Null);
@@ -413,7 +413,7 @@ fn build_album(
             continue;
         }
 
-        if["album", "albumartist", "date", "genre", "comment", "original_date", "release_date"].contains(&key.as_str()) {
+        if ["album", "albumartist", "date", "genre", "comment", "original_date", "release_date"].contains(&key.as_str()) {
             continue;
         }
         let val = resolvers::resolve_album_key(key, meta, ctx).unwrap_or(Value::Null);

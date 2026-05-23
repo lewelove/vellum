@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { library } from "../library.svelte.ts";
+
   let { hash, width, height, animate = true }: { hash?: string, width: number, height: number, animate?: boolean } = $props();
 
   let dpr = $derived(window.devicePixelRatio || 1);
   let targetWidth = $derived(Math.round(width * dpr));
 
-  let srcUrl = $derived(hash && targetWidth > 0 ? `/api/resize/${targetWidth}px/${hash}?v=${hash}` : "");
+  let algo = 'mitchell';
+  let srcUrl = $derived(hash && targetWidth > 0 ? `/api/covers/${algo}/${targetWidth}px/${hash}?v=${hash}` : "");
 
   let isLoaded = $state(false);
   let blobUrl = $state("");

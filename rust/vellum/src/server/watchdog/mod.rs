@@ -215,7 +215,7 @@ async fn handle_config_change(
 
     match AppConfig::load() {
         Ok((new_config, _, _)) => {
-            let thumb_size = new_config.theme.as_ref().and_then(|t| t.thumbnail_size).unwrap_or(200);
+            let covers = new_config.compiler.as_ref().map(|c| c.covers.clone()).unwrap_or_default();
             let shader_cfg = new_config.theme.as_ref().and_then(|t| t.shader.clone());
 
             let next_shader_path = if let Some(s) = &shader_cfg
@@ -247,7 +247,7 @@ async fn handle_config_change(
 
             {
                 let mut config_guard = state.config.write().await;
-                config_guard.thumbnail_size = thumb_size;
+                config_guard.covers.clone_from(&covers);
                 config_guard.shader.clone_from(&shader_cfg);
                 config_guard.resolved_shader_path.clone_from(&next_shader_path);
             }
@@ -255,7 +255,7 @@ async fn handle_config_change(
             let payload = json!({
                 "type": "CONFIG_UPDATE",
                 "config": {
-                    "thumbnail_size": thumb_size,
+                    "covers": covers,
                     "shader": shader_cfg
                 }
             })

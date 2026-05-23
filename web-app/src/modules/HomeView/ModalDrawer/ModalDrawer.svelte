@@ -42,7 +42,9 @@
     const dpr = window.devicePixelRatio || 1;
     const imgWidth = leftColumnWidth - 64;
     const targetWidth = Math.round(imgWidth * dpr);
-    const srcUrl = `/api/resize/${targetWidth}px/${coverHash}?v=${coverHash}`;
+    
+    const algo = 'mitchell';
+    const srcUrl = `/api/covers/${algo}/${targetWidth}px/${coverHash}?v=${coverHash}`;
     
     const img = new Image();
     img.src = srcUrl;
@@ -179,7 +181,7 @@
           <div class="tracks-scroll-area">
             <div class="v-scroll-fade-top"></div>
             <ModalDrawerTracks 
-              tracks={album.tracks ||[]} 
+              tracks={album.tracks || []} 
               totalDiscs={infoData.total_discs} 
               albumArtist={artist}
               onplay={handlePlayTrack} 

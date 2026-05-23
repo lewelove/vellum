@@ -21,7 +21,6 @@ pub async fn run(port: u16) -> Result<()> {
     let config_dir = config_path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
 
     let lib_root_str = &config.storage.library_root;
-    let thumb_size = config.theme.as_ref().and_then(|t| t.thumbnail_size).unwrap_or(200);
 
     let library_root = expand_path(lib_root_str)
         .canonicalize()
@@ -31,10 +30,13 @@ pub async fn run(port: u16) -> Result<()> {
     let state_root = expand_path(&config.storage.state);
 
     std::fs::create_dir_all(&cache_root).ok();
+    std::fs::create_dir_all(cache_root.join("covers").join("master")).ok();
+    std::fs::create_dir_all(cache_root.join("covers").join("dynamic")).ok();
     std::fs::create_dir_all(cache_root.join("cover_data")).ok();
     std::fs::create_dir_all(&state_root).ok();
 
     let shader_cfg = config.theme.as_ref().and_then(|t| t.shader.clone());
+    let covers = config.compiler.as_ref().map(|c| c.covers.clone()).unwrap_or_default();
     
     let resolved_shader_path = if let Some(s) = &shader_cfg
         && let Some(p) = &s.path {
@@ -69,12 +71,12 @@ pub async fn run(port: u16) -> Result<()> {
         library_root: library_root.clone(),
         cache_root,
         state_root: state_root.clone(),
-        thumbnail_size: thumb_size,
         shader: shader_cfg,
         resolved_shader_path,
         resolved_css_path,
         resolved_logic_path,
         resolved_shelf_files,
+        covers,
     };
 
     let state_file = state_root.join("state.json");
@@ -135,4 +137,3 @@ pub async fn run(port: u16) -> Result<()> {
 
     Ok(())
 }
-

@@ -19,11 +19,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/internal/reload", post(system::trigger_reload))
         .route("/api/internal/batch_reload", post(system::trigger_batch_reload))
         .route("/api/internal/query", post(system::run_query))
-        .route(
-            "/api/covers/{size}/{hash}",
-            get(assets::get_cover_thumbnail),
-        )
-        .route("/api/resize/{width}/{hash}", get(assets::get_resized_cover))
+        .route("/api/covers/{algo}/{size}/{hash}", get(assets::get_resized_cover))
         .route("/api/album/{*id}", get(assets::get_album_metadata))
         .route("/api/assets/cover/{*id}", get(assets::get_album_cover))
         .route("/api/assets/lyrics/{id}/{*path}", get(assets::get_lyrics))
