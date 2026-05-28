@@ -19,9 +19,7 @@ pub fn find_target_albums(path: &Path, max_depth: usize) -> Result<Vec<PathBuf>,
                         }
                 }
                 Err(e) => {
-                    if let Some(io_err) = e.into_io_error() {
-                        return Err(VellumError::ManifestIoError(io_err));
-                    }
+                    log::debug!("Skipping path during scan due to error: {e}");
                 }
             }
         }
