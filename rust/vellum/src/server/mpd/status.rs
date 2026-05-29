@@ -25,22 +25,52 @@ pub async fn broadcast_status(
         (String::new(), None, None)
     };
 
-    let queue_json: serde_json::Value = queue
-        .iter()
-        .enumerate()
-        .map(|(idx, s)| {
-            serde_json::json!({
-                "id": idx,
-                "file": s.song.url,
-                "title": s.song.title(),
-                "artist": s.song.artists().first(),
-            })
-        })
-        .collect();
-
-    let album_id = {
+    let (queue_json, album_id) = {
         let q = query.lock().await;
-        q.path_lookup.get(&file_path).cloned()
+        let album_id = q.path_lookup.get(&file_path).cloned();
+        let track_metas: Vec<Option<serde_json::Value>> = queue
+            .iter()
+            .map(|s| q.track_lookup.get(&s.song.url).cloned())
+            .collect();
+        drop(q);
+
+        let q_json: serde_json::Value = queue
+            .iter()
+            .enumerate()
+            .zip(track_metas)
+            .map(|((idx, s), track_meta)| {
+                track_meta.map_or_else(
+                    || {
+                        serde_json::json!({
+                            "id": idx,
+                            "file": s.song.url,
+                            "title": s.song.title(),
+                            "artist": s.song.artists().first(),
+                            "album_id": serde_json::Value::Null,
+                            "track_no": serde_json::Value::Null,
+                            "disc_no": 1,
+                            "duration": "",
+                            "duration_ms": 0,
+                        })
+                    },
+                    |meta| {
+                        serde_json::json!({
+                            "id": idx,
+                            "file": s.song.url,
+                            "title": s.song.title(),
+                            "artist": s.song.artists().first(),
+                            "album_id": meta.get("albumId"),
+                            "track_no": meta.get("trackNo"),
+                            "disc_no": meta.get("discNo"),
+                            "duration": meta.get("duration"),
+                            "duration_ms": meta.get("durationMs"),
+                        })
+                    },
+                )
+            })
+            .collect();
+
+        (q_json, album_id)
     };
 
     let state_str = match status.state {

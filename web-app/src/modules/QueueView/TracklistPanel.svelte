@@ -51,22 +51,20 @@
   }
 
   let mappedTracks = $derived(player.queue.map(item => {
-    const meta = library.getTrackByPath(item.file);
-    const albumId = meta?.albumId || null;
-    const title = meta ? meta.title : (item.title || item.file);
-    const artist = meta ? meta.artist : (item.artist || "");
+    const fullAlbum = item.album_id ? library.fullAlbumCache[item.album_id] : null;
+    const meta = fullAlbum?.tracks?.find((t: any) => t.info?.track_library_path === item.file);
 
     return {
       id: item.id,
       file: item.file,
       isPlaying: player.currentFile === item.file,
-      trackNo: meta ? meta.trackNo : "#",
-      discNo: meta ? meta.discNo : 1,
-      duration: meta ? meta.duration : "",
-      durationMs: meta ? meta.durationMs : 0,
-      title,
-      artist,
-      albumId
+      trackNo: meta ? meta.tracknumber : "#",
+      discNo: meta ? meta.discnumber : 1,
+      duration: meta ? meta.info?.track_duration_time : "",
+      durationMs: meta ? meta.info?.track_duration : 0,
+      title: meta ? meta.title : (item.title || item.file),
+      artist: meta ? meta.artist : (item.artist || ""),
+      albumId: item.album_id || null
     };
   }));
 

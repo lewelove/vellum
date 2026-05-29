@@ -47,7 +47,11 @@
   });
 
   $effect(() => {
-    if (activeId) library.ensureFullAlbum(activeId);
+    const uniqueIds = [...new Set(player.queue.map(item => item.album_id).filter(Boolean))];
+    if (activeId && !uniqueIds.includes(activeId)) {
+      uniqueIds.push(activeId);
+    }
+    uniqueIds.forEach(id => library.ensureFullAlbum(id));
   });
 
   function toggleExpand() {
@@ -61,8 +65,6 @@
   onMount(() => window.addEventListener("keydown", handleKeydown));
   onDestroy(() => window.removeEventListener("keydown", handleKeydown));
 </script>
-
-<svelte:window bind:innerWidth={windowWidth} bind:innerHeight={windowHeight} />
 
 <div 
   class="queue-view-container" 
