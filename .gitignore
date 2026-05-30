@@ -1,4 +1,5 @@
 **/target/
+AGENTS.md
 **/node_modules/
 docs/
 .direnv/
