@@ -145,19 +145,19 @@ fn process_album_group(
     }
 
     if !options.stdout {
-        write_library_toml(&anchor)?;
+        write_local_toml(&anchor)?;
     }
 
     Ok(())
 }
 
-fn write_library_toml(anchor: &Path) -> Result<()> {
-    let library_toml_path = anchor.join("library.toml");
-    if !library_toml_path.exists() {
+fn write_local_toml(anchor: &Path) -> Result<()> {
+    let local_toml_path = anchor.join("local.toml");
+    if !local_toml_path.exists() {
         let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-        let library_toml_content = format!("[library]\n\ndate_added = \"{now}\"\n");
-        fs::write(&library_toml_path, library_toml_content)?;
-        log::info!("Generated library manifest: {}", library_toml_path.display());
+        let local_toml_content = format!("[local]\n\ndate_added = \"{now}\"\n");
+        fs::write(&local_toml_path, local_toml_content)?;
+        log::info!("Generated local manifest: {}", local_toml_path.display());
     }
     Ok(())
 }

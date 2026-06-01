@@ -76,9 +76,9 @@ pub fn validate_album_level_keys(
 }
 
 pub fn merge_local_registry(album_root: &Path, registry: &mut Map<String, Value>) {
-    let library_toml_path = album_root.join("library.toml");
-    if library_toml_path.exists()
-        && let Ok(local_content) = std::fs::read_to_string(&library_toml_path)
+    let local_toml_path = album_root.join("local.toml");
+    if local_toml_path.exists()
+        && let Ok(local_content) = std::fs::read_to_string(&local_toml_path)
             && let Ok(local_toml) = toml::from_str::<toml::Value>(&local_content)
                 && let Ok(local_json) = serde_json::to_value(local_toml)
                     && let Some(local_keys) = local_json

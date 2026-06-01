@@ -28,11 +28,11 @@ pub fn calculate_total_discs(tracks: &[Value]) -> u32 {
 }
 
 pub fn resolve_album_info_date_added(ctx: &AlbumContext, _args: &str) -> String {
-    let library_toml_path = ctx.album_root.join("library.toml");
-    if library_toml_path.exists()
-        && let Ok(content) = std::fs::read_to_string(&library_toml_path)
+    let local_toml_path = ctx.album_root.join("local.toml");
+    if local_toml_path.exists()
+        && let Ok(content) = std::fs::read_to_string(&local_toml_path)
         && let Ok(parsed) = toml::from_str::<toml::Value>(&content)
-        && let Some(lib) = parsed.get("library")
+        && let Some(lib) = parsed.get("local")
         && let Some(da) = lib.get("date_added")
     {
         let json_val = serde_json::to_value(da).unwrap_or(Value::Null);
