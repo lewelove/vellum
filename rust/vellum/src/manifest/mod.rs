@@ -155,7 +155,7 @@ fn write_local_toml(anchor: &Path) -> Result<()> {
     let local_toml_path = anchor.join("local.toml");
     if !local_toml_path.exists() {
         let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-        let local_toml_content = format!("[local]\n\ndate_added = \"{now}\"\n");
+        let local_toml_content = format!("[local]\n\ndate_added = {now}\n");
         fs::write(&local_toml_path, local_toml_content)?;
         log::info!("Generated local manifest: {}", local_toml_path.display());
     }

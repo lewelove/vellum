@@ -1,16 +1,16 @@
 use serde_json::{Value, json};
 use std::path::Path;
 use crate::models::CoverMetrics;
+use crate::error::VellumError;
 
-#[must_use]
-pub fn resolve_genre(source: &Value) -> Value {
-    let mut list = crate::types::resolve_type_array(source, "genre", "");
+pub fn resolve_genre(source: &Value, path: &Path) -> Result<Value, VellumError> {
+    let mut list = crate::types::resolve_type_array(source, "genre", "", path)?;
     if let Value::Array(ref arr) = list
         && arr.is_empty()
     {
         list = json!(["Unknown"]);
     }
-    list
+    Ok(list)
 }
 
 #[must_use]
@@ -37,67 +37,62 @@ pub fn resolve_discnumber(val: &Value) -> u32 {
     }
 }
 
-#[must_use]
-pub fn resolve_comment(source: &Value) -> String {
+pub fn resolve_comment(source: &Value, path: &Path) -> Result<String, VellumError> {
     if let Some(v) = source.get("comment").and_then(Value::as_str)
         && !v.is_empty()
     {
-        return v.to_string();
+        return Ok(v.to_string());
     }
 
-    let country = crate::types::resolve_type_string(source, "country", "", "").as_str().unwrap_or("").to_string();
-    let label = crate::types::resolve_type_string(source, "label", "", "").as_str().unwrap_or("").to_string();
-    let cat = crate::types::resolve_type_string(source, "catalognumber", "", "").as_str().unwrap_or("").to_string();
+    let country = crate::types::resolve_type_string(source, "country", "", "", path)?.as_str().unwrap_or("").to_string();
+    let label = crate::types::resolve_type_string(source, "label", "", "", path)?.as_str().unwrap_or("").to_string();
+    let cat = crate::types::resolve_type_string(source, "catalognumber", "", "", path)?.as_str().unwrap_or("").to_string();
     if country.is_empty() && label.is_empty() && cat.is_empty() {
-        return String::new();
+        return Ok(String::new());
     }
-    let dt = resolve_date(source);
+    let dt = resolve_date(source, path)?;
     let year = if dt.len() >= 4 {
         &dt[0..4]
     } else {
         ""
     };
     
-    let parts =[
+    let parts = [
         year,
         &country,
         &label,
         &cat,
     ];
 
-    parts
+    Ok(parts
         .iter()
         .filter(|s| !s.is_empty())
         .copied()
         .collect::<Vec<_>>()
-        .join(" ")
+        .join(" "))
 }
 
-#[must_use]
-pub fn resolve_date(source: &Value) -> String {
+pub fn resolve_date(source: &Value, path: &Path) -> Result<String, VellumError> {
     if let Some(v) = source.get("release_date").and_then(Value::as_str) {
-        return v.to_string();
+        return Ok(v.to_string());
     }
-    let d = crate::types::resolve_type_string(source, "date", "year,originalyear", "0000").as_str().unwrap_or("0000").to_string();
+    let d = crate::types::resolve_type_string(source, "date", "year,originalyear", "0000", path)?.as_str().unwrap_or("0000").to_string();
     if d.len() >= 4 {
-        format!("{}-00", &d[0..4])
+        Ok(format!("{}-00", &d[0..4]))
     } else {
-        "0000-00".to_string()
+        Ok("0000-00".to_string())
     }
 }
 
-#[must_use]
-pub fn resolve_original_date(source: &Value) -> String {
-    resolve_date(source)
+pub fn resolve_original_date(source: &Value, path: &Path) -> Result<String, VellumError> {
+    resolve_date(source, path)
 }
 
-#[must_use]
-pub fn resolve_release_date(source: &Value) -> String {
-    resolve_date(source)
+pub fn resolve_release_date(source: &Value, path: &Path) -> Result<String, VellumError> {
+    resolve_date(source, path)
 }
 
-#[must_use]
-pub fn resolve_album_info_date_added(album_root: &Path, source: &Value, config: &Value) -> String {
+pub fn resolve_album_info_date_added(album_root: &Path, source: &Value, config: &Value) -> Result<String, VellumError> {
     let local_toml_path = album_root.join("local.toml");
     if local_toml_path.exists()
         && let Ok(content) = std::fs::read_to_string(&local_toml_path)
@@ -105,8 +100,13 @@ pub fn resolve_album_info_date_added(album_root: &Path, source: &Value, config: 
         && let Some(lib) = parsed.get("local")
         && let Some(da) = lib.get("date_added")
     {
-        let json_val = serde_json::to_value(da).unwrap_or(Value::Null);
-        return crate::types::parse_time(Some(&json_val));
+        let dt_str = match da {
+            toml::Value::Datetime(dt) => dt.to_string(),
+            toml::Value::String(s) => s.clone(),
+            _ => String::new(),
+        };
+        let json_val = Value::String(dt_str);
+        return Ok(crate::types::parse_time(Some(&json_val)));
     }
 
     let mut keys = Vec::new();
@@ -120,11 +120,11 @@ pub fn resolve_album_info_date_added(album_root: &Path, source: &Value, config: 
 
     for key in &keys {
         if let Some(val) = source.get(key) {
-            return crate::types::parse_time(Some(val));
+            return Ok(crate::types::parse_time(Some(val)));
         }
     }
 
-    crate::types::parse_time(None)
+    Ok(crate::types::parse_time(None))
 }
 
 #[must_use]

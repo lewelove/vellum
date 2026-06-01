@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::path::Path;
 use std::time::SystemTime;
+use crate::types::toml_to_json;
 
 pub struct ManifestData {
     pub json: Value,
@@ -34,7 +35,7 @@ pub fn load_and_merge(
 
     let parsed_toml = toml::from_str::<toml::Value>(&content)
         .map_err(|source| VellumError::ManifestParseError { path: metadata_path.clone(), source })?;
-    let mut metadata_json = serde_json::to_value(parsed_toml)?;
+    let mut metadata_json = toml_to_json(parsed_toml);
 
     if let Some(manifests) = manifest_names {
         for m_val in manifests {
@@ -86,7 +87,7 @@ fn merge_auxiliary_manifest(
     let m_content = std::fs::read_to_string(&m_path)?;
     let parsed_aux = toml::from_str::<toml::Value>(&m_content)
         .map_err(|source| VellumError::ManifestParseError { path: m_path.clone(), source })?;
-    let mut m_json = serde_json::to_value(parsed_aux)?;
+    let mut m_json = toml_to_json(parsed_aux);
     
     if let Some(aux_album) = m_json.get_mut("album").and_then(Value::as_object_mut)
         && let Some(primary_album) = primary_json.get_mut("album").and_then(Value::as_object_mut) {

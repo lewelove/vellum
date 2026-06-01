@@ -103,7 +103,6 @@ pub struct PaletteConfig {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct KeyConfig {
-    pub class: Option<String>,
     #[serde(rename = "type")]
     pub type_: crate::types::VellumDataType,
     #[serde(default)]

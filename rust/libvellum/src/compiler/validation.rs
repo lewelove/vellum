@@ -80,45 +80,47 @@ pub fn merge_local_registry(album_root: &Path, registry: &mut Map<String, Value>
     if local_toml_path.exists()
         && let Ok(local_content) = std::fs::read_to_string(&local_toml_path)
         && let Ok(local_toml) = toml::from_str::<toml::Value>(&local_content)
-        && let Ok(local_json) = serde_json::to_value(local_toml)
-        && let Some(local_keys) = local_json
+    {
+        let local_json = crate::types::toml_to_json(local_toml);
+        if let Some(local_keys) = local_json
             .get("compiler")
             .and_then(|c| c.get("keys"))
             .and_then(Value::as_object)
-    {
-        if let Some(albums) = local_keys.get("album").and_then(Value::as_object) {
-            for (k, v) in albums {
-                if let Some(mut obj) = v.as_object().cloned() {
-                    obj.insert("level".to_string(), json!("album"));
-                    if let Some(existing) = registry.get_mut(k) {
-                        if let Some(existing_obj) = existing.as_object_mut() {
-                            for (nk, nv) in &obj {
-                                existing_obj.insert(nk.clone(), nv.clone());
+        {
+            if let Some(albums) = local_keys.get("album").and_then(Value::as_object) {
+                for (k, v) in albums {
+                    if let Some(mut obj) = v.as_object().cloned() {
+                        obj.insert("level".to_string(), json!("album"));
+                        if let Some(existing) = registry.get_mut(k) {
+                            if let Some(existing_obj) = existing.as_object_mut() {
+                                for (nk, nv) in &obj {
+                                    existing_obj.insert(nk.clone(), nv.clone());
+                                }
+                            } else {
+                                registry.insert(k.clone(), Value::Object(obj));
                             }
                         } else {
                             registry.insert(k.clone(), Value::Object(obj));
                         }
-                    } else {
-                        registry.insert(k.clone(), Value::Object(obj));
                     }
                 }
             }
-        }
 
-        if let Some(tracks) = local_keys.get("tracks").and_then(Value::as_object) {
-            for (k, v) in tracks {
-                if let Some(mut obj) = v.as_object().cloned() {
-                    obj.insert("level".to_string(), json!("tracks"));
-                    if let Some(existing) = registry.get_mut(k) {
-                        if let Some(existing_obj) = existing.as_object_mut() {
-                            for (nk, nv) in &obj {
-                                existing_obj.insert(nk.clone(), nv.clone());
+            if let Some(tracks) = local_keys.get("tracks").and_then(Value::as_object) {
+                for (k, v) in tracks {
+                    if let Some(mut obj) = v.as_object().cloned() {
+                        obj.insert("level".to_string(), json!("tracks"));
+                        if let Some(existing) = registry.get_mut(k) {
+                            if let Some(existing_obj) = existing.as_object_mut() {
+                                for (nk, nv) in &obj {
+                                    existing_obj.insert(nk.clone(), nv.clone());
+                                }
+                            } else {
+                                registry.insert(k.clone(), Value::Object(obj));
                             }
                         } else {
                             registry.insert(k.clone(), Value::Object(obj));
                         }
-                    } else {
-                        registry.insert(k.clone(), Value::Object(obj));
                     }
                 }
             }

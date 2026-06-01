@@ -54,4 +54,12 @@ pub enum VellumError {
 
     #[error("Harvest Error: Failed to harvest metadata from audio file {path}: {source}")]
     HarvestError { path: PathBuf, source: anyhow::Error },
+
+    #[error("Type Mismatch in {path}: Field '{key}' is expected to be a '{expected_type}', but found value: {found_val}")]
+    TypeMismatch {
+        path: PathBuf,
+        key: String,
+        expected_type: String,
+        found_val: String,
+    },
 }

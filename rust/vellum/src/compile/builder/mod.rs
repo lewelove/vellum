@@ -81,7 +81,7 @@ pub fn build(
         config,
     };
 
-    let album_obj = build_album(&album_ctx, &registry);
+    let album_obj = build_album(&album_ctx, &registry)?;
 
     let final_json = json!({
         "album": album_obj,
@@ -262,7 +262,7 @@ fn process_tracks(
             library_root,
         };
 
-        let t_obj = build_track(&t_ctx, total_discs, registry);
+        let t_obj = build_track(&t_ctx, total_discs, registry)?;
         final_tracks.push(t_obj);
         harvested_cache.push(serde_json::to_value(h_data)?);
     }
@@ -338,13 +338,13 @@ fn build_track(
     ctx: &TrackContext,
     total_discs: u32,
     registry: &Map<String, Value>,
-) -> Value {
+) -> Result<Value, VellumError> {
     let mut obj = serde_json::Map::new();
 
     obj.insert("info".to_string(), construct_track_info(ctx, total_discs));
 
-    obj.insert("title".to_string(), resolvers::resolve_top_level_track_key("title", ctx));
-    obj.insert("artist".to_string(), resolvers::resolve_top_level_track_key("artist", ctx));
+    obj.insert("title".to_string(), resolvers::resolve_top_level_track_key("title", ctx)?);
+    obj.insert("artist".to_string(), resolvers::resolve_top_level_track_key("artist", ctx)?);
     obj.insert("tracknumber".to_string(), json!(ctx.track_number));
     obj.insert("discnumber".to_string(), json!(ctx.disc_number));
 
@@ -358,14 +358,14 @@ fn build_track(
         if ["title", "artist", "tracknumber", "discnumber"].contains(&key.as_str()) {
             continue;
         }
-        let val = resolvers::resolve_track_key(key, meta, ctx).unwrap_or(Value::Null);
+        let val = resolvers::resolve_track_key(key, meta, ctx)?.unwrap_or(Value::Null);
         tags.insert(key.clone(), val);
     }
     obj.insert("tags".to_string(), Value::Object(tags));
-    Value::Object(obj)
+    Ok(Value::Object(obj))
 }
 
-fn construct_album_info(ctx: &AlbumContext) -> Value {
+fn construct_album_info(ctx: &AlbumContext) -> Result<Value, VellumError> {
     let mut info = serde_json::Map::new();
     let dur: u64 = ctx
         .tracks
@@ -386,7 +386,7 @@ fn construct_album_info(ctx: &AlbumContext) -> Value {
     );
     info.insert(
         "date_added".to_string(),
-        json!(libvellum::resolvers::resolve_album_info_date_added(ctx.album_root, ctx.source, ctx.config)),
+        json!(libvellum::resolvers::resolve_album_info_date_added(ctx.album_root, ctx.source, ctx.config)?),
     );
     info.insert("album_duration".to_string(), json!(dur));
     info.insert(
@@ -409,23 +409,23 @@ fn construct_album_info(ctx: &AlbumContext) -> Value {
     info.insert("cover_mtime".to_string(), json!(ctx.cover_mtime));
     info.insert("cover_byte_size".to_string(), json!(ctx.cover_byte_size));
 
-    Value::Object(info)
+    Ok(Value::Object(info))
 }
 
 fn build_album(
     ctx: &AlbumContext,
     registry: &Map<String, Value>,
-) -> Value {
+) -> Result<Value, VellumError> {
     let mut obj = serde_json::Map::new();
 
-    obj.insert("info".to_string(), construct_album_info(ctx));
-    obj.insert("album".to_string(), resolvers::resolve_top_level_album_key("album", ctx));
-    obj.insert("albumartist".to_string(), resolvers::resolve_top_level_album_key("albumartist", ctx));
-    obj.insert("date".to_string(), resolvers::resolve_top_level_album_key("date", ctx));
-    obj.insert("genre".to_string(), resolvers::resolve_top_level_album_key("genre", ctx));
-    obj.insert("comment".to_string(), resolvers::resolve_top_level_album_key("comment", ctx));
-    obj.insert("original_date".to_string(), resolvers::resolve_top_level_album_key("original_date", ctx));
-    obj.insert("release_date".to_string(), resolvers::resolve_top_level_album_key("release_date", ctx));
+    obj.insert("info".to_string(), construct_album_info(ctx)?);
+    obj.insert("album".to_string(), resolvers::resolve_top_level_album_key("album", ctx)?);
+    obj.insert("albumartist".to_string(), resolvers::resolve_top_level_album_key("albumartist", ctx)?);
+    obj.insert("date".to_string(), resolvers::resolve_top_level_album_key("date", ctx)?);
+    obj.insert("genre".to_string(), resolvers::resolve_top_level_album_key("genre", ctx)?);
+    obj.insert("comment".to_string(), resolvers::resolve_top_level_album_key("comment", ctx)?);
+    obj.insert("original_date".to_string(), resolvers::resolve_top_level_album_key("original_date", ctx)?);
+    obj.insert("release_date".to_string(), resolvers::resolve_top_level_album_key("release_date", ctx)?);
 
     let mut tags = serde_json::Map::new();
     for (key, meta) in registry {
@@ -436,7 +436,7 @@ fn build_album(
         if ["album", "albumartist", "date", "genre", "comment", "original_date", "release_date"].contains(&key.as_str()) {
             continue;
         }
-        let val = resolvers::resolve_album_key(key, meta, ctx).unwrap_or(Value::Null);
+        let val = resolvers::resolve_album_key(key, meta, ctx)?.unwrap_or(Value::Null);
         tags.insert(key.clone(), val);
     }
 
@@ -446,5 +446,5 @@ fn build_album(
         }
 
     obj.insert("tags".to_string(), Value::Object(tags));
-    Value::Object(obj)
+    Ok(Value::Object(obj))
 }

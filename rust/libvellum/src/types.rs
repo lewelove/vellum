@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::path::Path;
+use crate::error::VellumError;
+use crate::models::CoverMetrics;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -13,6 +15,7 @@ pub enum VellumDataType {
     Path,
     Url,
     Object,
+    Function,
     #[serde(other)]
     String,
 }
@@ -41,6 +44,30 @@ pub fn get_raw_value<'a>(source: &'a Value, key: &str, args: &str) -> Option<&'a
         }
     }
     None
+}
+
+#[must_use]
+pub fn parse_toml_datetime(s: &str) -> bool {
+    let s = s.trim();
+    if chrono::DateTime::parse_from_rfc3339(s).is_ok() {
+        return true;
+    }
+    if chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S").is_ok() {
+        return true;
+    }
+    if chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").is_ok() {
+        return true;
+    }
+    if chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok() {
+        return true;
+    }
+    if chrono::NaiveDate::parse_from_str(&format!("{s}-01"), "%Y-%m-%d").is_ok() {
+        return true;
+    }
+    if chrono::NaiveDate::parse_from_str(&format!("{s}-01-01"), "%Y-%m-%d").is_ok() {
+        return true;
+    }
+    false
 }
 
 #[must_use]
@@ -77,113 +104,239 @@ pub fn parse_time(val: Option<&Value>) -> String {
 }
 
 #[must_use]
-pub fn resolve_type_datetime(source: &Value, key: &str, args: &str) -> Value {
-    let raw = get_raw_value(source, key, args);
-    json!(parse_time(raw))
-}
-
-#[must_use]
-pub fn resolve_type_string(source: &Value, key: &str, args: &str, default: &str) -> Value {
-    get_raw_value(source, key, args).map_or_else(
-        || json!(default),
-        |v| match v {
-            Value::String(s) => json!(s.trim()),
-            Value::Array(arr) => json!(arr.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join("; ")),
-            _ => json!(v.to_string().replace('"', "").trim()),
-        }
-    )
-}
-
-#[must_use]
-pub fn resolve_type_array(source: &Value, key: &str, args: &str) -> Value {
-    get_raw_value(source, key, args).map_or_else(
-        || json!(Vec::<String>::new()),
-        |v| match v {
-            Value::Array(arr) => {
-                let list: Vec<String> = arr.iter().filter_map(|x| x.as_str().map(|s| s.trim().to_string())).filter(|s| !s.is_empty()).collect();
-                json!(list)
+pub fn toml_to_json(val: toml::Value) -> Value {
+    match val {
+        toml::Value::String(s) => Value::String(s),
+        toml::Value::Integer(i) => Value::Number(i.into()),
+        toml::Value::Float(f) => serde_json::Number::from_f64(f)
+            .map_or(Value::Null, Value::Number),
+        toml::Value::Boolean(b) => Value::Bool(b),
+        toml::Value::Datetime(dt) => Value::String(dt.to_string()),
+        toml::Value::Array(arr) => Value::Array(arr.into_iter().map(toml_to_json).collect()),
+        toml::Value::Table(table) => {
+            let mut map = serde_json::Map::new();
+            for (k, v) in table {
+                map.insert(k, toml_to_json(v));
             }
-            Value::String(s) => {
-                let list: Vec<String> = s.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect();
-                json!(list)
-            }
-            _ => json!([v.to_string().replace('"', "").trim()]),
+            Value::Object(map)
         }
-    )
-}
-
-#[must_use]
-pub fn resolve_type_integer(source: &Value, key: &str, args: &str) -> Value {
-    get_raw_value(source, key, args).map_or_else(
-        || json!(0),
-        |v| match v {
-            Value::Number(n) => json!(n.as_i64().unwrap_or(0)),
-            Value::String(s) => json!(s.trim().parse::<i64>().unwrap_or(0)),
-            _ => json!(0),
-        }
-    )
-}
-
-#[must_use]
-pub fn resolve_type_float(source: &Value, key: &str, args: &str) -> Value {
-    get_raw_value(source, key, args).map_or_else(
-        || json!(0.0),
-        |v| match v {
-            Value::Number(n) => json!(n.as_f64().unwrap_or(0.0)),
-            Value::String(s) => json!(s.trim().parse::<f64>().unwrap_or(0.0)),
-            _ => json!(0.0),
-        }
-    )
-}
-
-#[must_use]
-pub fn resolve_type_boolean(source: &Value, key: &str, args: &str) -> Value {
-    get_raw_value(source, key, args).map_or_else(
-        || json!(false),
-        |v| match v {
-            Value::Bool(b) => json!(*b),
-            Value::String(s) => {
-                let s = s.trim().to_lowercase();
-                json!(s == "true" || s == "1" || s == "yes")
-            }
-            Value::Number(n) => json!(n.as_i64().unwrap_or(0) > 0),
-            _ => json!(false),
-        }
-    )
-}
-
-#[must_use]
-pub fn resolve_type_path(source: &Value, key: &str, args: &str, _album_root: &Path) -> Value {
-    let raw = get_raw_value(source, key, args);
-    match raw {
-        Some(Value::String(s)) => {
-            json!(s.trim())
-        }
-        _ => Value::Null,
     }
 }
 
-#[must_use]
-pub fn resolve_type_url(source: &Value, key: &str, args: &str) -> Value {
+pub fn resolve_type_datetime(source: &Value, key: &str, args: &str, path: &Path) -> Result<Value, VellumError> {
+    let raw = get_raw_value(source, key, args);
+    raw.map_or_else(
+        || Ok(Value::Null),
+        |v| match v {
+            Value::String(s) => {
+                if parse_toml_datetime(s) {
+                    Ok(json!(s.trim()))
+                } else {
+                    Err(VellumError::TypeMismatch {
+                        path: path.to_path_buf(),
+                        key: key.to_string(),
+                        expected_type: "datetime".to_string(),
+                        found_val: s.clone(),
+                    })
+                }
+            }
+            _ => Err(VellumError::TypeMismatch {
+                path: path.to_path_buf(),
+                key: key.to_string(),
+                expected_type: "datetime".to_string(),
+                found_val: v.to_string(),
+            }),
+        }
+    )
+}
+
+pub fn resolve_type_string(source: &Value, key: &str, args: &str, default: &str, path: &Path) -> Result<Value, VellumError> {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::String(s)) => Ok(json!(s.trim())),
+        Some(v) => Err(VellumError::TypeMismatch {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "string".to_string(),
+            found_val: v.to_string(),
+        }),
+        None => {
+            if default.is_empty() {
+                Ok(Value::Null)
+            } else {
+                Ok(json!(default))
+            }
+        }
+    }
+}
+
+pub fn resolve_type_array(source: &Value, key: &str, args: &str, path: &Path) -> Result<Value, VellumError> {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::Array(arr)) => {
+            let mut list = Vec::new();
+            for item in arr {
+                match item {
+                    Value::String(s) => list.push(s.trim().to_string()),
+                    _ => return Err(VellumError::TypeMismatch {
+                        path: path.to_path_buf(),
+                        key: key.to_string(),
+                        expected_type: "array of strings".to_string(),
+                        found_val: item.to_string(),
+                    }),
+                }
+            }
+            Ok(json!(list))
+        }
+        Some(Value::String(s)) => {
+            let list: Vec<String> = s.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect();
+            Ok(json!(list))
+        }
+        Some(v) => Err(VellumError::TypeMismatch {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "array".to_string(),
+            found_val: v.to_string(),
+        }),
+        None => Ok(json!(Vec::<String>::new())),
+    }
+}
+
+pub fn resolve_type_integer(source: &Value, key: &str, args: &str, path: &Path) -> Result<Value, VellumError> {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::Number(n)) => {
+            n.as_i64().map_or_else(
+                || Err(VellumError::TypeMismatch {
+                    path: path.to_path_buf(),
+                    key: key.to_string(),
+                    expected_type: "integer".to_string(),
+                    found_val: n.to_string(),
+                }),
+                |i| Ok(json!(i))
+            )
+        }
+        Some(v) => Err(VellumError::TypeMismatch {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "integer".to_string(),
+            found_val: v.to_string(),
+        }),
+        None => Ok(Value::Null),
+    }
+}
+
+pub fn resolve_type_float(source: &Value, key: &str, args: &str, path: &Path) -> Result<Value, VellumError> {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::Number(n)) => {
+            n.as_f64().map_or_else(
+                || Err(VellumError::TypeMismatch {
+                    path: path.to_path_buf(),
+                    key: key.to_string(),
+                    expected_type: "float".to_string(),
+                    found_val: n.to_string(),
+                }),
+                |f| Ok(json!(f))
+            )
+        }
+        Some(v) => Err(VellumError::TypeMismatch {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "float".to_string(),
+            found_val: v.to_string(),
+        }),
+        None => Ok(Value::Null),
+    }
+}
+
+pub fn resolve_type_boolean(source: &Value, key: &str, args: &str, path: &Path) -> Result<Value, VellumError> {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::Bool(b)) => Ok(json!(b)),
+        Some(v) => Err(VellumError::TypeMismatch {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "boolean".to_string(),
+            found_val: v.to_string(),
+        }),
+        None => Ok(Value::Null),
+    }
+}
+
+pub fn resolve_type_path(source: &Value, key: &str, args: &str, album_root: &Path) -> Result<Value, VellumError> {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::String(s)) => {
+            Ok(json!(s.trim()))
+        }
+        Some(v) => Err(VellumError::TypeMismatch {
+            path: album_root.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "path (string)".to_string(),
+            found_val: v.to_string(),
+        }),
+        None => Ok(Value::Null),
+    }
+}
+
+pub fn resolve_type_url(source: &Value, key: &str, args: &str, path: &Path) -> Result<Value, VellumError> {
     let raw = get_raw_value(source, key, args);
     match raw {
         Some(Value::String(s)) => {
             let url_str = s.trim();
             if url_str.starts_with("http://") || url_str.starts_with("https://") {
-                json!(url_str)
+                Ok(json!(url_str))
             } else {
-                Value::Null
+                Err(VellumError::TypeMismatch {
+                    path: path.to_path_buf(),
+                    key: key.to_string(),
+                    expected_type: "url".to_string(),
+                    found_val: url_str.to_string(),
+                })
             }
         }
-        _ => Value::Null,
+        Some(v) => Err(VellumError::TypeMismatch {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "url".to_string(),
+            found_val: v.to_string(),
+        }),
+        None => Ok(Value::Null),
     }
 }
 
-#[must_use]
-pub fn resolve_type_object(source: &Value, key: &str, args: &str) -> Value {
+pub fn resolve_type_object(source: &Value, key: &str, args: &str, path: &Path) -> Result<Value, VellumError> {
     let raw = get_raw_value(source, key, args);
     match raw {
-        Some(Value::Object(obj)) => Value::Object(obj.clone()),
-        _ => Value::Null,
+        Some(Value::Object(obj)) => Ok(Value::Object(obj.clone())),
+        Some(v) => Err(VellumError::TypeMismatch {
+            path: path.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "object (inline table)".to_string(),
+            found_val: v.to_string(),
+        }),
+        None => Ok(Value::Null),
+    }
+}
+
+pub fn resolve_type_function(
+    key: &str,
+    source: &Value,
+    cover_metrics: Option<&CoverMetrics>,
+    album_root: &Path,
+) -> Result<Value, VellumError> {
+    match key {
+        "cover_chroma" => Ok(crate::resolvers::resolve_cover_chroma(cover_metrics).unwrap_or(Value::Null)),
+        "cover_entropy" => Ok(crate::resolvers::resolve_cover_entropy(cover_metrics).unwrap_or(Value::Null)),
+        "original_date" => Ok(json!(crate::resolvers::resolve_original_date(source, album_root)?)),
+        "release_date" => Ok(json!(crate::resolvers::resolve_release_date(source, album_root)?)),
+        "comment" => Ok(json!(crate::resolvers::resolve_comment(source, album_root)?)),
+        _ => Err(VellumError::TypeMismatch {
+            path: album_root.to_path_buf(),
+            key: key.to_string(),
+            expected_type: "function".to_string(),
+            found_val: "unknown function key".to_string(),
+        }),
     }
 }
