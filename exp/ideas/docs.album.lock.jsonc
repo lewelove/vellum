@@ -1,0 +1,142 @@
+{
+  "album": {
+
+    // derived from album.albumartist; falls back to album.artist
+    // type: string
+    "albumartist": "",
+
+    // derived from album.album
+    // type: string
+    "album": "",
+
+    // derived from album.comment
+    // type: string
+    "comment": "",
+
+    // derived from album.date
+    // type: string
+    "date": "",
+
+    "original_date": "1998-00",
+
+    "release_date": "1998-00",
+
+    // derived from album.genre
+    // type: array
+    "genre": [],
+
+    "total_discs": 1,
+
+    "total_tracks": 1,
+
+    // user configurable keys from [config.toml].compiler.keys
+    "keys": {
+    }
+
+    "info": {
+
+      // album path relative to library_root
+      "id": "",
+
+      // datetime from [local.toml].local.date_added
+      "date_added": "",
+
+      // total sum of tracks[].duration
+      "duration_milliseconds": 0,
+
+      // duration_milliseconds formatted to HH:MM:SS
+      "duration_formatted": "",
+
+      // boolean sum of every tracks[].file.embedded_keys_subset_match
+      "embedded_keys_subset_match": true,
+
+    },
+
+    // object with all {name}.toml manifests used to generate album.lock.json
+    "manifests": [
+      {
+        "file": {
+          "path": "metadata.toml",
+          "hash": {
+            "string": "blake3-{hash}=",
+            "addressable": ""
+          },
+          "mtime": 0,
+          "byte_size": 0,
+        }
+      },
+      {
+        "file": {
+          "path": "local.toml",
+          "hash": {
+            "string": "blake3-{hash}=",
+            "addressable": ""
+          },
+          "mtime": 0,
+          "byte_size": 0,
+        }
+      },
+      {
+        // etc...
+      }
+    ],
+
+    "covers": {
+
+      // main cover derived from cover.png / cover.jpg
+      "main": {
+
+        // relative path to main cover
+        "file": {
+          "path": "cover.jpg",
+
+          "hash": {
+
+            // cover.file blake3 hash in SRI Base64 format
+            "string": "blake3-{hash}=",
+
+            // cover.file.hash.string -> raw -> no-pad -> truncated to 16 chars
+            "addressable": ""
+          },
+
+          // mtime of cover.file
+          "mtime": 0,
+
+          // byte size of cover.path
+          "byte_size": 0,
+        },
+      },
+    }
+  },
+  "tracks": [
+    {
+      "discnumber": 1,
+      "tracknumber": 1
+      "artist": "",
+      "title": "",
+      "keys": {},
+
+      "file": {
+        "path": "",
+        "hash": {
+          "string": "blake3-{hash}=",
+          "addressable": ""
+        },
+        "mtime": 0,
+        "byte_size": 0,
+        "info": {
+          "bits_per_sample": 16,
+          "sample_rate": 44100,
+          "encoding": "Flac",
+          "channels": 2,
+          "duration_milliseconds": 0,
+          "duration_formatted": "",
+        }
+      }
+    },
+    {
+      // etc...
+    }
+  ]
+}
+

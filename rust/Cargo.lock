@@ -1636,6 +1636,7 @@ version = "0.1.0"
 dependencies = [
  "alphanumeric-sort",
  "anyhow",
+ "chrono",
  "dirs",
  "image",
  "indexmap",

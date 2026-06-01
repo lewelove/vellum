@@ -1,5 +1,15 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
+use serde_json::Value;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CoverMetrics {
+    pub hash: String,
+    pub entropy: Option<usize>,
+    pub chroma: Option<f64>,
+    pub palette: Option<Value>,
+    pub palette_params: Option<String>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrackInfo {

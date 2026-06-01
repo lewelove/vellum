@@ -1,5 +1,22 @@
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::path::Path;
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum VellumDataType {
+    Boolean,
+    Integer,
+    Float,
+    String,
+    Array,
+    Datetime,
+    Path,
+    Url,
+    Object,
+}
+
+#[must_use]
 pub fn get_raw_value<'a>(source: &'a Value, key: &str, args: &str) -> Option<&'a Value> {
     let check = |k: &str| -> Option<&'a Value> {
         let v = source.get(k)?;
@@ -25,6 +42,7 @@ pub fn get_raw_value<'a>(source: &'a Value, key: &str, args: &str) -> Option<&'a
     None
 }
 
+#[must_use]
 pub fn parse_time(val: Option<&Value>) -> String {
     let now = chrono::Utc::now();
     let dt = match val {
@@ -57,12 +75,14 @@ pub fn parse_time(val: Option<&Value>) -> String {
     dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
-pub fn resolve_generic_time(source: &Value, key: &str, args: &str) -> Value {
+#[must_use]
+pub fn resolve_type_datetime(source: &Value, key: &str, args: &str) -> Value {
     let raw = get_raw_value(source, key, args);
     json!(parse_time(raw))
 }
 
-pub fn resolve_generic_string(source: &Value, key: &str, args: &str, default: &str) -> Value {
+#[must_use]
+pub fn resolve_type_string(source: &Value, key: &str, args: &str, default: &str) -> Value {
     get_raw_value(source, key, args).map_or_else(
         || json!(default),
         |v| match v {
@@ -73,7 +93,8 @@ pub fn resolve_generic_string(source: &Value, key: &str, args: &str, default: &s
     )
 }
 
-pub fn resolve_generic_list(source: &Value, key: &str, args: &str) -> Value {
+#[must_use]
+pub fn resolve_type_array(source: &Value, key: &str, args: &str) -> Value {
     get_raw_value(source, key, args).map_or_else(
         || json!(Vec::<String>::new()),
         |v| match v {
@@ -90,7 +111,8 @@ pub fn resolve_generic_list(source: &Value, key: &str, args: &str) -> Value {
     )
 }
 
-pub fn resolve_generic_integer(source: &Value, key: &str, args: &str) -> Value {
+#[must_use]
+pub fn resolve_type_integer(source: &Value, key: &str, args: &str) -> Value {
     get_raw_value(source, key, args).map_or_else(
         || json!(0),
         |v| match v {
@@ -101,7 +123,8 @@ pub fn resolve_generic_integer(source: &Value, key: &str, args: &str) -> Value {
     )
 }
 
-pub fn resolve_generic_float(source: &Value, key: &str, args: &str) -> Value {
+#[must_use]
+pub fn resolve_type_float(source: &Value, key: &str, args: &str) -> Value {
     get_raw_value(source, key, args).map_or_else(
         || json!(0.0),
         |v| match v {
@@ -112,7 +135,8 @@ pub fn resolve_generic_float(source: &Value, key: &str, args: &str) -> Value {
     )
 }
 
-pub fn resolve_generic_bool(source: &Value, key: &str, args: &str) -> Value {
+#[must_use]
+pub fn resolve_type_boolean(source: &Value, key: &str, args: &str) -> Value {
     get_raw_value(source, key, args).map_or_else(
         || json!(false),
         |v| match v {
@@ -127,35 +151,38 @@ pub fn resolve_generic_bool(source: &Value, key: &str, args: &str) -> Value {
     )
 }
 
-pub fn resolve_generic_string_fallback(
-    source: &Value,
-    album_source: &Value,
-    key: &str,
-    album_key: &str,
-    default: &str,
-) -> Value {
-    let check = |v: &Value| -> Option<String> {
-        match v {
-            Value::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
-            Value::Array(a) if !a.is_empty() => Some(a.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join("; ")),
-            Value::Null => None,
-            _ => Some(v.to_string().replace('"', "").trim().to_string()),
+#[must_use]
+pub fn resolve_type_path(source: &Value, key: &str, args: &str, _album_root: &Path) -> Value {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::String(s)) => {
+            json!(s.trim())
         }
-    };
-
-    source.get(key).and_then(check).map_or_else(
-        || album_source.get(album_key).and_then(check).map_or_else(|| json!(default), |v| json!(v)),
-        |v| json!(v)
-    )
+        _ => Value::Null,
+    }
 }
 
-pub fn format_ms(ms: u64) -> String {
-    let s = (ms / 1000) % 60;
-    let m = (ms / (1000 * 60)) % 60;
-    let h = ms / (1000 * 60 * 60);
-    if h > 0 {
-        format!("{h}:{m:02}:{s:02}")
-    } else {
-        format!("{m}:{s:02}")
+#[must_use]
+pub fn resolve_type_url(source: &Value, key: &str, args: &str) -> Value {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::String(s)) => {
+            let url_str = s.trim();
+            if url_str.starts_with("http://") || url_str.starts_with("https://") {
+                json!(url_str)
+            } else {
+                Value::Null
+            }
+        }
+        _ => Value::Null,
+    }
+}
+
+#[must_use]
+pub fn resolve_type_object(source: &Value, key: &str, args: &str) -> Value {
+    let raw = get_raw_value(source, key, args);
+    match raw {
+        Some(Value::Object(obj)) => Value::Object(obj.clone()),
+        _ => Value::Null,
     }
 }

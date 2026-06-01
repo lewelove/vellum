@@ -10,6 +10,7 @@ use crate::expand_path;
 use crate::harvest;
 use serde_json::{Value, json, Map};
 use std::path::Path;
+use libvellum::models::CoverMetrics;
 
 struct PreparedContext {
     audio_files: Vec<std::path::PathBuf>,
@@ -125,12 +126,31 @@ fn prepare_build_context(
         .canonicalize()
         .unwrap_or_else(|_| expand_path(lib_root_raw));
 
-    let mut registry = config
+    let keys_config = config
         .get("compiler")
         .and_then(|c| c.get("keys"))
         .and_then(Value::as_object)
-        .ok_or_else(|| VellumError::MissingCompilerRegistry)?
-        .clone();
+        .ok_or_else(|| VellumError::MissingCompilerRegistry)?;
+
+    let mut registry = Map::new();
+
+    if let Some(albums) = keys_config.get("album").and_then(Value::as_object) {
+        for (k, v) in albums {
+            if let Some(mut obj) = v.as_object().cloned() {
+                obj.insert("level".to_string(), json!("album"));
+                registry.insert(k.clone(), Value::Object(obj));
+            }
+        }
+    }
+
+    if let Some(tracks) = keys_config.get("tracks").and_then(Value::as_object) {
+        for (k, v) in tracks {
+            if let Some(mut obj) = v.as_object().cloned() {
+                obj.insert("level".to_string(), json!("tracks"));
+                registry.insert(k.clone(), Value::Object(obj));
+            }
+        }
+    }
 
     merge_local_registry(album_root, &mut registry);
 
@@ -142,7 +162,7 @@ fn resolve_cover_metrics(
     c_hash: &str,
     loaded_image: Option<&image::DynamicImage>,
     manifest_data: &libvellum::compiler::manifest::ManifestData,
-) -> Option<assets::CoverMetrics> {
+) -> Option<CoverMetrics> {
     if c_hash.is_empty() {
         return None;
     }
@@ -160,10 +180,10 @@ fn resolve_cover_metrics(
     let palette_params = format!("{palette_cfg:?}|{cover_palette_raw:?}");
     
     let mut metrics = if metrics_path.exists() {
-        std::fs::read_to_string(&metrics_path).map_or(None, |content| serde_json::from_str::<assets::CoverMetrics>(&content).ok())
+        std::fs::read_to_string(&metrics_path).map_or(None, |content| serde_json::from_str::<CoverMetrics>(&content).ok())
     } else { 
         None 
-    }.unwrap_or_else(|| assets::CoverMetrics {
+    }.unwrap_or_else(|| CoverMetrics {
         hash: c_hash.to_string(),
         entropy: None,
         chroma: None,
@@ -259,7 +279,7 @@ fn construct_track_info(ctx: &TrackContext, total_discs: u32) -> Value {
         .and_then(Value::as_str)
         .map(ToString::to_string)
         .or_else(|| {
-            resolvers::native::resolve_lyrics_path(
+            libvellum::resolvers::resolve_lyrics_path(
                 ctx.album_root,
                 ctx.track_number,
                 ctx.disc_number,
@@ -269,14 +289,14 @@ fn construct_track_info(ctx: &TrackContext, total_discs: u32) -> Value {
 
     info.insert(
         "track_path".to_string(),
-        json!(resolvers::native::rel_path(
+        json!(libvellum::resolvers::rel_path(
             &ctx.harvest.path,
             ctx.album_root
         )),
     );
     info.insert(
         "track_library_path".to_string(),
-        json!(resolvers::native::rel_path(
+        json!(libvellum::resolvers::rel_path(
             &ctx.harvest.path,
             ctx.library_root
         )),
@@ -287,7 +307,7 @@ fn construct_track_info(ctx: &TrackContext, total_discs: u32) -> Value {
     );
     info.insert(
         "track_duration_time".to_string(),
-        json!(resolvers::standard::format_ms(
+        json!(libvellum::resolvers::format_ms(
             ctx.harvest.physics.duration_ms
         )),
     );
@@ -359,23 +379,23 @@ fn construct_album_info(ctx: &AlbumContext) -> Value {
 
     info.insert(
         "album_path".to_string(),
-        json!(resolvers::native::rel_path(
+        json!(libvellum::resolvers::rel_path(
             ctx.album_root,
             ctx.library_root
         )),
     );
     info.insert(
         "date_added".to_string(),
-        json!(resolvers::native::resolve_album_info_date_added(ctx, "")),
+        json!(libvellum::resolvers::resolve_album_info_date_added(ctx.album_root, ctx.source, ctx.config)),
     );
     info.insert("album_duration".to_string(), json!(dur));
     info.insert(
         "album_duration_time".to_string(),
-        json!(resolvers::standard::format_ms(dur)),
+        json!(libvellum::resolvers::format_ms(dur)),
     );
     info.insert(
         "total_discs".to_string(),
-        json!(resolvers::native::calculate_total_discs(ctx.tracks)),
+        json!(libvellum::resolvers::calculate_total_discs(ctx.tracks)),
     );
     info.insert("total_tracks".to_string(), json!(ctx.tracks.len()));
     info.insert("metadata_toml_hash".to_string(), json!(ctx.meta_hash));
@@ -420,8 +440,8 @@ fn build_album(
         tags.insert(key.clone(), val);
     }
 
-    if let Some(palette_cfg) = ctx.config.get("compiler").and_then(|c| c.get("cover_palette"))
-        && let Some(val) = resolvers::native::resolve_cover_palette(ctx, palette_cfg) {
+    if ctx.config.get("compiler").and_then(|c| c.get("cover_palette")).is_some()
+        && let Some(val) = libvellum::resolvers::resolve_cover_palette(ctx.cover_metrics) {
             tags.insert("cover_palette".to_string(), val);
         }
 

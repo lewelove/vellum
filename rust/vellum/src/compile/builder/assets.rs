@@ -6,23 +6,14 @@ pub use fast_image_resize::FilterType;
 use fast_image_resize::{ResizeAlg, ResizeOptions, Resizer};
 use fast_image_resize::PixelType;
 use image::DynamicImage;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::time::SystemTime;
+pub use libvellum::models::CoverMetrics;
 
 pub const COVER_CANDIDATES: [&str; 4] = ["cover.jpg", "cover.png", "folder.jpg", "front.jpg"];
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct CoverMetrics {
-    pub hash: String,
-    pub entropy: Option<usize>,
-    pub chroma: Option<f64>,
-    pub palette: Option<Value>,
-    pub palette_params: Option<String>,
-}
 
 pub fn resolve_cover_info(root: &Path) -> (Option<String>, String, u64, u64) {
     for c in COVER_CANDIDATES {

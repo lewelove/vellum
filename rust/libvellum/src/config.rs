@@ -65,10 +65,18 @@ pub struct ManifestKeyConfig {
     pub manifests: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct CompilerKeys {
+    #[serde(default)]
+    pub album: HashMap<String, KeyConfig>,
+    #[serde(default)]
+    pub tracks: HashMap<String, KeyConfig>,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CompilerConfig {
     pub scan_depth: Option<usize>,
-    pub keys: Option<HashMap<String, KeyConfig>>,
+    pub keys: Option<CompilerKeys>,
     pub date_added: Option<Vec<String>>,
     pub file_subset_match: Option<Vec<String>>,
     pub cover_palette: Option<PaletteConfig>,
@@ -97,10 +105,9 @@ pub struct PaletteConfig {
 pub struct KeyConfig {
     pub class: Option<String>,
     #[serde(rename = "type")]
-    pub type_: Option<String>,
+    pub type_: Option<crate::types::VellumDataType>,
     #[serde(default)]
     pub args: String,
-    pub level: String,
 }
 
 impl AppConfig {
