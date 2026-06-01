@@ -47,9 +47,6 @@
       // duration_milliseconds formatted to HH:MM:SS
       "duration_formatted": "",
 
-      // boolean sum of every tracks[].file.embedded_keys_subset_match
-      "embedded_keys_subset_match": true,
-
     },
 
     // object with all {name}.toml manifests used to generate album.lock.json
@@ -131,6 +128,13 @@
           "channels": 2,
           "duration_milliseconds": 0,
           "duration_formatted": "",
+          // for every key listed in [config.toml].compiler.embedded_keys_subset[{key}]
+          // we perform `computed value -> to string -> compare with harvested tag` validation
+          // and output the object populated with `{key}: true / false`
+          "embedded_keys_subset_match": {
+            "key": true
+            // etc...
+          }
         }
       }
     },
