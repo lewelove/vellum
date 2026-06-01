@@ -8,12 +8,13 @@ pub enum VellumDataType {
     Boolean,
     Integer,
     Float,
-    String,
     Array,
     Datetime,
     Path,
     Url,
     Object,
+    #[serde(other)]
+    String,
 }
 
 #[must_use]

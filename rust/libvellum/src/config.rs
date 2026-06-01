@@ -105,7 +105,7 @@ pub struct PaletteConfig {
 pub struct KeyConfig {
     pub class: Option<String>,
     #[serde(rename = "type")]
-    pub type_: Option<crate::types::VellumDataType>,
+    pub type_: crate::types::VellumDataType,
     #[serde(default)]
     pub args: String,
 }
