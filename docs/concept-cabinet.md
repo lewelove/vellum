@@ -15,7 +15,7 @@ shelves = []
 # if `sorters = true` -> all sorters except `strict` are added
 # all cabinets always contain one "default" sorter
 #   for shelf defined with `file` it's an original order of ids in text
-#   for shelves defined without `file` it's a `sorters.default`
+#   for shelves defined without `file` it's a `sorters.default` or `id`
 sorters = []
 
 ```
