@@ -1,6 +1,6 @@
 # Shelves Concept
 
-Shelves are the frozen subsets of all albums in collection, configured by filter / text file and default sorter.
+Shelves are the frozen subsets of all albums in collection, configured by text file containing `album.id` and/or `filter` as well as `order` sql expression.
 
 Think of shelf as of a literal shelf in physical album cabinet, with specific albums on it in specific order.
 
