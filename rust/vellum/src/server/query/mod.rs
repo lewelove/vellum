@@ -12,7 +12,7 @@ pub use libvellum::sql::expand_shorthand;
 pub struct LogicManifest {
     pub groupers: IndexMap<String, GrouperDef>,
     pub sorters: IndexMap<String, SorterDef>,
-    pub collections: IndexMap<String, CollectionDef>,
+    pub libraries: IndexMap<String, LibraryDef>,
     #[serde(default)]
     pub shelves: IndexMap<String, ShelfDef>,
     #[serde(skip_deserializing, default)]
@@ -20,7 +20,7 @@ pub struct LogicManifest {
     #[serde(skip_deserializing, default)]
     pub sorters_order: Vec<String>,
     #[serde(skip_deserializing, default)]
-    pub collections_order: Vec<String>,
+    pub libraries_order: Vec<String>,
     #[serde(skip_deserializing, default)]
     pub shelves_order: Vec<String>,
 }
@@ -29,7 +29,7 @@ impl LogicManifest {
     pub fn normalize(&mut self) {
         self.groupers_order = self.groupers.keys().cloned().collect();
         self.sorters_order = self.sorters.keys().cloned().collect();
-        self.collections_order = self.collections.keys().cloned().collect();
+        self.libraries_order = self.libraries.keys().cloned().collect();
         self.shelves_order = self.shelves.keys().cloned().collect();
 
         for (_, g) in &mut self.groupers {
@@ -50,33 +50,33 @@ impl LogicManifest {
             .map(|(id, _)| id.clone())
             .collect();
 
-        for (_, collection) in &mut self.collections {
+        for (_, library) in &mut self.libraries {
             let mut allowed_grouper_ids = HashSet::new();
-            for g in &collection.groupers {
+            for g in &library.groupers {
                 allowed_grouper_ids.insert(g.clone());
             }
-            if !collection.strict {
+            if !library.strict {
                 for g in &global_groupers {
                     allowed_grouper_ids.insert(g.clone());
                 }
             }
 
             let mut allowed_sorter_ids = HashSet::new();
-            for s in &collection.sorters {
+            for s in &library.sorters {
                 allowed_sorter_ids.insert(s.clone());
             }
-            if !collection.strict {
+            if !library.strict {
                 for s in &global_sorters {
                     allowed_sorter_ids.insert(s.clone());
                 }
             }
 
-            collection.allowed_groupers = self.groupers.keys()
+            library.allowed_groupers = self.groupers.keys()
                 .filter(|k| allowed_grouper_ids.contains(*k))
                 .cloned()
                 .collect();
 
-            collection.allowed_sorters = self.sorters.keys()
+            library.allowed_sorters = self.sorters.keys()
                 .filter(|k| allowed_sorter_ids.contains(*k))
                 .cloned()
                 .collect();
@@ -105,7 +105,7 @@ pub struct SorterDef {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct CollectionDef {
+pub struct LibraryDef {
     pub label: String,
     pub filter: String,
     #[serde(default)]
@@ -131,7 +131,7 @@ pub struct ShelfDef {
 pub struct QueryEngine {
     conn: Connection,
     pub manifest: LogicManifest,
-    collections_cache: HashMap<String, HashSet<u32>>,
+    libraries_cache: HashMap<String, HashSet<u32>>,
     facets_cache: HashMap<String, HashMap<String, HashSet<u32>>>,
     sorters_cache: HashMap<String, Vec<u32>>,
     shelves_cache: HashMap<String, Vec<u32>>,
@@ -166,7 +166,7 @@ impl QueryEngine {
         Ok(Self {
             conn,
             manifest,
-            collections_cache: HashMap::new(),
+            libraries_cache: HashMap::new(),
             facets_cache: HashMap::new(),
             sorters_cache: HashMap::new(),
             shelves_cache: HashMap::new(),
@@ -188,7 +188,7 @@ impl QueryEngine {
 
     pub fn clear(&mut self) -> Result<()> {
         self.conn.execute("DELETE FROM albums",[])?;
-        self.collections_cache.clear();
+        self.libraries_cache.clear();
         self.facets_cache.clear();
         self.sorters_cache.clear();
         self.shelves_cache.clear();
@@ -279,13 +279,13 @@ impl QueryEngine {
     }
 
     pub fn build_cache(&mut self) -> Result<()> {
-        self.collections_cache.clear();
-        for (key, collection) in &self.manifest.collections {
-            let expanded_filter = expand_shorthand(&collection.filter);
+        self.libraries_cache.clear();
+        for (key, library) in &self.manifest.libraries {
+            let expanded_filter = expand_shorthand(&library.filter);
             let sql = format!("SELECT uid FROM albums WHERE {expanded_filter}");
             let mut stmt = self.conn.prepare(&sql)?;
             let uids: HashSet<u32> = stmt.query_map([], |row| row.get(0))?.filter_map(Result::ok).collect();
-            self.collections_cache.insert(key.clone(), uids);
+            self.libraries_cache.insert(key.clone(), uids);
         }
 
         self.sorters_cache.clear();
@@ -370,10 +370,10 @@ impl QueryEngine {
         Ok(())
     }
 
-    pub fn request_view(&self, collection: &str, sort: &str, filter_key: Option<&str>, filter_val: Option<&str>, reverse: bool) -> Vec<String> {
+    pub fn request_view(&self, library: &str, sort: &str, filter_key: Option<&str>, filter_val: Option<&str>, reverse: bool) -> Vec<String> {
         let empty_set = HashSet::new();
-        let collection_mask = self.collections_cache.get(collection).unwrap_or(&empty_set);
-        let mut final_mask = collection_mask.clone();
+        let library_mask = self.libraries_cache.get(library).unwrap_or(&empty_set);
+        let mut final_mask = library_mask.clone();
 
         if let (Some(fk), Some(fv)) = (filter_key, filter_val) {
             if fk == "search" {
@@ -414,14 +414,14 @@ impl QueryEngine {
         uids.iter().filter_map(|uid| self.uid_to_id.get(uid).cloned()).collect()
     }
 
-    pub fn request_group(&self, collection: &str, grouper: &str) -> Vec<Value> {
+    pub fn request_group(&self, library: &str, grouper: &str) -> Vec<Value> {
         let empty_set = HashSet::new();
-        let collection_mask = self.collections_cache.get(collection).unwrap_or(&empty_set);
+        let library_mask = self.libraries_cache.get(library).unwrap_or(&empty_set);
         
         let mut results = Vec::new();
         if let Some(facet_map) = self.facets_cache.get(grouper) {
             for (val, mask) in facet_map {
-                let count = mask.intersection(collection_mask).count();
+                let count = mask.intersection(library_mask).count();
                 if count > 0 {
                     results.push(json!({
                         "value": val,

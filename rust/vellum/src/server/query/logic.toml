@@ -63,9 +63,9 @@ order_by = "json_extract(metadata, '$.album.info.date_added') DESC"
 label = "Last Edited"
 order_by = "COALESCE(json_extract(metadata, '$.album.info.metadata_toml_mtime'), 0) DESC"
 
-# -- COLLECTIONS --
+# -- LIBRARIES --
 
-[collections.library]
+[libraries.library]
 label = "Entire Library"
 filter = "1=1"
 

@@ -58,23 +58,23 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                         if let Ok(req) = serde_json::from_str::<serde_json::Value>(&text) {
                             let req_type = req.get("type").and_then(|v| v.as_str()).unwrap_or("");
                             if req_type == "VIEW_REQUEST" {
-                                let collection = req.get("collection").and_then(|v| v.as_str()).unwrap_or("library");
+                                let library = req.get("library").and_then(|v| v.as_str()).unwrap_or("library");
                                 let sort = req.get("sort").and_then(|v| v.as_str()).unwrap_or("default");
                                 let reverse = req.get("reverse").and_then(serde_json::Value::as_bool).unwrap_or(false);
                                 let filter_key = req.get("filter").and_then(|v| v.get("key")).and_then(|v| v.as_str());
                                 let filter_val = req.get("filter").and_then(|v| v.get("val")).and_then(|v| v.as_str());
                                 
-                                let ids = state.query.lock().await.request_view(collection, sort, filter_key, filter_val, reverse);
+                                let ids = state.query.lock().await.request_view(library, sort, filter_key, filter_val, reverse);
                                 let _ = socket.send(ax_ws::Message::Text(json!({ "type": "VIEW_DATA", "ids": ids }).to_string().into())).await;
                             } else if req_type == "SHELF_REQUEST" {
                                 let shelf = req.get("shelf").and_then(|v| v.as_str()).unwrap_or("");
                                 let ids = state.query.lock().await.request_shelf_view(shelf);
                                 let _ = socket.send(ax_ws::Message::Text(json!({ "type": "VIEW_DATA", "ids": ids }).to_string().into())).await;
                             } else if req_type == "GROUP_REQUEST" {
-                                let collection = req.get("collection").and_then(|v| v.as_str()).unwrap_or("library");
+                                let library = req.get("library").and_then(|v| v.as_str()).unwrap_or("library");
                                 let key = req.get("key").and_then(|v| v.as_str()).unwrap_or("");
                                 
-                                let result = state.query.lock().await.request_group(collection, key);
+                                let result = state.query.lock().await.request_group(library, key);
                                 let _ = socket.send(ax_ws::Message::Text(json!({ "type": "GROUP_RESULT", "key": key, "result": result }).to_string().into())).await;
                             }
                         }

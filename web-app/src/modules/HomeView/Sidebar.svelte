@@ -2,12 +2,12 @@
   import { library } from "../../library.svelte.ts";
   import SidebarIndex from "./SidebarIndex.svelte";
 
-  let isCollectionMenuOpen = $state(false);
+  let isLibraryMenuOpen = $state(false);
   let isSortMenuOpen = $state(false);
   let isGroupMenuOpen = $state(false);
   let scrollContainer: HTMLDivElement | null = $state(null);
 
-  let collectionLabel = $derived(library.availableCollections[library.activeCollection]?.label || "Unknown");
+  let libraryLabel = $derived(library.availableLibraries[library.activeLibrary]?.label || "Unknown");
   let groupLabel = $derived(library.availableFacets[library.activeSidebarGrouper]?.label || "Unknown");
   let sortLabel = $derived(library.availableSorters[library.userSortPreference]?.label || "Unknown");
 
@@ -19,9 +19,9 @@
   let showIndex = $derived(activeGrouperDef.index === true);
   let showCount = $derived(activeGrouperDef.count === true);
 
-  function toggleCollectionMenu() {
-    isCollectionMenuOpen = !isCollectionMenuOpen;
-    if (isCollectionMenuOpen) {
+  function toggleLibraryMenu() {
+    isLibraryMenuOpen = !isLibraryMenuOpen;
+    if (isLibraryMenuOpen) {
       isSortMenuOpen = false;
       isGroupMenuOpen = false;
     }
@@ -31,7 +31,7 @@
     isSortMenuOpen = !isSortMenuOpen;
     if (isSortMenuOpen) {
       isGroupMenuOpen = false;
-      isCollectionMenuOpen = false;
+      isLibraryMenuOpen = false;
     }
   }
 
@@ -39,13 +39,13 @@
     isGroupMenuOpen = !isGroupMenuOpen;
     if (isGroupMenuOpen) {
       isSortMenuOpen = false;
-      isCollectionMenuOpen = false;
+      isLibraryMenuOpen = false;
     }
   }
 
-  function selectCollection(key: string) {
-    library.setCollection(key);
-    isCollectionMenuOpen = false;
+  function selectLibrary(key: string) {
+    library.setLibrary(key);
+    isLibraryMenuOpen = false;
   }
 
   function selectSorter(key: string) {
@@ -77,25 +77,25 @@
   <div class="sidebar-controls">
     <div class="control-row">
       <div class="button-wrapper flex-grow">
-        <button class="v-btn-icon sidebar-btn" onclick={toggleCollectionMenu} class:active={isCollectionMenuOpen} title="Collection">
+        <button class="v-btn-icon sidebar-btn" onclick={toggleLibraryMenu} class:active={isLibraryMenuOpen} title="Library">
           <img src="icons/outlined/20px/auto_stories.svg" alt="" class="start-icon" />
-          <span class="v-truncate btn-label">{collectionLabel}</span>
+          <span class="v-truncate btn-label">{libraryLabel}</span>
           <img 
-            src={isCollectionMenuOpen ? "icons/outlined/24px/arrow_drop_up.svg" : "icons/outlined/24px/arrow_drop_down.svg"}  
+            src={isLibraryMenuOpen ? "icons/outlined/24px/arrow_drop_up.svg" : "icons/outlined/24px/arrow_drop_down.svg"}  
             class="end-icon" 
             alt="" 
           />
         </button>
     
-        {#if isCollectionMenuOpen}
+        {#if isLibraryMenuOpen}
           <div class="control-menu v-panel">
-            {#each library.collectionsList as collection}
+            {#each library.librariesList as lib}
               <button 
                 class="menu-item" 
-                class:selected={library.activeCollection === collection.key}
-                onclick={() => selectCollection(collection.key)}
+                class:selected={library.activeLibrary === lib.key}
+                onclick={() => selectLibrary(lib.key)}
               >
-                {collection.label}
+                {lib.label}
               </button>
             {/each}
           </div>
@@ -377,4 +377,3 @@
     font-family: var(--font-mono);
   }
 </style>
-

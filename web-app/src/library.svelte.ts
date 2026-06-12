@@ -42,7 +42,7 @@ class LibraryState {
     this.focusedAlbums[nav.activeTab] = val;
   }
   
-  activeCollection: string = $state("library");
+  activeLibrary: string = $state("library");
   activeFilter: { key: string | null, val: string | null } = $state({ key: null, val: null });
   activeSort: { key: string, order: string } = $state({ key: "default", order: "default" });
   userSortPreference: string = $state("default");
@@ -62,7 +62,7 @@ class LibraryState {
   
   sidebarWidth: number = $state(280);
   
-  manifest: Record<string, any> = $state({ collections: {}, groupers: {}, sorters: {}, shelves: {} });
+  manifest: Record<string, any> = $state({ libraries: {}, groupers: {}, sorters: {}, shelves: {} });
 
   config: Record<string, any> = $state({
     covers: {
@@ -217,7 +217,7 @@ class LibraryState {
 
   applyPersistedState(state: any) {
       nav.activeTab = state.activeTab || "home";
-      this.activeCollection = state.activeCollection || "library";
+      this.activeLibrary = state.activeLibrary || state.activeCollection || "library";
       this.userSortPreference = state.sortKey || "default";
       this.userSortOrder = state.sortOrder || "default";
       this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
@@ -242,7 +242,7 @@ class LibraryState {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
               activeTab: nav.activeTab,
-              activeCollection: this.activeCollection,
+              activeLibrary: this.activeLibrary,
               sortKey: this.userSortPreference,
               sortOrder: this.userSortOrder,
               groupKey: this.activeSidebarGrouper,
@@ -268,7 +268,7 @@ class LibraryState {
     } else {
         this._ws.send(JSON.stringify({
             type: "VIEW_REQUEST",
-            collection: this.activeCollection,
+            library: this.activeLibrary,
             sort: this.activeSort.key,
             reverse: this.activeSort.order === "reverse",
             filter: this.activeFilter
@@ -280,7 +280,7 @@ class LibraryState {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
     this._ws.send(JSON.stringify({
         type: "GROUP_REQUEST",
-        collection: this.activeCollection,
+        library: this.activeLibrary,
         key: this.activeSidebarGrouper
     }));
   }
@@ -311,14 +311,14 @@ class LibraryState {
     return `/api/assets/cover/${encodeURIComponent(albumId)}?v=${album.cover_hash}`;
   }
 
-  get availableCollections(): Record<string, any> { return this.manifest.collections || {}; }
+  get availableLibraries(): Record<string, any> { return this.manifest.libraries || {}; }
   get availableFacets(): Record<string, any> { return this.manifest.groupers || {}; }
   get availableSorters(): Record<string, any> { return this.manifest.sorters || {}; }
   get availableShelves(): Record<string, any> { return this.manifest.shelves || {}; }
 
-  get collectionsList(): any[] {
-    const order = this.manifest.collections_order || Object.keys(this.availableCollections);
-    return order.map((k: string) => ({ key: k, ...this.availableCollections[k] }));
+  get librariesList(): any[] {
+    const order = this.manifest.libraries_order || Object.keys(this.availableLibraries);
+    return order.map((k: string) => ({ key: k, ...this.availableLibraries[k] }));
   }
 
   get shelvesList(): any[] {
@@ -327,10 +327,10 @@ class LibraryState {
   }
 
   get visibleFacets(): any[] {
-    const collection = this.availableCollections[this.activeCollection];
+    const library = this.availableLibraries[this.activeLibrary];
     const order = this.manifest.groupers_order || Object.keys(this.availableFacets);
-    if (collection && collection.allowed_groupers) {
-      return collection.allowed_groupers
+    if (library && library.allowed_groupers) {
+      return library.allowed_groupers
         .filter((k: string) => this.availableFacets[k])
         .map((k: string) => ({ key: k, label: this.availableFacets[k].label || k }));
     }
@@ -340,10 +340,10 @@ class LibraryState {
   }
 
   get visibleSorters(): any[] {
-    const collection = this.availableCollections[this.activeCollection];
+    const library = this.availableLibraries[this.activeLibrary];
     const order = this.manifest.sorters_order || Object.keys(this.availableSorters);
-    if (collection && collection.allowed_sorters) {
-      return collection.allowed_sorters
+    if (library && library.allowed_sorters) {
+      return library.allowed_sorters
         .filter((k: string) => this.availableSorters[k])
         .map((k: string) => ({ key: k, label: this.availableSorters[k].label || k }));
     }
@@ -352,17 +352,17 @@ class LibraryState {
       .map((k: string) => ({ key: k, label: this.availableSorters[k].label || k }));
   }
 
-  setCollection(key: string) {
-    this.activeCollection = key;
+  setLibrary(key: string) {
+    this.activeLibrary = key;
     this.activeFilter = { key: null, val: null };
     this.focusedAlbum = null;
-    const collection = this.availableCollections[key];
-    if (collection) {
-        if (collection.allowed_groupers && !collection.allowed_groupers.includes(this.activeSidebarGrouper)) {
-            this.activeSidebarGrouper = collection.allowed_groupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
+    const library = this.availableLibraries[key];
+    if (library) {
+        if (library.allowed_groupers && !library.allowed_groupers.includes(this.activeSidebarGrouper)) {
+            this.activeSidebarGrouper = library.allowed_groupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
         }
-        if (collection.allowed_sorters && !collection.allowed_sorters.includes(this.userSortPreference)) {
-            this.userSortPreference = collection.allowed_sorters[0] || (this.manifest.sorters_order && this.manifest.sorters_order[0]) || Object.keys(this.availableSorters)[0] || "default";
+        if (library.allowed_sorters && !library.allowed_sorters.includes(this.userSortPreference)) {
+            this.userSortPreference = library.allowed_sorters[0] || (this.manifest.sorters_order && this.manifest.sorters_order[0]) || Object.keys(this.availableSorters)[0] || "default";
             this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
         }
     }
