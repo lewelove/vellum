@@ -27,11 +27,14 @@
     // type: array
     "genre": [],
 
+    // type: number
     "total_discs": 1,
 
+    // type: number
     "total_tracks": 1,
 
     // album path relative to library_root
+    // type: string
     "id": ""
 
     // user configurable keys from [config.toml].compiler.keys
@@ -41,12 +44,15 @@
     "info": {
 
       // datetime from [local.toml].local.date_added
+      // type: datetime
       "date_added": "",
 
       // total sum of tracks[].duration
+      // type: number
       "duration_milliseconds": 0,
 
       // duration_milliseconds formatted to HH:MM:SS
+      // type: number
       "duration_formatted": ""
 
     }
@@ -58,6 +64,7 @@
         "file": {
           
           // relative to album.id file path
+          // type: path
           "path": "metadata.toml",
 
           // present for every file except in tracks[]
@@ -69,6 +76,7 @@
             // file.hash.string -> raw -> no-pad -> truncated to 16 chars
             "address": ""
           },
+          
           "mtime": 0,
           "byte_size": 0
         }

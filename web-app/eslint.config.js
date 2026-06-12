@@ -3,7 +3,7 @@ import svelteParser from 'svelte-eslint-parser';
 
 export default [
   ...sveltePlugin.configs['flat/recommended'],
-  ...sveltePlugin.configs['flat/prettier'], // Optional: if you use prettier
+  ...sveltePlugin.configs['flat/prettier'],
   {
     files: ['**/*.svelte'],
     languageOptions: {
