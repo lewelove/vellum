@@ -153,6 +153,9 @@
                 class="v-track-row track-row" 
                 class:active={track.isPlaying}
                 ondblclick={() => handleJump(track.id)}
+                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleJump(track.id); } }}
+                role="button"
+                tabindex="0"
               >
                 <div class="v-track-body track-body">
                   <span class="v-truncate v-track-title track-title">{track.title}</span>
@@ -189,6 +192,7 @@
     flex-direction: column;
     overflow: hidden;
     clip-path: inset(0 0 0 -30px);
+    box-shadow: none;
   }
 
   .panel-inner {

@@ -152,6 +152,7 @@
     flex-direction: column;
     overflow: hidden;
     clip-path: inset(0 -30px 0 0);
+    box-shadow: none;
   }
 
   .panel-inner {

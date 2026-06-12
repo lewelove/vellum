@@ -3,19 +3,16 @@
   import ClearCover from "../ClearCover.svelte";
 
   let { coverHash = "", onclick, width = $bindable(0) }: { coverHash?: string, onclick?: () => void, width?: number } = $props();
-  let isStopped = $derived(player.state === "stop");
 </script>
 
-<div 
-  class="cover-wrapper" 
-  class:stopped={isStopped}
-  style="background-color: {isStopped ? 'var(--background-drawer)' : 'transparent'};"
->
-  <div 
+<div class="cover-wrapper v-glass">
+  <button 
     class="cover-panel" 
     class:clickable={!!coverHash}
     bind:clientWidth={width}
-    {onclick}
+    onclick={coverHash ? onclick : undefined}
+    type="button"
+    aria-label={coverHash ? "Expand cover" : "Cover art"}
   >
     <div class="cover-absolute-wrapper">
       {#if width > 0}
@@ -26,7 +23,7 @@
         />
       {/if}
     </div>
-  </div>
+  </button>
 </div>
 
 <style>
@@ -34,7 +31,6 @@
     height: 100%;
     max-height: 100%;
     max-width: 60vw;
-    aspect-ratio: 1 / 1;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -42,20 +38,20 @@
     z-index: 10;
     transition: background-color 0.3s ease;
     box-sizing: border-box;
-  }
-
-  .cover-wrapper.stopped {
-    box-shadow: var(--album-cover-shadow);
+    padding: 20px 0;
+    box-shadow: none;
   }
 
   .cover-panel {
-    width: 100%;
     height: 100%;
+    aspect-ratio: 1 / 1;
     position: relative;
     cursor: default;
     outline: none;
     border: none;
     box-sizing: border-box;
+    background: none;
+    padding: 0;
   }
 
   .cover-panel.clickable {

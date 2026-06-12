@@ -101,6 +101,17 @@
       class:active={selectedIndex === i}
       onclick={() => handleSelect(i)}
       ondblclick={() => handlePlay(i)}
+      onkeydown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handlePlay(i);
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          handleSelect(i);
+        }
+      }}
+      role="button"
+      tabindex="0"
       aria-label="Track {track.tracknumber}: {track.title}"
     >
       <span class="v-mono v-track-index track-index">{track.tracknumber}</span>

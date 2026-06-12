@@ -58,6 +58,21 @@
     if (coverHash) isExpanded = !isExpanded;
   }
 
+  function handleBackdropClick(e: MouseEvent) {
+    if (e.target === e.currentTarget) {
+      toggleExpand();
+    }
+  }
+
+  function handleBackdropKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      if (e.target === e.currentTarget) {
+        e.preventDefault();
+        toggleExpand();
+      }
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (isExpanded && e.key === "Escape") isExpanded = false;
   }
@@ -76,14 +91,15 @@
   {#if isExpanded}
     <div 
       class="expanded-backdrop" 
-      onclick={toggleExpand}
+      onclick={handleBackdropClick}
+      onkeydown={handleBackdropKeydown}
+      role="button"
+      tabindex="0"
       transition:fade={{ duration: 200 }}
     >
       <div 
         class="expanded-content" 
         style="width: {expandedSize}px; height: {expandedSize}px;"
-        onclick={(e) => e.stopPropagation()} 
-        role="presentation"
       >
         <div in:fade={{ duration: 200 }}>
           <ClearCover hash={coverHash} width={expandedSize} height={expandedSize} />
