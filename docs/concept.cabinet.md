@@ -1,6 +1,6 @@
 # Cabinet Concept
 
-Cabinet is a set of `shelves` and `sorters`
+Cabinet is a set of static `shelves` and set of `sorters` to apply on top
 
 ## Cabinet Attributes
 
@@ -8,14 +8,26 @@ Cabinet is a set of `shelves` and `sorters`
 
 [cabinets.name]
 
+label = "Cabinet Name"
+
 # define all shelves in cabinet by their name
+# if `array`:
+#   - select [shelves] by name
+# if `true`:
+#   - all shelves except `private` are included
+# in other cases:
+#   - cabinet invalidated & excluded from ui
 shelves = []
 
 # define all sorters used for this cabinet
-# if `sorters = true` -> all sorters except `strict` are added
-# all cabinets always contain one "default" sorter
-#   for shelf defined with `file` it's an original order of ids in text
-#   for shelves defined without `file` it's a `sorters.default` or `id`
+# if `array`
+#   - select [sorters] by name
+# if `true`:
+#   - all sorters except `private` included + "Original" (original shelf order)
+# in other cases:
+#   - no sorters included
+#   - no ui menu displayed
+#   - shelves original order is used
 sorters = []
 
 ```
