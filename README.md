@@ -1,15 +1,23 @@
 # Vellum
 
-Vellum is an MPD client and album-centric library manager built on plaintext architecture for archivist-minded collectors.
+Vellum is an MPD client and album centric library manager built on plaintext architecture for archivist-minded collectors.
 
 ## Philosophy
 
 - **The Album as the Atomic Unit**. Vellum focuses purely on collection and management of albums. The point is to bring feeling of physical collecting to the digital landscape. Album is the base unit of Vellum because album is the base unit of any music collection in real life.
-- **Immutable Audio / Mutable Metadata**. A ripped audio file should be a bit-perfect preservation of the original media. Audio files are inherently static; your metadata is inherently dynamic. This is why Vellum treats the audio file strictly as a read-only source and separates everything highly mutable into separate ancillary files. To configure album and tracks titles or provide genre you edit `metadata.toml`; to provide the cover you add `cover.jpg/png` next to it; to provide lyrics you create `lyrics/` directory and place text files in there. Plaintext metadata means your library can be controlled and versioned with Git. Every change to an artist's name or a custom tag can be tracked, reverted, backed up and synced to remote repository, completely independent of the audio files.
 
-## How it works?
+- **Immutable Audio / Mutable Metadata**. A ripped audio files should be a bit-perfect preservation of the original media. Audio files are inherently static; your metadata is inherently dynamic. This is why Vellum treats the audio file strictly as a read-only source and separates everything mutable into separate ancillary files.
 
-Think of an album folder the same way you think of a code repository. It contains the configuration file (the `metadata.toml` manifest) as well as the source files (audio files, cover art, lyrics, etc.). In this way album stops being an opaque object interpreted by media player and becomes a set of data points you can compile into json format. The engine reads your intent for an album expressed in the text manifest, scans the physical properties of the audio files (bit depth, duration), analyzes the artwork and links the lyrics. The result of this is the `metadata.lock.json` file. This is the file the server actually reads and uses to play the tracks and to register album in the collection.
+## Cool Features
+
+### All Metadata in Plaintext
+- Entire library metadata: from songs names and album length in milliseconds, to custom source urls of where you got it and ReplayGain values, to literally anything specific you can **write** about an album in your collection is stored and compiled within ancillary plaintext files. Edit them in Neovim, version control them, upload them to remote repository. Every change can be tracked, backed up and reverted, completely independent of the audio file's embedded tags. Once it's in Git you will never lose your library data ever again.
+
+### Album as a Compiled Data Object
+- Think of an album directory as of an entry in the physical archive. It contains human intent-written data (`metadata.toml` and other `.toml` manifests) as well as the source files you're trying to preserve (audio, cover art, lyrics, etc...). In this way, album stops being an opaque fuzzy object interpreted by each different media player on the fly, and becomes a set of data points you can compile into a standard machine-readable `json` object (`metadata.lock.json`), the album's **index** in said archive. The engine reads your intent expressed in manifests, links the source files and scans the physical properties of the audio (bit depth, duration, etc...) to produce it. The `metadata.lock.json` is the one server uses to register album in your collection and to retrieve data from for further user-album interaction.
+
+### Decoupled Web-UI and Backend
+- **Vellum is a Rust web server first. User Interface intentionally comes second.** Want to change UI theme? Want to add some cool display feature? No worry. You can just edit contents of the `web-app/` or completely rewrite your own UI in html, css and javascript and run it in a browser, wiring it up to a running Vellum server using its web api **today**. And it doesn't stop there, any UI framework supporting web api functionality can control MPD and retrieve album data from Vellum. You can build TUI apps, Godot based game-interfaces, or you can even use Curl to control it if you want to.
 
 ## Getting Started
 
@@ -40,7 +48,7 @@ Or if you have `direnv` installed:
 direnv allow
 ```
 
-Once inside the Nix shell, install `node_modules` with bun:
+Once inside the Nix shell, install `node_modules` for UI with bun:
 
 ```
 cd web-app
@@ -50,12 +58,12 @@ bun install
 And build the Rust binary:
 
 ```
-vellum build
+build --release
 ```
 
 ### 2. Configure Vellum
 
-You create `.config/vellum/config.toml` file:
+You create `~/.config/vellum/config.toml` file:
 - In `[storage]` section you define `library_root = "path/to/your/library"` containing all of your album folders.
 - Optionally in `[compiler.keys]` you define all tags besides standard ones you want to be present in `metadata.lock.json`. Format: `tag_name = { level = "album"/"track" }`. 
 
@@ -65,7 +73,7 @@ You place a folder containing album's audio files in your library root. To make 
 
 Then you run `vellum update`. It automatically finds all new or changed `metadata.toml` files and compiles them with the source files into a `metadata.lock.json` artifacts.
 
-### 4. Run the Stack
+### 4. Run It
 
 Because Vellum decouples the frontend UI from the backend coordinator, you will run them as separate processes:
 
@@ -85,4 +93,3 @@ The `vellum` CLI tool is the central driver for managing your library's state.
 * `vellum update` — The core compiler command. Reads your TOML changes and writes the resolved `metadata.lock.json` files.
 * `vellum server` — Starts the Axum backend server and the MPD synchronization watchdog.
 * `vellum ui` — Starts the Vite/Svelte development server for the web interface.
-* `vellum run <script>` — Executes Python automation scripts against the currently playing (or specified) album, such as fetching lyrics via Genius.
