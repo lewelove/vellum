@@ -1,6 +1,6 @@
 # Cabinet Concept
 
-Cabinet is a set of static `shelves` and set of `sorters` to apply on top
+Cabinet is a set of static `shelves` and set of `orders` to apply on top
 
 ## Cabinet Attributes
 
@@ -19,16 +19,16 @@ label = "Cabinet Name"
 #   - cabinet invalidated & excluded from ui
 shelves = []
 
-# define all sorters used for this cabinet
+# define all orders used for this cabinet
 # if `array`
-#   - select [sorters] by name
+#   - select [orders] by name
 # if `true`:
-#   - all sorters except `private` included + "Original" (original shelf order)
+#   - all orders except `private` included + "Original" (original shelf order)
 # in other cases:
-#   - no sorters included
+#   - no orders included
 #   - no ui menu displayed
 #   - shelves original order is used
-sorters = []
+orders = []
 
 ```
 

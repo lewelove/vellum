@@ -1,6 +1,6 @@
 # Library Concept
 
-Library is a set containing `filters`, `groupers` and `sorters`, which can be applied one to another, allowing dynamic ui views with high combinatorial complexity.
+Library is a set containing `filters`, `groupers` and `orders`, which can be applied one to another, allowing creating dynamic ui views with high combinatorial complexity.
 
 # Library Attributes
 
@@ -30,15 +30,15 @@ filters = []
 #   - library invalidated & excluded from ui
 groupers = []
 
-# define all sorters used for this cabinet
+# define all orders used for this cabinet
 # if `array`
-#   - select [sorters] by name
+#   - select [orders] by name
 # if `true`:
-#   - all sorters except `private` included
+#   - all orders except `private` included
 # in other cases:
-#   - no sorters included
+#   - no orders included
 #   - no ui menu displayed
 #   - alphabetic order by `album.id` is used
-sorters = []
+orders = []
 
 ```
