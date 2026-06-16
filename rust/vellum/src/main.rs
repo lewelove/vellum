@@ -68,14 +68,14 @@ enum Commands {
         stdout: bool,
     },
     Run {
-        #[arg(value_name = "COMMAND", required = true)]
-        script_cmd: String,
-        #[arg(value_name = "PATH")]
-        path: Option<String>,
-        #[arg(long)]
+        #[arg(value_name = "NAME", required = true)]
+        name: String,
+        #[arg(long, short = 'p')]
         playing: bool,
         #[arg(long)]
         id: Option<String>,
+        #[arg(long, short = 'i')]
+        intermediary: bool,
     },
     Query {
         #[arg(value_name = "QUERY")]
@@ -179,7 +179,7 @@ async fn main() -> Result<()> {
             let options = manifest::ManifestOptions { mode, force, stdout };
             manifest::run(expanded, &options)
         }
-        Commands::Run { script_cmd, path, playing, id } => run::execute(script_cmd, path, playing, id).await,
+        Commands::Run { name, playing, id, intermediary } => run::execute(name, playing, id, intermediary).await,
         Commands::Query { query_str, playing, toml, lock, raw, id } => {
             let flags = query::QueryFlags { playing, toml, lock, raw, id };
             query::run(query_str, flags).await

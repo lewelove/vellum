@@ -21,41 +21,6 @@
           libXrandr
         ];
 
-        lyricsgenius = ps: ps.buildPythonPackage rec {
-          pname = "lyricsgenius";
-          version = "3.7.6";
-          pyproject = true;
-          
-          src = ps.fetchPypi {
-            inherit pname version;
-            hash = "sha256-zQGrgZEz4o9RSYWmGXH8TcNXUcRSfmF+xJCROQ3cPJ4=";
-          };
-
-          nativeBuildInputs = [
-            ps.hatchling
-          ];
-
-          propagatedBuildInputs = [
-            ps.requests
-            ps.beautifulsoup4
-          ];
-
-          doCheck = false;
-        };
-
-        pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-          mutagen
-          tqdm
-          pillow
-          numpy
-          xxhash
-          httpx
-          opencv4
-          matplotlib
-          scikit-learn
-          (lyricsgenius ps)
-        ]);
-
         build-cli = pkgs.writeShellApplication {
           name = "build";
           runtimeInputs = [ pkgs.cargo pkgs.rustc pkgs.git pkgs.clippy ];
@@ -119,7 +84,6 @@
         vellum-bin = pkgs.writeShellApplication {
           name = "vellum";
           runtimeInputs = [ 
-            pythonEnv 
             pkgs.bun
             pkgs.nodejs_20
             pkgs.cargo 
@@ -152,15 +116,6 @@
                 fi
                 cd "$ROOT" && "$BIN" "$COMMAND" "$@"
                 ;;
-              generate)
-                cd "$ROOT" && python -m python.generate "$@"
-                ;;
-              write)
-                cd "$ROOT" && python -m python.write "$@"
-                ;;
-              report)
-                cd "$ROOT" && python -m python.report "$@"
-                ;;
               test)
                 cd "$ROOT/rust"
                 TEST_ARGS=()
@@ -181,10 +136,7 @@
                 echo "  compile         : Compile metadata locks"
                 echo "  update          : Update library"
                 echo "  query           : Run SQL queries against the library"
-                echo "  generate        : Initialize metadata from files"
                 echo "  harvest         : Harvest raw metadata to JSON"
-                echo "  write           : Sync metadata to audio tags"
-                echo "  report          : Generate listening reports"
                 echo "  run             : Run defined scripts via runtime router"
                 echo "    --lint        : Run clippy with -D warnings"
                 echo "    --fmt         : Run fmt check"
@@ -199,7 +151,6 @@
         };
 
         devPackages = with pkgs; [
-          pythonEnv
           bun
           pkg-config
           openssl
@@ -221,7 +172,6 @@
           buildInputs = devPackages;
           shellHook = ''
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibs}:$LD_LIBRARY_PATH"
-            export PYTHONDONTWRITEBYTECODE=1
             export PATH="$PWD/web-app/node_modules/.bin:$PATH"
           '';
         };

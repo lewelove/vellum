@@ -12,7 +12,7 @@ pub struct AppConfig {
     pub theme: Option<ThemeConfig>,
     pub manifest: Option<ManifestConfig>,
     pub compiler: Option<CompilerConfig>,
-    pub run: Option<HashMap<String, String>>,
+    pub scripts: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
