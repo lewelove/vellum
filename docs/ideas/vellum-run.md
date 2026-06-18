@@ -10,7 +10,6 @@ has 1 argument
 
 if `<NAME>` matches:
 - reads path string value from it
-- canonicalize it to exist strictly in `~/.config/vellum`
 - executes it with `json` (based on flag) passed into its stdin
 
 ## FLAGS
