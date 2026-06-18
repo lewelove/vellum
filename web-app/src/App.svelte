@@ -4,10 +4,9 @@
   import { nav, setTab } from "./navigation.svelte.ts";
   
   import HomeView from "./modules/HomeView/HomeView.svelte";
-  import ShelvesView from "./modules/ShelvesView/ShelvesView.svelte";
   import QueueView from "./modules/QueueView/QueueView.svelte";
 
-  const tabOrder: Record<string, number> = { home: 1, queue: 2, shelves: 3 };
+  const tabOrder: Record<string, number> = { home: 1, queue: 2 };
   let currentTab = $state(nav.activeTab);
   let retentionTab: string | null = $state(null);
   let instantTab: string | null = $state(null);
@@ -37,14 +36,11 @@
 
   let isHomeActive = $derived(currentTab === 'home');
   let isQueueActive = $derived(currentTab === 'queue');
-  let isShelvesActive = $derived(currentTab === 'shelves');
 
   let isHomeVisible = true;
   let isQueueVisible = $derived(currentTab === 'queue' || retentionTab === 'queue');
-  let isShelvesVisible = $derived(currentTab === 'shelves' || retentionTab === 'shelves');
 
   let isQueueInstant = $derived(instantTab === 'queue');
-  let isShelvesInstant = $derived(instantTab === 'shelves');
 
   let isModalVisible = $derived(!!library.focusedAlbum);
 
@@ -76,9 +72,27 @@
       return;
     }
 
-    if (lowerKey === '1' || lowerKey === 'h') setTab('home');
-    if (lowerKey === '2' || lowerKey === 'q') setTab('queue');
-    if (lowerKey === '3' || lowerKey === 's') setTab('shelves');
+    if (lowerKey === '1' || lowerKey === 'h') {
+      library.homeSubView = 'library';
+      if (nav.activeTab !== 'home') {
+        setTab('home');
+      } else {
+        library.refreshView(false);
+        library.persistState();
+      }
+    }
+    if (lowerKey === '2' || lowerKey === 'q') {
+      setTab('queue');
+    }
+    if (lowerKey === 's') {
+      library.homeSubView = 'shelves';
+      if (nav.activeTab !== 'home') {
+        setTab('home');
+      } else {
+        library.refreshView(false);
+        library.persistState();
+      }
+    }
   }
 
   function handleFocusIn(e: FocusEvent) {
@@ -114,10 +128,6 @@
 
   <div class="view-layer queue" class:visible={isQueueVisible} class:active={isQueueActive} class:instant={isQueueInstant} aria-hidden={!isQueueActive}>
     <QueueView />
-  </div>
-
-  <div class="view-layer shelves" class:visible={isShelvesVisible} class:active={isShelvesActive} class:instant={isShelvesInstant} aria-hidden={!isShelvesActive}>
-    <ShelvesView />
   </div>
 
 </main>
@@ -172,11 +182,6 @@
 
   .view-layer.queue {
     z-index: 2;
-    background-color: var(--background-main);
-  }
-
-  .view-layer.shelves {
-    z-index: 3;
     background-color: var(--background-main);
   }
 </style>

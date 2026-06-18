@@ -32,14 +32,17 @@ class LibraryState {
   isLoading: boolean = $state(true);
   isConnected: boolean = $state(false);
   
-  focusedAlbums: Record<string, any> = $state({ home: null, shelves: null, queue: null });
+  homeSubView: "library" | "shelves" = $state("library");
+  focusedAlbums: Record<string, any> = $state({ library: null, shelves: null, queue: null });
 
   get focusedAlbum(): any {
-    return this.focusedAlbums[nav.activeTab] || null;
+    const key = nav.activeTab === 'home' ? this.homeSubView : nav.activeTab;
+    return this.focusedAlbums[key] || null;
   }
 
   set focusedAlbum(val: any) {
-    this.focusedAlbums[nav.activeTab] = val;
+    const key = nav.activeTab === 'home' ? this.homeSubView : nav.activeTab;
+    this.focusedAlbums[key] = val;
   }
   
   activeLibrary: string = $state("library");
@@ -198,7 +201,7 @@ class LibraryState {
       this.refreshSidebar();
       
     } else if (json.type === "VIEW_DATA") {
-      const isShelves = (nav.activeTab === "shelves");
+      const isShelves = (nav.activeTab === "home" && this.homeSubView === "shelves");
       
       if (isShelves) {
         this.shelfViewIds = json.ids || [];
@@ -298,6 +301,7 @@ class LibraryState {
 
   applyPersistedState(state: any) {
       nav.activeTab = state.activeTab || "home";
+      this.homeSubView = state.homeSubView || "library";
       this.librariesState = state.librariesState || {};
       this.activeLibrary = state.activeLibrary || state.activeCollection || "library";
       
@@ -335,6 +339,7 @@ class LibraryState {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
               activeTab: nav.activeTab,
+              homeSubView: this.homeSubView,
               activeLibrary: this.activeLibrary,
               librariesState: $state.snapshot(this.librariesState),
               activeLibraryFilter: this.activeLibraryFilter,
@@ -354,7 +359,7 @@ class LibraryState {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
     this._pendingViewReset = resetScroll;
     
-    if (nav.activeTab === "shelves") {
+    if (nav.activeTab === "home" && this.homeSubView === "shelves") {
         const firstShelf = (this.manifest.shelves_order && this.manifest.shelves_order[0]) || Object.keys(this.availableShelves)[0];
         this._ws.send(JSON.stringify({
             type: "SHELF_REQUEST",
@@ -534,11 +539,13 @@ class LibraryState {
   }
 
   async setFocus(album: any) {
-    this.focusedAlbums[nav.activeTab] = await this.ensureFullAlbum(album.id);
+    const key = nav.activeTab === 'home' ? this.homeSubView : nav.activeTab;
+    this.focusedAlbums[key] = await this.ensureFullAlbum(album.id);
   }
 
   closeFocus() {
-    this.focusedAlbums[nav.activeTab] = null;
+    const key = nav.activeTab === 'home' ? this.homeSubView : nav.activeTab;
+    this.focusedAlbums[key] = null;
   }
   
   toggleShader() {

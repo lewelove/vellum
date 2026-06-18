@@ -3,12 +3,13 @@
 
   import NavBar from "../NavigationBar/NavBar.svelte";
   import AlbumGrid from "./AlbumGrid/AlbumGrid.svelte";
-  import Sidebar from "./Sidebar.svelte";
+  import SidebarLibrary from "./Sidebar.svelte";
+  import SidebarShelves from "../ShelvesView/Sidebar.svelte";
   import ModalDrawer from "./ModalDrawer/ModalDrawer.svelte";
 
   let isResizing = $state(false);
 
-  let isModalVisible = $derived(!!library.focusedAlbums.home);
+  let isModalVisible = $derived(!!library.focusedAlbums[library.homeSubView]);
 
   function startResizing() {
     isResizing = true;
@@ -36,9 +37,9 @@
       class:resizing={isResizing}
     >
       <AlbumGrid 
-        albums={library.libraryAlbums} 
-        version={library.libraryVersion} 
-        activeAlbumId={library.focusedAlbums.home?.id}
+        albums={library.homeSubView === 'shelves' ? library.shelfAlbums : library.libraryAlbums} 
+        version={library.homeSubView === 'shelves' ? library.shelfVersion : library.libraryVersion} 
+        activeAlbumId={library.homeSubView === 'shelves' ? library.focusedAlbums.shelves?.id : library.focusedAlbums.library?.id}
         onfocus={(album) => library.setFocus(album)}
       />
     </section>
@@ -49,14 +50,23 @@
     >
       <div class="sidebar-panel">
         <button class="sidebar-resizer" onmousedown={startResizing} aria-label="Resize sidebar"></button>
-        <div class="sidebar-inner"><Sidebar /></div>
+        <div class="sidebar-inner">
+          {#if library.homeSubView === 'shelves'}
+            <SidebarShelves />
+          {:else}
+            <SidebarLibrary />
+          {/if}
+        </div>
       </div>
     </aside>
   </div>
 
   {#if isModalVisible}
     <div class="modal-layer">
-        <ModalDrawer album={library.focusedAlbums.home} onclose={() => library.focusedAlbums.home = null} />
+        <ModalDrawer 
+          album={library.focusedAlbums[library.homeSubView]} 
+          onclose={() => library.closeFocus()} 
+        />
     </div>
   {/if}
 </div>
@@ -154,4 +164,3 @@
     z-index: 150;
   }
 </style>
-
