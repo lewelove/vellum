@@ -3,11 +3,17 @@
   import SidebarIndex from "./SidebarIndex.svelte";
 
   let isLibraryMenuOpen = $state(false);
+  let isLibraryFilterMenuOpen = $state(false);
   let isSortMenuOpen = $state(false);
   let isGroupMenuOpen = $state(false);
   let scrollContainer: HTMLDivElement | null = $state(null);
 
+  let activeLibraryDef = $derived(library.availableLibraries[library.activeLibrary] || {});
+  let allowedFilters = $derived(activeLibraryDef.allowed_filters || []);
+  let showFilterDropdown = $derived(allowedFilters.length > 1);
+
   let libraryLabel = $derived(library.availableLibraries[library.activeLibrary]?.label || "Unknown");
+  let filterLabel = $derived(library.availableFilters[library.activeLibraryFilter || ""]?.label || "Unknown");
   let groupLabel = $derived(library.availableFacets[library.activeSidebarGrouper]?.label || "Unknown");
   let sortLabel = $derived(library.availableOrders[library.userSortPreference]?.label || "Unknown");
 
@@ -22,6 +28,16 @@
   function toggleLibraryMenu() {
     isLibraryMenuOpen = !isLibraryMenuOpen;
     if (isLibraryMenuOpen) {
+      isLibraryFilterMenuOpen = false;
+      isSortMenuOpen = false;
+      isGroupMenuOpen = false;
+    }
+  }
+
+  function toggleLibraryFilterMenu() {
+    isLibraryFilterMenuOpen = !isLibraryFilterMenuOpen;
+    if (isLibraryFilterMenuOpen) {
+      isLibraryMenuOpen = false;
       isSortMenuOpen = false;
       isGroupMenuOpen = false;
     }
@@ -30,16 +46,18 @@
   function toggleSortMenu() {
     isSortMenuOpen = !isSortMenuOpen;
     if (isSortMenuOpen) {
-      isGroupMenuOpen = false;
       isLibraryMenuOpen = false;
+      isLibraryFilterMenuOpen = false;
+      isGroupMenuOpen = false;
     }
   }
 
   function toggleGroupMenu() {
     isGroupMenuOpen = !isGroupMenuOpen;
     if (isGroupMenuOpen) {
-      isSortMenuOpen = false;
       isLibraryMenuOpen = false;
+      isLibraryFilterMenuOpen = false;
+      isSortMenuOpen = false;
     }
   }
 
@@ -102,6 +120,39 @@
         {/if}
       </div>
     </div>
+
+    {#if showFilterDropdown}
+      <div class="control-row">
+        <div class="button-wrapper flex-grow">
+          <button class="v-btn-icon sidebar-btn" onclick={toggleLibraryFilterMenu} class:active={isLibraryFilterMenuOpen} title="Filter">
+            <img src="icons/outlined/24px/format_list_bulleted.svg" alt="" class="start-icon" />
+            <span class="v-truncate btn-label">{filterLabel}</span>
+            <img 
+              src={isLibraryFilterMenuOpen ? "icons/outlined/24px/arrow_drop_up.svg" : "icons/outlined/24px/arrow_drop_down.svg"}  
+              class="end-icon" 
+              alt="" 
+            />
+          </button>
+      
+          {#if isLibraryFilterMenuOpen}
+            <div class="control-menu v-panel">
+              {#each allowedFilters as fKey}
+                <button 
+                  class="menu-item" 
+                  class:selected={library.activeLibraryFilter === fKey}
+                  onclick={() => {
+                    library.setLibraryFilter(fKey);
+                    isLibraryFilterMenuOpen = false;
+                  }}
+                >
+                  {library.availableFilters[fKey]?.label || fKey}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <div class="control-row">
       <div class="button-wrapper flex-grow">

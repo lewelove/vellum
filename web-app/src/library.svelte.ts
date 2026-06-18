@@ -43,6 +43,7 @@ class LibraryState {
   }
   
   activeLibrary: string = $state("library");
+  activeLibraryFilter: string | null = $state(null);
   activeFilter: { key: string | null, val: string | null } = $state({ key: null, val: null });
   activeSort: { key: string, order: string } = $state({ key: "default", order: "default" });
   userSortPreference: string = $state("default");
@@ -62,7 +63,7 @@ class LibraryState {
   
   sidebarWidth: number = $state(280);
   
-  manifest: Record<string, any> = $state({ libraries: {}, groupers: {}, orders: {}, shelves: {} });
+  manifest: Record<string, any> = $state({ filters: {}, libraries: {}, groupers: {}, orders: {}, shelves: {} });
 
   config: Record<string, any> = $state({
     covers: {
@@ -110,7 +111,26 @@ class LibraryState {
       this.trackPathMap = json.trackMap || {};
       if (json.manifest) this.manifest = json.manifest;
       if (json.config) this.config = { ...this.config, ...json.config };
-      if (json.ui_state) this.applyPersistedState(json.ui_state);
+      if (json.ui_state) {
+          this.applyPersistedState(json.ui_state);
+          
+          const libDef = this.availableLibraries[this.activeLibrary];
+          if (libDef) {
+              if (libDef.allowed_filters && !libDef.allowed_filters.includes(this.activeLibraryFilter)) {
+                  this.activeLibraryFilter = libDef.allowed_filters.length > 0 ? libDef.allowed_filters[0] : null;
+              } else if (!libDef.allowed_filters || libDef.allowed_filters.length === 0) {
+                  this.activeLibraryFilter = null;
+              }
+
+              if (libDef.allowed_groupers && !libDef.allowed_groupers.includes(this.activeSidebarGrouper)) {
+                  this.activeSidebarGrouper = libDef.allowed_groupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
+              }
+              if (libDef.allowed_orders && !libDef.allowed_orders.includes(this.userSortPreference)) {
+                  this.userSortPreference = libDef.allowed_orders[0] || (this.manifest.orders_order && this.manifest.orders_order[0]) || Object.keys(this.availableOrders)[0] || "default";
+                  this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
+              }
+          }
+      }
       
       this.orchestratePrewarming();
       this.refreshView(true);
@@ -218,6 +238,7 @@ class LibraryState {
   applyPersistedState(state: any) {
       nav.activeTab = state.activeTab || "home";
       this.activeLibrary = state.activeLibrary || state.activeCollection || "library";
+      this.activeLibraryFilter = state.activeLibraryFilter || null;
       this.userSortPreference = state.sortKey || "default";
       this.userSortOrder = state.sortOrder || "default";
       this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
@@ -243,6 +264,7 @@ class LibraryState {
           body: JSON.stringify({
               activeTab: nav.activeTab,
               activeLibrary: this.activeLibrary,
+              activeLibraryFilter: this.activeLibraryFilter,
               sortKey: this.userSortPreference,
               sortOrder: this.userSortOrder,
               groupKey: this.activeSidebarGrouper,
@@ -269,6 +291,7 @@ class LibraryState {
         this._ws.send(JSON.stringify({
             type: "VIEW_REQUEST",
             library: this.activeLibrary,
+            library_filter: this.activeLibraryFilter,
             sort: this.activeSort.key,
             reverse: this.activeSort.order === "reverse",
             filter: this.activeFilter
@@ -311,6 +334,7 @@ class LibraryState {
     return `/api/assets/cover/${encodeURIComponent(albumId)}?v=${album.cover_hash}`;
   }
 
+  get availableFilters(): Record<string, any> { return this.manifest.filters || {}; }
   get availableLibraries(): Record<string, any> { return this.manifest.libraries || {}; }
   get availableFacets(): Record<string, any> { return this.manifest.groupers || {}; }
   get availableOrders(): Record<string, any> { return this.manifest.orders || {}; }
@@ -358,6 +382,16 @@ class LibraryState {
     this.focusedAlbum = null;
     const library = this.availableLibraries[key];
     if (library) {
+        if (library.allowed_filters && library.allowed_filters.length > 1) {
+            if (!library.allowed_filters.includes(this.activeLibraryFilter)) {
+                this.activeLibraryFilter = library.allowed_filters[0];
+            }
+        } else if (library.allowed_filters && library.allowed_filters.length === 1) {
+            this.activeLibraryFilter = library.allowed_filters[0];
+        } else {
+            this.activeLibraryFilter = null;
+        }
+
         if (library.allowed_groupers && !library.allowed_groupers.includes(this.activeSidebarGrouper)) {
             this.activeSidebarGrouper = library.allowed_groupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
         }
@@ -368,6 +402,12 @@ class LibraryState {
     }
     this.refreshView(true);
     this.refreshSidebar();
+    this.persistState();
+  }
+
+  setLibraryFilter(key: string) {
+    this.activeLibraryFilter = key;
+    this.refreshView(true);
     this.persistState();
   }
 

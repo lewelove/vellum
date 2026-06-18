@@ -59,12 +59,13 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                             let req_type = req.get("type").and_then(|v| v.as_str()).unwrap_or("");
                             if req_type == "VIEW_REQUEST" {
                                 let library = req.get("library").and_then(|v| v.as_str()).unwrap_or("library");
+                                let library_filter = req.get("library_filter").and_then(|v| v.as_str());
                                 let sort = req.get("sort").and_then(|v| v.as_str()).unwrap_or("default");
                                 let reverse = req.get("reverse").and_then(serde_json::Value::as_bool).unwrap_or(false);
                                 let filter_key = req.get("filter").and_then(|v| v.get("key")).and_then(|v| v.as_str());
                                 let filter_val = req.get("filter").and_then(|v| v.get("val")).and_then(|v| v.as_str());
                                 
-                                let ids = state.query.lock().await.request_view(library, sort, filter_key, filter_val, reverse);
+                                let ids = state.query.lock().await.request_view(library, library_filter, sort, filter_key, filter_val, reverse);
                                 let _ = socket.send(ax_ws::Message::Text(json!({ "type": "VIEW_DATA", "ids": ids }).to_string().into())).await;
                             } else if req_type == "SHELF_REQUEST" {
                                 let shelf = req.get("shelf").and_then(|v| v.as_str()).unwrap_or("");

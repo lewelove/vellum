@@ -8,13 +8,50 @@ use std::path::Path;
 
 pub use libvellum::sql::expand_shorthand;
 
+fn deserialize_vec_or_string_opt<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum VecOrString {
+        Vec(Vec<String>),
+        String(String),
+    }
+
+    let opt = Option::<VecOrString>::deserialize(deserializer)?;
+    Ok(opt.map(|v| match v {
+        VecOrString::Vec(vec) => vec,
+        VecOrString::String(s) => vec![s.trim().to_string()],
+    }))
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, Default)]
+pub struct SqlDef {
+    pub select: Option<String>,
+    #[serde(rename = "where")]
+    pub where_: Option<String>,
+    pub order_by: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct FilterDef {
+    pub label: String,
+    #[serde(default)]
+    pub sql: SqlDef,
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct LogicManifest {
+    #[serde(default)]
+    pub filters: IndexMap<String, FilterDef>,
     pub groupers: IndexMap<String, GrouperDef>,
     pub orders: IndexMap<String, OrderDef>,
     pub libraries: IndexMap<String, LibraryDef>,
     #[serde(default)]
     pub shelves: IndexMap<String, ShelfDef>,
+    #[serde(skip_deserializing, default)]
+    pub filters_order: Vec<String>,
     #[serde(skip_deserializing, default)]
     pub groupers_order: Vec<String>,
     #[serde(skip_deserializing, default)]
@@ -27,6 +64,7 @@ pub struct LogicManifest {
 
 impl LogicManifest {
     pub fn normalize(&mut self) {
+        self.filters_order = self.filters.keys().cloned().collect();
         self.groupers_order = self.groupers.keys().cloned().collect();
         self.orders_order = self.orders.keys().cloned().collect();
         self.libraries_order = self.libraries.keys().cloned().collect();
@@ -51,6 +89,16 @@ impl LogicManifest {
             .collect();
 
         for (_, library) in &mut self.libraries {
+            let mut allowed_filter_ids = Vec::new();
+            if let Some(filters) = &library.filters {
+                for f in filters {
+                    if self.filters.contains_key(f) {
+                        allowed_filter_ids.push(f.clone());
+                    }
+                }
+            }
+            library.allowed_filters = allowed_filter_ids;
+
             let mut allowed_grouper_ids = HashSet::new();
             for g in &library.groupers {
                 allowed_grouper_ids.insert(g.clone());
@@ -87,7 +135,8 @@ impl LogicManifest {
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct GrouperDef {
     pub label: String,
-    pub select: String,
+    #[serde(default)]
+    pub sql: SqlDef,
     #[serde(default)]
     pub strict: bool,
     #[serde(default)]
@@ -99,7 +148,8 @@ pub struct GrouperDef {
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct OrderDef {
     pub label: String,
-    pub order_by: String,
+    #[serde(default)]
+    pub sql: SqlDef,
     #[serde(default)]
     pub strict: bool,
 }
@@ -107,13 +157,18 @@ pub struct OrderDef {
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct LibraryDef {
     pub label: String,
-    pub filter: String,
+    #[serde(default)]
+    pub sql: Option<SqlDef>,
+    #[serde(default, deserialize_with = "deserialize_vec_or_string_opt")]
+    pub filters: Option<Vec<String>>,
     #[serde(default)]
     pub strict: bool,
     #[serde(default)]
     pub groupers: Vec<String>,
     #[serde(default)]
     pub orders: Vec<String>,
+    #[serde(skip_deserializing)]
+    pub allowed_filters: Vec<String>,
     #[serde(skip_deserializing)]
     pub allowed_groupers: Vec<String>,
     #[serde(skip_deserializing)]
@@ -123,8 +178,8 @@ pub struct LibraryDef {
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ShelfDef {
     pub label: String,
-    pub filter: Option<String>,
-    pub order_by: Option<String>,
+    #[serde(default)]
+    pub sql: Option<SqlDef>,
     pub file: Option<String>,
 }
 
@@ -132,6 +187,7 @@ pub struct QueryEngine {
     conn: Connection,
     pub manifest: LogicManifest,
     libraries_cache: HashMap<String, HashSet<u32>>,
+    filters_cache: HashMap<String, HashSet<u32>>,
     facets_cache: HashMap<String, HashMap<String, HashSet<u32>>>,
     orders_cache: HashMap<String, Vec<u32>>,
     shelves_cache: HashMap<String, Vec<u32>>,
@@ -167,6 +223,7 @@ impl QueryEngine {
             conn,
             manifest,
             libraries_cache: HashMap::new(),
+            filters_cache: HashMap::new(),
             facets_cache: HashMap::new(),
             orders_cache: HashMap::new(),
             shelves_cache: HashMap::new(),
@@ -189,6 +246,7 @@ impl QueryEngine {
     pub fn clear(&mut self) -> Result<()> {
         self.conn.execute("DELETE FROM albums",[])?;
         self.libraries_cache.clear();
+        self.filters_cache.clear();
         self.facets_cache.clear();
         self.orders_cache.clear();
         self.shelves_cache.clear();
@@ -279,9 +337,21 @@ impl QueryEngine {
     }
 
     pub fn build_cache(&mut self) -> Result<()> {
+        self.filters_cache.clear();
+        for (key, filter) in &self.manifest.filters {
+            let where_str = filter.sql.where_.as_deref().unwrap_or("1=1");
+            let expanded = expand_shorthand(where_str);
+            let sql = format!("SELECT uid FROM albums WHERE {expanded}");
+            if let Ok(mut stmt) = self.conn.prepare(&sql) {
+                let uids: HashSet<u32> = stmt.query_map([], |row| row.get(0))?.filter_map(Result::ok).collect();
+                self.filters_cache.insert(key.clone(), uids);
+            }
+        }
+
         self.libraries_cache.clear();
         for (key, library) in &self.manifest.libraries {
-            let expanded_filter = expand_shorthand(&library.filter);
+            let where_str = library.sql.as_ref().and_then(|s| s.where_.as_deref()).unwrap_or("1=1");
+            let expanded_filter = expand_shorthand(where_str);
             let sql = format!("SELECT uid FROM albums WHERE {expanded_filter}");
             let mut stmt = self.conn.prepare(&sql)?;
             let uids: HashSet<u32> = stmt.query_map([], |row| row.get(0))?.filter_map(Result::ok).collect();
@@ -290,7 +360,8 @@ impl QueryEngine {
 
         self.orders_cache.clear();
         for (key, order) in &self.manifest.orders {
-            let expanded_order = expand_shorthand(&order.order_by);
+            let order_str = order.sql.order_by.as_deref().unwrap_or("uid ASC");
+            let expanded_order = expand_shorthand(order_str);
             let sql = format!("SELECT uid FROM albums ORDER BY {expanded_order}");
             let mut stmt = self.conn.prepare(&sql)?;
             let uids: Vec<u32> = stmt.query_map([], |row| row.get(0))?.filter_map(Result::ok).collect();
@@ -319,10 +390,10 @@ impl QueryEngine {
                 } else {
                     self.shelves_cache.insert(key.clone(), vec![]);
                 }
-            } else if let (Some(filter), Some(order_by)) = (&shelf.filter, &shelf.order_by) {
-                let expanded_filter = expand_shorthand(filter);
-                let expanded_order = expand_shorthand(order_by);
-                let sql = format!("SELECT uid FROM albums WHERE {expanded_filter} ORDER BY {expanded_order}");
+            } else if let Some(sql_def) = &shelf.sql {
+                let expanded_filter = expand_shorthand(sql_def.where_.as_deref().unwrap_or("1=1"));
+                let order_clause = sql_def.order_by.as_deref().map(|o| format!(" ORDER BY {}", expand_shorthand(o))).unwrap_or_default();
+                let sql = format!("SELECT uid FROM albums WHERE {expanded_filter}{order_clause}");
                 if let Ok(mut stmt) = self.conn.prepare(&sql) {
                     let uids: Vec<u32> = stmt.query_map([], |row| row.get(0))
                         .map(|rows| rows.filter_map(Result::ok).collect())
@@ -334,7 +405,8 @@ impl QueryEngine {
 
         self.facets_cache.clear();
         for (key, grouper) in &self.manifest.groupers {
-            let expanded_select = expand_shorthand(&grouper.select);
+            let select_str = grouper.sql.select.as_deref().unwrap_or("''");
+            let expanded_select = expand_shorthand(select_str);
             let sql = format!("SELECT uid, {expanded_select} FROM albums");
             let mut stmt = self.conn.prepare(&sql)?;
             let mut rows = stmt.query([])?;
@@ -370,10 +442,16 @@ impl QueryEngine {
         Ok(())
     }
 
-    pub fn request_view(&self, library: &str, sort: &str, filter_key: Option<&str>, filter_val: Option<&str>, reverse: bool) -> Vec<String> {
+    pub fn request_view(&self, library: &str, library_filter: Option<&str>, sort: &str, filter_key: Option<&str>, filter_val: Option<&str>, reverse: bool) -> Vec<String> {
         let empty_set = HashSet::new();
         let library_mask = self.libraries_cache.get(library).unwrap_or(&empty_set);
         let mut final_mask = library_mask.clone();
+
+        if let Some(lf) = library_filter
+            && let Some(f_mask) = self.filters_cache.get(lf)
+        {
+            final_mask.retain(|uid| f_mask.contains(uid));
+        }
 
         if let (Some(fk), Some(fv)) = (filter_key, filter_val) {
             if fk == "search" {
