@@ -50,6 +50,67 @@ class LibraryState {
   userSortOrder: string = $state("default");
   activeSidebarGrouper: string = $state("genre");
   activeShelf: string | null = $state(null);
+
+  librariesState: Record<string, any> = $state({});
+
+  getLibraryState(libKey: string) {
+    if (!this.librariesState[libKey]) {
+      this.librariesState[libKey] = {};
+    }
+    const state = this.librariesState[libKey];
+    const libraryDef = this.availableLibraries[libKey] || {};
+    const allowedFilters = libraryDef.allowed_filters || [];
+    const allowedGroupers = libraryDef.allowed_groupers || [];
+    const allowedOrders = libraryDef.allowed_orders || [];
+
+    if (!state.activeLibraryFilter || !allowedFilters.includes(state.activeLibraryFilter)) {
+      state.activeLibraryFilter = allowedFilters.length > 0 ? allowedFilters[0] : null;
+    }
+
+    if (!state.activeSidebarGrouper || !allowedGroupers.includes(state.activeSidebarGrouper)) {
+      state.activeSidebarGrouper = allowedGroupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
+    }
+
+    if (!state.userSortPreference || !allowedOrders.includes(state.userSortPreference)) {
+      state.userSortPreference = allowedOrders[0] || (this.manifest.orders_order && this.manifest.orders_order[0]) || Object.keys(this.availableOrders)[0] || "default";
+    }
+
+    if (!state.userSortOrder) {
+      state.userSortOrder = "default";
+    }
+
+    if (!state.activeSort) {
+      state.activeSort = { key: state.userSortPreference, order: state.userSortOrder };
+    }
+
+    if (!state.activeFilter) {
+      state.activeFilter = { key: null, val: null };
+    }
+
+    return state;
+  }
+
+  saveCurrentLibraryState() {
+    if (!this.activeLibrary) return;
+    this.librariesState[this.activeLibrary] = {
+      activeLibraryFilter: this.activeLibraryFilter,
+      activeFilter: $state.snapshot(this.activeFilter),
+      userSortPreference: this.userSortPreference,
+      userSortOrder: this.userSortOrder,
+      activeSidebarGrouper: this.activeSidebarGrouper,
+      activeSort: $state.snapshot(this.activeSort)
+    };
+  }
+
+  loadLibraryState(key: string) {
+    const state = this.getLibraryState(key);
+    this.activeLibraryFilter = state.activeLibraryFilter;
+    this.activeSidebarGrouper = state.activeSidebarGrouper;
+    this.userSortPreference = state.userSortPreference;
+    this.userSortOrder = state.userSortOrder;
+    this.activeSort = $state.snapshot(state.activeSort);
+    this.activeFilter = $state.snapshot(state.activeFilter);
+  }
   
   libraryVersion: number = $state(0);
   shelfVersion: number = $state(0);
@@ -237,13 +298,23 @@ class LibraryState {
 
   applyPersistedState(state: any) {
       nav.activeTab = state.activeTab || "home";
+      this.librariesState = state.librariesState || {};
       this.activeLibrary = state.activeLibrary || state.activeCollection || "library";
-      this.activeLibraryFilter = state.activeLibraryFilter || null;
-      this.userSortPreference = state.sortKey || "default";
-      this.userSortOrder = state.sortOrder || "default";
-      this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
-      this.activeSidebarGrouper = state.groupKey || "genre";
-      this.activeFilter = state.filter || { key: null, val: null };
+      
+      this.loadLibraryState(this.activeLibrary);
+
+      if (state.activeLibraryFilter !== undefined) this.activeLibraryFilter = state.activeLibraryFilter;
+      if (state.groupKey !== undefined) this.activeSidebarGrouper = state.groupKey;
+      if (state.filter !== undefined) this.activeFilter = state.filter;
+      if (state.sortKey !== undefined) {
+          this.userSortPreference = state.sortKey;
+          this.activeSort.key = state.sortKey;
+      }
+      if (state.sortOrder !== undefined) {
+          this.userSortOrder = state.sortOrder;
+          this.activeSort.order = state.sortOrder;
+      }
+
       this.activeShelf = state.activeShelf || null;
       this.isShaderEnabled = state.isShaderEnabled ?? true;
       this.sidebarWidth = state.sidebarWidth || 280;
@@ -258,12 +329,14 @@ class LibraryState {
   }
 
   persistState() {
+      this.saveCurrentLibraryState();
       fetch("/api/state", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
               activeTab: nav.activeTab,
               activeLibrary: this.activeLibrary,
+              librariesState: $state.snapshot(this.librariesState),
               activeLibraryFilter: this.activeLibraryFilter,
               sortKey: this.userSortPreference,
               sortOrder: this.userSortOrder,
@@ -378,29 +451,9 @@ class LibraryState {
   }
 
   setLibrary(key: string) {
+    this.saveCurrentLibraryState();
     this.activeLibrary = key;
-    this.activeFilter = { key: null, val: null };
-    this.focusedAlbum = null;
-    const library = this.availableLibraries[key];
-    if (library) {
-        if (library.allowed_filters && library.allowed_filters.length > 1) {
-            if (!library.allowed_filters.includes(this.activeLibraryFilter)) {
-                this.activeLibraryFilter = library.allowed_filters[0];
-            }
-        } else if (library.allowed_filters && library.allowed_filters.length === 1) {
-            this.activeLibraryFilter = library.allowed_filters[0];
-        } else {
-            this.activeLibraryFilter = null;
-        }
-
-        if (library.allowed_groupers && !library.allowed_groupers.includes(this.activeSidebarGrouper)) {
-            this.activeSidebarGrouper = library.allowed_groupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
-        }
-        if (library.allowed_orders && !library.allowed_orders.includes(this.userSortPreference)) {
-            this.userSortPreference = library.allowed_orders[0] || (this.manifest.orders_order && this.manifest.orders_order[0]) || Object.keys(this.availableOrders)[0] || "default";
-            this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
-        }
-    }
+    this.loadLibraryState(key);
     this.refreshView(true);
     this.refreshSidebar();
     this.persistState();
@@ -408,6 +461,7 @@ class LibraryState {
 
   setLibraryFilter(key: string) {
     this.activeLibraryFilter = key;
+    this.activeFilter = { key: null, val: null };
     this.refreshView(true);
     this.refreshSidebar();
     this.persistState();
