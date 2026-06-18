@@ -11,14 +11,14 @@ pub use libvellum::sql::expand_shorthand;
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct LogicManifest {
     pub groupers: IndexMap<String, GrouperDef>,
-    pub sorters: IndexMap<String, SorterDef>,
+    pub orders: IndexMap<String, OrderDef>,
     pub libraries: IndexMap<String, LibraryDef>,
     #[serde(default)]
     pub shelves: IndexMap<String, ShelfDef>,
     #[serde(skip_deserializing, default)]
     pub groupers_order: Vec<String>,
     #[serde(skip_deserializing, default)]
-    pub sorters_order: Vec<String>,
+    pub orders_order: Vec<String>,
     #[serde(skip_deserializing, default)]
     pub libraries_order: Vec<String>,
     #[serde(skip_deserializing, default)]
@@ -28,7 +28,7 @@ pub struct LogicManifest {
 impl LogicManifest {
     pub fn normalize(&mut self) {
         self.groupers_order = self.groupers.keys().cloned().collect();
-        self.sorters_order = self.sorters.keys().cloned().collect();
+        self.orders_order = self.orders.keys().cloned().collect();
         self.libraries_order = self.libraries.keys().cloned().collect();
         self.shelves_order = self.shelves.keys().cloned().collect();
 
@@ -45,7 +45,7 @@ impl LogicManifest {
             .map(|(id, _)| id.clone())
             .collect();
 
-        let global_sorters: HashSet<String> = self.sorters.iter()
+        let global_orders: HashSet<String> = self.orders.iter()
             .filter(|(_, s)| !s.strict)
             .map(|(id, _)| id.clone())
             .collect();
@@ -61,13 +61,13 @@ impl LogicManifest {
                 }
             }
 
-            let mut allowed_sorter_ids = HashSet::new();
-            for s in &library.sorters {
-                allowed_sorter_ids.insert(s.clone());
+            let mut allowed_order_ids = HashSet::new();
+            for s in &library.orders {
+                allowed_order_ids.insert(s.clone());
             }
             if !library.strict {
-                for s in &global_sorters {
-                    allowed_sorter_ids.insert(s.clone());
+                for s in &global_orders {
+                    allowed_order_ids.insert(s.clone());
                 }
             }
 
@@ -76,8 +76,8 @@ impl LogicManifest {
                 .cloned()
                 .collect();
 
-            library.allowed_sorters = self.sorters.keys()
-                .filter(|k| allowed_sorter_ids.contains(*k))
+            library.allowed_orders = self.orders.keys()
+                .filter(|k| allowed_order_ids.contains(*k))
                 .cloned()
                 .collect();
         }
@@ -97,7 +97,7 @@ pub struct GrouperDef {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct SorterDef {
+pub struct OrderDef {
     pub label: String,
     pub order_by: String,
     #[serde(default)]
@@ -113,11 +113,11 @@ pub struct LibraryDef {
     #[serde(default)]
     pub groupers: Vec<String>,
     #[serde(default)]
-    pub sorters: Vec<String>,
+    pub orders: Vec<String>,
     #[serde(skip_deserializing)]
     pub allowed_groupers: Vec<String>,
     #[serde(skip_deserializing)]
-    pub allowed_sorters: Vec<String>,
+    pub allowed_orders: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -133,7 +133,7 @@ pub struct QueryEngine {
     pub manifest: LogicManifest,
     libraries_cache: HashMap<String, HashSet<u32>>,
     facets_cache: HashMap<String, HashMap<String, HashSet<u32>>>,
-    sorters_cache: HashMap<String, Vec<u32>>,
+    orders_cache: HashMap<String, Vec<u32>>,
     shelves_cache: HashMap<String, Vec<u32>>,
     uid_to_id: HashMap<u32, String>,
     pub dict: HashMap<String, Value>,
@@ -168,7 +168,7 @@ impl QueryEngine {
             manifest,
             libraries_cache: HashMap::new(),
             facets_cache: HashMap::new(),
-            sorters_cache: HashMap::new(),
+            orders_cache: HashMap::new(),
             shelves_cache: HashMap::new(),
             uid_to_id: HashMap::new(),
             dict: HashMap::new(),
@@ -190,7 +190,7 @@ impl QueryEngine {
         self.conn.execute("DELETE FROM albums",[])?;
         self.libraries_cache.clear();
         self.facets_cache.clear();
-        self.sorters_cache.clear();
+        self.orders_cache.clear();
         self.shelves_cache.clear();
         self.uid_to_id.clear();
         self.dict.clear();
@@ -288,13 +288,13 @@ impl QueryEngine {
             self.libraries_cache.insert(key.clone(), uids);
         }
 
-        self.sorters_cache.clear();
-        for (key, sorter) in &self.manifest.sorters {
-            let expanded_order = expand_shorthand(&sorter.order_by);
+        self.orders_cache.clear();
+        for (key, order) in &self.manifest.orders {
+            let expanded_order = expand_shorthand(&order.order_by);
             let sql = format!("SELECT uid FROM albums ORDER BY {expanded_order}");
             let mut stmt = self.conn.prepare(&sql)?;
             let uids: Vec<u32> = stmt.query_map([], |row| row.get(0))?.filter_map(Result::ok).collect();
-            self.sorters_cache.insert(key.clone(), uids);
+            self.orders_cache.insert(key.clone(), uids);
         }
 
         self.shelves_cache.clear();
@@ -395,7 +395,7 @@ impl QueryEngine {
         }
 
         let empty_vec = Vec::new();
-        let sorted_uids = self.sorters_cache.get(sort).unwrap_or(&empty_vec);
+        let sorted_uids = self.orders_cache.get(sort).unwrap_or(&empty_vec);
 
         let mut res: Vec<String> = sorted_uids.iter()
             .filter(|uid| final_mask.contains(*uid))

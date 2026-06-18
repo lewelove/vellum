@@ -1,5 +1,3 @@
-# -- GROUPERS --
-
 [groupers.genre]
 label = "Genre"
 select = "json_extract(metadata, '$.album.genre')"
@@ -29,47 +27,41 @@ select = "substr(json_extract(metadata, '$.album.info.date_added'), 1, 4)"
 label = "Chroma"
 select = "CASE WHEN CAST(json_extract(metadata, '$.album.tags.cover_chroma') AS FLOAT) = 0 THEN 'Monochrome' WHEN CAST(json_extract(metadata, '$.album.tags.cover_chroma') AS FLOAT) < 15 THEN 'Bleak' WHEN CAST(json_extract(metadata, '$.album.tags.cover_chroma') AS FLOAT) < 33 THEN 'Muted' WHEN CAST(json_extract(metadata, '$.album.tags.cover_chroma') AS FLOAT) < 60 THEN 'Standard' ELSE 'Vibrant' END"
 
-# -- SORTERS --
-
-[sorters.default]
+[orders.default]
 label = "Default"
 order_by = "CASE WHEN LOWER(COALESCE(json_extract(metadata, '$.album.tags.custom_albumartist'), json_extract(metadata, '$.album.albumartist'))) LIKE 'the %' THEN SUBSTR(COALESCE(json_extract(metadata, '$.album.tags.custom_albumartist'), json_extract(metadata, '$.album.albumartist')), 5) ELSE COALESCE(json_extract(metadata, '$.album.tags.custom_albumartist'), json_extract(metadata, '$.album.albumartist')) END ASC, json_extract(metadata, '$.album.date') ASC, json_extract(metadata, '$.album.album') ASC"
 
-[sorters.az]
+[orders.az]
 label = "Alphabetical"
 order_by = "json_extract(metadata, '$.album.album') ASC"
 
-[sorters.year]
+[orders.year]
 label = "Year"
 order_by = "json_extract(metadata, '$.album.date') DESC"
 
-[sorters.duration]
+[orders.duration]
 label = "Duration"
 order_by = "CAST(json_extract(metadata, '$.album.info.album_duration') AS INT) DESC"
 
-[sorters.chroma]
+[orders.chroma]
 label = "Chroma"
 order_by = "CAST(json_extract(metadata, '$.album.tags.cover_chroma') AS FLOAT) DESC"
 
-[sorters.entropy]
+[orders.entropy]
 label = "Entropy"
 order_by = "CAST(json_extract(metadata, '$.album.tags.cover_entropy') AS INT) DESC"
 
-[sorters.date_added]
+[orders.date_added]
 label = "Date Added"
 order_by = "json_extract(metadata, '$.album.info.date_added') DESC"
 
-[sorters.last_edited]
+[orders.last_edited]
 label = "Last Edited"
 order_by = "COALESCE(json_extract(metadata, '$.album.info.metadata_toml_mtime'), 0) DESC"
-
-# -- LIBRARIES --
 
 [libraries.library]
 label = "Entire Library"
 filter = "1=1"
-
-# -- SHELVES --
 
 [shelves.recently_added]
 label = "Recently Added"

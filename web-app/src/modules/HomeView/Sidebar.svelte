@@ -9,7 +9,7 @@
 
   let libraryLabel = $derived(library.availableLibraries[library.activeLibrary]?.label || "Unknown");
   let groupLabel = $derived(library.availableFacets[library.activeSidebarGrouper]?.label || "Unknown");
-  let sortLabel = $derived(library.availableSorters[library.userSortPreference]?.label || "Unknown");
+  let sortLabel = $derived(library.availableOrders[library.userSortPreference]?.label || "Unknown");
 
   let items = $derived(library.getSidebarGroup(library.activeSidebarGrouper));
 
@@ -48,7 +48,7 @@
     isLibraryMenuOpen = false;
   }
 
-  function selectSorter(key: string) {
+  function selectOrder(key: string) {
     library.setUserSort(key);
     isSortMenuOpen = false;
   }
@@ -145,11 +145,11 @@
 
         {#if isSortMenuOpen}
           <div class="control-menu v-panel">
-            {#each library.visibleSorters as {key, label}}
+            {#each library.visibleOrders as {key, label}}
               <button 
                 class="menu-item" 
                 class:selected={library.userSortPreference === key}
-                onclick={() => selectSorter(key)}
+                onclick={() => selectOrder(key)}
               >
                 {label}
               </button>

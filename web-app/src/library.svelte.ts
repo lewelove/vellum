@@ -62,7 +62,7 @@ class LibraryState {
   
   sidebarWidth: number = $state(280);
   
-  manifest: Record<string, any> = $state({ libraries: {}, groupers: {}, sorters: {}, shelves: {} });
+  manifest: Record<string, any> = $state({ libraries: {}, groupers: {}, orders: {}, shelves: {} });
 
   config: Record<string, any> = $state({
     covers: {
@@ -313,7 +313,7 @@ class LibraryState {
 
   get availableLibraries(): Record<string, any> { return this.manifest.libraries || {}; }
   get availableFacets(): Record<string, any> { return this.manifest.groupers || {}; }
-  get availableSorters(): Record<string, any> { return this.manifest.sorters || {}; }
+  get availableOrders(): Record<string, any> { return this.manifest.orders || {}; }
   get availableShelves(): Record<string, any> { return this.manifest.shelves || {}; }
 
   get librariesList(): any[] {
@@ -339,17 +339,17 @@ class LibraryState {
       .map((k: string) => ({ key: k, label: this.availableFacets[k].label || k }));
   }
 
-  get visibleSorters(): any[] {
+  get visibleOrders(): any[] {
     const library = this.availableLibraries[this.activeLibrary];
-    const order = this.manifest.sorters_order || Object.keys(this.availableSorters);
-    if (library && library.allowed_sorters) {
-      return library.allowed_sorters
-        .filter((k: string) => this.availableSorters[k])
-        .map((k: string) => ({ key: k, label: this.availableSorters[k].label || k }));
+    const order = this.manifest.orders_order || Object.keys(this.availableOrders);
+    if (library && library.allowed_orders) {
+      return library.allowed_orders
+        .filter((k: string) => this.availableOrders[k])
+        .map((k: string) => ({ key: k, label: this.availableOrders[k].label || k }));
     }
     return order
-      .filter((k: string) => this.availableSorters[k])
-      .map((k: string) => ({ key: k, label: this.availableSorters[k].label || k }));
+      .filter((k: string) => this.availableOrders[k])
+      .map((k: string) => ({ key: k, label: this.availableOrders[k].label || k }));
   }
 
   setLibrary(key: string) {
@@ -361,8 +361,8 @@ class LibraryState {
         if (library.allowed_groupers && !library.allowed_groupers.includes(this.activeSidebarGrouper)) {
             this.activeSidebarGrouper = library.allowed_groupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
         }
-        if (library.allowed_sorters && !library.allowed_sorters.includes(this.userSortPreference)) {
-            this.userSortPreference = library.allowed_sorters[0] || (this.manifest.sorters_order && this.manifest.sorters_order[0]) || Object.keys(this.availableSorters)[0] || "default";
+        if (library.allowed_orders && !library.allowed_orders.includes(this.userSortPreference)) {
+            this.userSortPreference = library.allowed_orders[0] || (this.manifest.orders_order && this.manifest.orders_order[0]) || Object.keys(this.availableOrders)[0] || "default";
             this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
         }
     }
