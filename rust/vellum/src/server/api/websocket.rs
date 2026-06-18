@@ -73,9 +73,10 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                                 let _ = socket.send(ax_ws::Message::Text(json!({ "type": "VIEW_DATA", "ids": ids }).to_string().into())).await;
                             } else if req_type == "GROUP_REQUEST" {
                                 let library = req.get("library").and_then(|v| v.as_str()).unwrap_or("library");
+                                let library_filter = req.get("library_filter").and_then(|v| v.as_str());
                                 let key = req.get("key").and_then(|v| v.as_str()).unwrap_or("");
                                 
-                                let result = state.query.lock().await.request_group(library, key);
+                                let result = state.query.lock().await.request_group(library, library_filter, key);
                                 let _ = socket.send(ax_ws::Message::Text(json!({ "type": "GROUP_RESULT", "key": key, "result": result }).to_string().into())).await;
                             }
                         }

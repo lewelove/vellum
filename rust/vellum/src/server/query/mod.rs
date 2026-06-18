@@ -492,14 +492,21 @@ impl QueryEngine {
         uids.iter().filter_map(|uid| self.uid_to_id.get(uid).cloned()).collect()
     }
 
-    pub fn request_group(&self, library: &str, grouper: &str) -> Vec<Value> {
+    pub fn request_group(&self, library: &str, library_filter: Option<&str>, grouper: &str) -> Vec<Value> {
         let empty_set = HashSet::new();
         let library_mask = self.libraries_cache.get(library).unwrap_or(&empty_set);
-        
+        let mut final_mask = library_mask.clone();
+
+        if let Some(lf) = library_filter
+            && let Some(f_mask) = self.filters_cache.get(lf)
+        {
+            final_mask.retain(|uid| f_mask.contains(uid));
+        }
+
         let mut results = Vec::new();
         if let Some(facet_map) = self.facets_cache.get(grouper) {
             for (val, mask) in facet_map {
-                let count = mask.intersection(library_mask).count();
+                let count = mask.intersection(&final_mask).count();
                 if count > 0 {
                     results.push(json!({
                         "value": val,

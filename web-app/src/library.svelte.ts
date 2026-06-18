@@ -304,6 +304,7 @@ class LibraryState {
     this._ws.send(JSON.stringify({
         type: "GROUP_REQUEST",
         library: this.activeLibrary,
+        library_filter: this.activeLibraryFilter,
         key: this.activeSidebarGrouper
     }));
   }
@@ -408,6 +409,7 @@ class LibraryState {
   setLibraryFilter(key: string) {
     this.activeLibraryFilter = key;
     this.refreshView(true);
+    this.refreshSidebar();
     this.persistState();
   }
 
