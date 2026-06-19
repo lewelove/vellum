@@ -1,36 +1,26 @@
 {
+  // type definitions
+  // values below are used to determine type of vellum value for each lock file key
+  //
+  // "" -> string
+  // 1 -> number
+  // [] -> array of strings
+  // "dt" -> datetime
+  // 0.1 -> float
+  // "/" -> path
+  // true -> boolean
+
   "album": {
 
-    // derived from album.albumartist; falls back to album.artist
-    // type: string
     "albumartist": "",
-
-    // derived from album.album
-    // type: string
     "album": "",
-
-    // derived from album.comment
-    // type: string
     "comment": "",
-
-    // derived from album.date
-    // type: string
     "date": "",
-
-    // type: string
-    "original_date": "yyyy-mm-dd",
-
-    // type: string
-    "release_date": "yyy-mm-dd",
-
-    // derived from album.genre
-    // type: array
+    "original_date": "",
+    "release_date": "",
     "genre": [],
-
-    // type: number
+    "styles": [],
     "total_discs": 1,
-
-    // type: number
     "total_tracks": 1,
 
     // album path relative to library_root
@@ -44,15 +34,12 @@
     "info": {
 
       // datetime from [local.toml].local.date_added
-      // type: datetime
-      "date_added": "",
+      "date_added": "dt",
 
       // total sum of tracks[].duration
-      // type: number
       "duration_milliseconds": 0,
 
       // duration_milliseconds formatted to HH:MM:SS
-      // type: number
       "duration_formatted": ""
 
     }
@@ -63,9 +50,8 @@
         // definition of object for any file
         "file": {
           
-          // relative to album.id file path
-          // type: path
-          "path": "metadata.toml",
+          // relative to album.id file pathFlac
+          "path": "/",
 
           // present for every file except in tracks[]
           "hash": {
@@ -77,19 +63,19 @@
             "address": ""
           },
           
-          "mtime": 0,
-          "byte_size": 0
+          "mtime": 1,
+          "byte_size": 1
         }
       },
       {
         "file": {
-          "path": "local.toml",
+          "path": "/",
           "hash": {
             "string": "blake3-{hash}=",
             "address": ""
           },
-          "mtime": 0,
-          "byte_size": 0
+          "mtime": 1,
+          "byte_size": 1
         }
       },
       {
@@ -103,18 +89,13 @@
       "main": {
 
         "file": {
-          "path": "cover.jpg",
-
+          "path": "",
           "hash": {
             "string": "blake3-{hash}=",
             "address": ""
           },
-
-          // mtime of cover.file
-          "mtime": 0,
-
-          // byte size of cover.path
-          "byte_size": 0
+          "mtime": 1,
+          "byte_size": 1
         }
       }
     }
@@ -125,27 +106,40 @@
       "tracknumber": 1
       "artist": "",
       "title": "",
+      "lyrics": {
+        "file": {
+          "path": "",
+          "hash": {
+            "string": "blake3-{hash}=",
+            "address": ""
+          },
+          "mtime": 1,
+          "byte_size": 1
+        },
+      },
       "keys": {},
+      "info": {
+        "sample_rate": 1,
+        "bits_per_sample": 1,
+        "bitrate_kbps": 1,
+        "encoding": "",
+        "channels": 1,
+        "duration_milliseconds": 1,
+        "duration_formatted": "",
 
+        // for every key listed in [config.toml].compiler.embedded_keys_subset[key]
+        // we perform `computed value -> to string -> compare with harvested tag` validation
+        // sum all resulted bools
+        "embedded_keys_subset_match": true
+      },
       "file": {
         "path": "",
-        "mtime": 0,
-        "byte_size": 0,
-        "info": {
-          "bits_per_sample": 16,
-          "sample_rate": 44100,
-          "encoding": "Flac",
-          "channels": 2,
-          "duration_milliseconds": 0,
-          "duration_formatted": "",
-          // for every key listed in [config.toml].compiler.embedded_keys_subset[key]
-          // we perform `computed value -> to string -> compare with harvested tag` validation
-          // and output the object populated with `{key}: true / false`
-          "embedded_keys_subset_match": {
-            "key": true
-            // etc...
-          }
-        }
+
+        // hash is skipped for tracks[].file
+        "hash": null,
+
+        "mtime": 1,
+        "byte_size": 1,
       }
     },
     {
