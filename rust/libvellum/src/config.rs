@@ -79,7 +79,6 @@ pub struct CompilerConfig {
     pub keys: Option<CompilerKeys>,
     pub date_added: Option<Vec<String>>,
     pub file_subset_match: Option<Vec<String>>,
-    pub cover_palette: Option<PaletteConfig>,
     pub manifests: Option<Vec<String>>,
     #[serde(default)]
     pub covers: IndexMap<String, CoversConfig>,
@@ -89,16 +88,6 @@ pub struct CompilerConfig {
 pub struct CoversConfig {
     pub interpolation: Option<String>,
     pub size: u32,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct PaletteConfig {
-    #[serde(rename = "type")]
-    pub algo_type: Option<String>,
-    pub sort: Option<String>,
-    #[serde(default)]
-    pub args: String,
-    pub threshold: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -135,7 +124,6 @@ impl AppConfig {
                 keys: None,
                 date_added: None,
                 file_subset_match: None,
-                cover_palette: None,
                 manifests: None,
                 covers,
             });

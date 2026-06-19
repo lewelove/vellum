@@ -161,7 +161,7 @@ fn resolve_cover_metrics(
     config: &Value,
     c_hash: &str,
     loaded_image: Option<&image::DynamicImage>,
-    manifest_data: &libvellum::compiler::manifest::ManifestData,
+    _manifest_data: &libvellum::compiler::manifest::ManifestData,
 ) -> Option<CoverMetrics> {
     if c_hash.is_empty() {
         return None;
@@ -174,11 +174,6 @@ fn resolve_cover_metrics(
     
     let metrics_path = metrics_dir.join(format!("{c_hash}.json"));
     
-    let palette_cfg = config.get("compiler").and_then(|c| c.get("cover_palette"));
-    let cover_palette_raw = manifest_data.json.get("album").and_then(|a| a.get("cover_palette"));
-    
-    let palette_params = format!("{palette_cfg:?}|{cover_palette_raw:?}");
-    
     let mut metrics = if metrics_path.exists() {
         std::fs::read_to_string(&metrics_path).map_or(None, |content| serde_json::from_str::<CoverMetrics>(&content).ok())
     } else { 
@@ -187,8 +182,6 @@ fn resolve_cover_metrics(
         hash: c_hash.to_string(),
         entropy: None,
         chroma: None,
-        palette: None,
-        palette_params: None,
     });
     
     let mut needs_save = false;
@@ -202,13 +195,6 @@ fn resolve_cover_metrics(
             metrics.entropy = Some(libvellum::images::cover_entropy::calculate_entropy(img));
             needs_save = true;
         }
-        
-        if (metrics.palette_params.as_deref() != Some(&palette_params) || metrics.palette.is_none())
-            && let Some(palette_val) = resolvers::cover_palette::resolve_core(img, palette_cfg, cover_palette_raw) {
-                metrics.palette = Some(palette_val);
-                metrics.palette_params = Some(palette_params);
-                needs_save = true;
-            }
     }
     
     if needs_save
@@ -439,11 +425,6 @@ fn build_album(
         let val = resolvers::resolve_album_key(key, meta, ctx)?.unwrap_or(Value::Null);
         tags.insert(key.clone(), val);
     }
-
-    if ctx.config.get("compiler").and_then(|c| c.get("cover_palette")).is_some()
-        && let Some(val) = libvellum::resolvers::resolve_cover_palette(ctx.cover_metrics) {
-            tags.insert("cover_palette".to_string(), val);
-        }
 
     obj.insert("tags".to_string(), Value::Object(tags));
     Ok(Value::Object(obj))

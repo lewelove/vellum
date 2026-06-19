@@ -216,11 +216,6 @@ pub fn resolve_cover_entropy(cover_metrics: Option<&CoverMetrics>) -> Option<Val
 }
 
 #[must_use]
-pub fn resolve_cover_palette(cover_metrics: Option<&CoverMetrics>) -> Option<Value> {
-    cover_metrics.and_then(|m| m.palette.clone())
-}
-
-#[must_use]
 pub fn calculate_total_discs(tracks: &[Value]) -> u32 {
     let mut discs = std::collections::HashSet::new();
     for t in tracks {
