@@ -1,4 +1,4 @@
-# llm.CONSIDER.md
+# consider.md
 
 Here lies critique by LLMs on anti-patterns in current codebase selected by me from conversations about it.
 

@@ -6,11 +6,11 @@ This command is used to run system installed interfaces for vellum from cli
 
 ## Arguments
 
-`<NAME>`
+### `<NAME>`
 - Resolves `[config].interfaces.<NAME>.run` and executes it
 - If omitted -> "default"
 
-#### Notes
+Notes:
 - The `[config].interfaces.default.enable` always resolves to `true`, this way if `<NAME>` argument is ommited we can use flags without interface being registered in config
 
 ---
