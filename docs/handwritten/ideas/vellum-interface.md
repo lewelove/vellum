@@ -2,8 +2,6 @@
 
 This command is used to run system installed interfaces for vellum from cli
 
----
-
 ## Arguments
 
 ### `<NAME>`
@@ -12,8 +10,6 @@ This command is used to run system installed interfaces for vellum from cli
 
 Notes:
 - The `[config].interfaces.default.enable` always resolves to `true`, this way if `<NAME>` argument is ommited we can use flags without interface being registered in config
-
----
 
 ## Flags
 
@@ -27,8 +23,6 @@ Overrides the `[config].interfaces.<NAME>.config` toml path
 
 ### `--run`
 Overrides the `[config].interfaces.<NAME>.run` executable path
-
----
 
 ## Examples
 
@@ -79,8 +73,6 @@ vellum interface web-app
 #   run       = "~/.local/share/vellum/interfaces/web-app/run.sh"
 vellum interface web-app --config "other-cool-ui.toml"
 ```
-
----
 
 ## New Config Attributes
 
