@@ -378,6 +378,7 @@
   .track-row {
     margin: 0 0px;
     padding-left: 14px;
+    transition: none !important;
   }
 
   .track-row + .track-row {

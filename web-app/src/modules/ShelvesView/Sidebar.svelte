@@ -70,7 +70,6 @@
     font-family: var(--font-stack);
     font-size: 14px;
     text-align: left;
-    transition: background-color 0.1s ease;
     outline: none;
     border-radius: 8px;
     box-sizing: border-box;

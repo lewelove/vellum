@@ -2,17 +2,13 @@
   import { player } from "../player.svelte.ts";
   import ClearCover from "../ClearCover.svelte";
 
-  let { coverHash = "", onclick, width = $bindable(0) }: { coverHash?: string, onclick?: () => void, width?: number } = $props();
+  let { coverHash = "", width = $bindable(0) }: { coverHash?: string, width?: number } = $props();
 </script>
 
 <div class="cover-wrapper v-glass">
-  <button 
+  <div 
     class="cover-panel" 
-    class:clickable={!!coverHash}
     bind:clientWidth={width}
-    onclick={coverHash ? onclick : undefined}
-    type="button"
-    aria-label={coverHash ? "Expand cover" : "Cover art"}
   >
     <div class="cover-absolute-wrapper">
       {#if width > 0}
@@ -23,7 +19,7 @@
         />
       {/if}
     </div>
-  </button>
+  </div>
 </div>
 
 <style>
@@ -46,16 +42,9 @@
     height: 100%;
     aspect-ratio: 1 / 1;
     position: relative;
-    cursor: default;
-    outline: none;
-    border: none;
     box-sizing: border-box;
     background: none;
     padding: 0;
-  }
-
-  .cover-panel.clickable {
-    cursor: pointer;
   }
 
   .cover-absolute-wrapper {

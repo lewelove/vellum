@@ -1,13 +1,10 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
   import { player } from "../player.svelte.ts";
   import { library } from "../../library.svelte.ts";
   import { nav } from "../../navigation.svelte.ts";
-  import { fade } from "svelte/transition";
   
   import TracklistPanel from "./TracklistPanel.svelte";
   import ControlPanel from "./ControlPanel.svelte";
-  import ClearCover from "../ClearCover.svelte";
   import BackgroundShader from "./BackgroundShader.svelte";
   import NavBar from "../NavigationBar/NavBar.svelte";
   import CoverPanel from "./CoverPanel.svelte";
@@ -25,15 +22,6 @@
   let showHud = $derived(library.queuePanels.hud);
 
   let moduleWidth = $state(0);
-
-  let isExpanded = $state(false);
-  let windowWidth = $state(0);
-  let windowHeight = $state(0);
-
-  let expandedSize = $derived.by(() => {
-    if (windowWidth <= 0 || windowHeight <= 0) return 0;
-    return Math.min(windowWidth, windowHeight) - 48; 
-  });
 
   let glassOpacity = $derived.by(() => {
     if (!palette || palette.length === 0) return 0.5;
@@ -53,32 +41,6 @@
     }
     uniqueIds.forEach(id => library.ensureFullAlbum(id));
   });
-
-  function toggleExpand() {
-    if (coverHash) isExpanded = !isExpanded;
-  }
-
-  function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) {
-      toggleExpand();
-    }
-  }
-
-  function handleBackdropKeydown(e: KeyboardEvent) {
-    if (e.key === "Enter" || e.key === " ") {
-      if (e.target === e.currentTarget) {
-        e.preventDefault();
-        toggleExpand();
-      }
-    }
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (isExpanded && e.key === "Escape") isExpanded = false;
-  }
-
-  onMount(() => window.addEventListener("keydown", handleKeydown));
-  onDestroy(() => window.removeEventListener("keydown", handleKeydown));
 </script>
 
 <div 
@@ -87,26 +49,6 @@
   style="--glass-bg: oklch(26% 0 0 / {glassOpacity});"
 >
   <BackgroundShader colors={palette} coverSize={moduleWidth} visible={isViewVisible} {isPlaying} />
-
-  {#if isExpanded}
-    <div 
-      class="expanded-backdrop" 
-      onclick={handleBackdropClick}
-      onkeydown={handleBackdropKeydown}
-      role="button"
-      tabindex="0"
-      transition:fade={{ duration: 200 }}
-    >
-      <div 
-        class="expanded-content" 
-        style="width: {expandedSize}px; height: {expandedSize}px;"
-      >
-        <div in:fade={{ duration: 200 }}>
-          <ClearCover hash={coverHash} width={expandedSize} height={expandedSize} />
-        </div>
-      </div>
-    </div>
-  {/if}
 
   <div class="queue-layout">
     <div class="left-wing">
@@ -117,7 +59,7 @@
     </div>
 
     <div class="center-wing">
-      <CoverPanel {coverHash} bind:width={moduleWidth} onclick={toggleExpand} />
+      <CoverPanel {coverHash} bind:width={moduleWidth} />
     </div>
 
     <div class="right-wing">
@@ -167,23 +109,5 @@
     align-items: center;
     box-sizing: border-box;
     min-width: 0;
-  }
-
-  .expanded-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    background-color: rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(16px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-
-  .expanded-content {
-    position: relative;
-    z-index: 10000;
-    pointer-events: none;
   }
 </style>
