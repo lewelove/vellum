@@ -11,19 +11,6 @@ This command is used to run system installed interfaces for vellum from cli
 Notes:
 - The `[config].interfaces.default.enable` always resolves to `true`, this way if `<NAME>` argument is ommited we can use flags without interface being registered in config
 
-## Flags
-
-These flags are used to override the resolved values of `[config].interfaces.<NAME>` attributes
-
-### `--directory`
-Overrides the `[config].interfaces.<NAME>.directory` interface directory path
-
-### `--config`
-Overrides the `[config].interfaces.<NAME>.config` toml path
-
-### `--run`
-Overrides the `[config].interfaces.<NAME>.run` executable path
-
 ## Examples
 
 ```bash
@@ -35,30 +22,6 @@ vellum interface
 ```
 
 ```bash
-# inherits:
-#   directory = "$(pwd)/tui"
-#   config    = "$(pwd)/tui/config.toml"
-#   run       = "$(pwd)/tui/run.sh"
-vellum interface --directory "tui"
-```
-
-```bash
-# inherits:
-#   directory = "~/.local/share/vellum/interfaces/default/"
-#   config    = "~/cool-ui.toml"
-#   run       = "~/.local/share/vellum/interfaces/default/run.sh"
-vellum interface --config "~/cool-ui.toml"
-```
-
-```bash
-# inherits:
-#   directory = "$(pwd)/web-app"
-#   config    = "~/cool-ui.toml"
-#   run       = "$(pwd)/web-app/run.sh"
-vellum interface --directory "web-app" --config "~/cool-ui.toml"
-```
-
-```bash
 # if [config].interfaces.web-app.enable -> inherits:
 #   directory = "~/.local/share/vellum/interfaces/web-app"
 #   config    = "~/.local/share/vellum/interfaces/web-app/config.toml"
@@ -67,16 +30,16 @@ vellum interface web-app
 ```
 
 ```bash
-# if [config].interfaces.tui.enable -> inherits:
-#   directory = "~/.local/share/vellum/interfaces/web-app/"
-#   config    = "$(pwd)/other-cool-ui.toml"
+# if [config].interfaces.web-app.enable AND [config].interfaces.web-app.config = {path} -> inherits:
+#   directory = "~/.local/share/vellum/interfaces/web-app"
+#   config    = "{path}"
 #   run       = "~/.local/share/vellum/interfaces/web-app/run.sh"
-vellum interface web-app --config "other-cool-ui.toml"
+vellum interface web-app
 ```
 
 ## New Config Attributes
 
-Rust builds struct based on this table, with automatic population of missing attributes
+Server builds struct based on this table, with automatic population of missing attributes
 
 ```toml
 
@@ -104,6 +67,12 @@ default = {
 }
 
 ```
+
+## API
+
+### /api/interfaces/{name}/config
+
+This API endpoint is used to retrieve `toml` file intended for interface configuration from resolved `[~/.config/vellum/config.toml].interfaces.{name}.config` path, convert it to `json` and POST it to websocket. The resolved config path is watched by `vellum server` inotify and hot reloads it.
 
 ## todo
 

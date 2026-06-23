@@ -1,6 +1,6 @@
 # `vellum run`
 
-## ARGUMENTS
+## Arguments
 
 has 1 argument
 - `vellum run <NAME>`
@@ -12,7 +12,7 @@ if `<NAME>` matches:
 - reads path string value from it
 - executes it with `json` (based on flag) passed into its stdin
 
-## FLAGS
+## Flags
 
 flags are used to provide requsted album `id` and select json to pass
 at least one flag must be provided
@@ -36,3 +36,25 @@ if `<ID>` found:
 ### `--intermediary` / `-i`
 
 halts execution and prints generated json into stdout
+
+### Intermediary Form
+
+the json passed to scripts stdin must contain an array of albums in order returned by sql + config definition
+
+```json
+{
+  [
+    {
+      "album": {
+        // ...
+      }
+    },
+    {
+      // etc...
+    }
+  ],
+
+  "config": {}
+}
+```
+
