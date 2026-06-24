@@ -110,16 +110,14 @@ async fn get_tracks_internal(
                         }
                     }
 
-                    if let Some(info) = track.get("info")
-                        && let Some(tp) = info.get("track_library_path").and_then(|v| v.as_str()) {
-                            let abs = library_root.join(tp);
-                            if let Ok(rel) = abs.strip_prefix(&library_root)
-                                && let Some(s) = rel.to_str() {
-                                    paths.push(s.to_string());
-                                }
-                        }
+                    if let Some(tp) = track.get("file").and_then(|f| f.get("path")).and_then(|v| v.as_str()) {
+                        let abs = library_root.join(id).join(tp);
+                        if let Ok(rel) = abs.strip_prefix(&library_root)
+                            && let Some(s) = rel.to_str() {
+                                paths.push(s.to_string());
+                            }
+                    }
                 }
             }
     paths
 }
-

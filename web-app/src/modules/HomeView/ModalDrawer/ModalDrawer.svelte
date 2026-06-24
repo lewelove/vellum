@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
+import { fade } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { 
     playAlbum, 
@@ -22,15 +22,15 @@
   let albumData = $derived(album.album || {});
   let infoData = $derived(albumData.info || {});
 
-  let coverHash = $derived(infoData.cover_hash || "");
+  let coverHash = $derived(albumData.covers?.main?.file?.hash?.address || "");
   let title = $derived(albumData.album || "Untitled");
   let artist = $derived(albumData.albumartist || "Unknown");
   let genreString = $derived(Array.isArray(albumData.genre) ? albumData.genre.join(" ; ") : (albumData.genre || ""));
   let dateString = $derived(albumData.date || "");
 
-  let discCount = $derived(parseInt(infoData.total_discs || "1"));
-  let trackCount = $derived(parseInt(infoData.total_tracks || "0"));
-  let durationStr = $derived(infoData.album_duration_time || "--:--");
+  let discCount = $derived(parseInt(albumData.total_discs || "1"));
+  let trackCount = $derived(parseInt(albumData.total_tracks || "0"));
+  let durationStr = $derived(infoData.duration_formatted || "--:--");
 
   let coverIsReady = $state(false);
 
@@ -182,7 +182,7 @@
             <div class="v-scroll-fade-top"></div>
             <ModalDrawerTracks 
               tracks={album.tracks || []} 
-              totalDiscs={infoData.total_discs} 
+              totalDiscs={albumData.total_discs} 
               albumArtist={artist}
               onplay={handlePlayTrack} 
               onplaydisc={handlePlayDisc}
@@ -346,3 +346,4 @@
     width: 0px;
   }
 </style>
+

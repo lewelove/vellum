@@ -1,53 +1,22 @@
 use crate::expand_path;
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use fast_image_resize::images::Image;
 pub use fast_image_resize::FilterType;
 use fast_image_resize::{ResizeAlg, ResizeOptions, Resizer};
 use fast_image_resize::PixelType;
+use fast_image_resize::images::Image;
 use image::DynamicImage;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
-use std::os::unix::fs::MetadataExt;
-use std::path::Path;
-use std::time::SystemTime;
-pub use libvellum::models::CoverMetrics;
+use std::path::{Path, PathBuf};
 
 pub const COVER_CANDIDATES: [&str; 4] = ["cover.jpg", "cover.png", "folder.jpg", "front.jpg"];
 
-pub fn resolve_cover_info(root: &Path) -> (Option<String>, String, u64, u64) {
+pub fn resolve_cover_info(root: &Path) -> Option<PathBuf> {
     for c in COVER_CANDIDATES {
         let p = root.join(c);
-        if let Ok(m) = std::fs::metadata(&p) {
-            let mtime_ns = m
-                .modified()
-                .unwrap()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            let size = m.len();
-            let inode = m.ino();
-            let mut h = Sha256::new();
-            h.update(mtime_ns.to_be_bytes());
-            h.update(size.to_be_bytes());
-            h.update(inode.to_be_bytes());
-
-            let mtime_secs = m
-                .modified()
-                .unwrap()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-
-            return (
-                Some(c.to_string()),
-                URL_SAFE_NO_PAD.encode(&h.finalize()[..8]),
-                mtime_secs,
-                size,
-            );
+        if p.exists() {
+            return Some(p);
         }
     }
-    (None, String::new(), 0, 0)
+    None
 }
 
 pub fn parse_interpolation(algo: &str) -> FilterType {
@@ -96,19 +65,17 @@ pub fn resize_image(src: &image::RgbImage, target_size: u32, filter: FilterType)
 
 pub fn pregenerate_covers(
     config: &Value,
-    album_root: &Path,
-    cover_path: Option<&str>,
-    cover_hash: &str,
+    cover_path: Option<&Path>,
+    cover_hash_address: &str,
 ) -> Option<DynamicImage> {
     let storage = config.get("storage")?;
     let cache_str = storage.get("cache").and_then(Value::as_str)?;
-    let cp = cover_path?;
-    if cover_hash.is_empty() {
+    let original_path = cover_path?;
+    if cover_hash_address.is_empty() {
         return None;
     }
 
     let cache_root = expand_path(cache_str);
-    let original_path = album_root.join(cp);
 
     let covers_obj = config.get("compiler").and_then(|c| c.get("covers")).and_then(Value::as_object)?;
 
@@ -122,9 +89,9 @@ pub fn pregenerate_covers(
         .join("master")
         .join(master_algo_str)
         .join(format!("{master_size}px"))
-        .join(format!("{cover_hash}.qoi"));
+        .join(format!("{cover_hash_address}.qoi"));
 
-    if !master_qoi_path.exists() && let Ok(img) = image::open(&original_path) {
+    if !master_qoi_path.exists() && let Ok(img) = image::open(original_path) {
         let img_rgb = img.to_rgb8();
         if let Some(parent) = master_qoi_path.parent() {
             std::fs::create_dir_all(parent).ok()?;
@@ -151,7 +118,7 @@ pub fn pregenerate_covers(
             .join("static")
             .join(algo_str)
             .join(format!("{target_size}px"))
-            .join(format!("{cover_hash}.qoi"));
+            .join(format!("{cover_hash_address}.qoi"));
 
         if !static_path.exists() {
             if master_img.is_none() {

@@ -41,7 +41,7 @@ pub async fn notify_force_update() -> Response {
 pub async fn trigger_full_reset(State(state): State<Arc<AppState>>) -> Response {
     log::info!("Rebuilding library database...");
     let start_time = std::time::Instant::now();
-    
+
     let album_count = {
         let library_root = state.config.read().await.library_root.clone();
         let scanner = crate::server::library::scanner::Library::new(library_root);
@@ -49,11 +49,11 @@ pub async fn trigger_full_reset(State(state): State<Arc<AppState>>) -> Response 
         scanner.scan(&mut query);
         query.dict.len()
     };
-    
+
     let elapsed = start_time.elapsed().as_millis();
     log::info!("Updated {album_count} albums.");
     log::info!("Rebuilt Query Engine in {elapsed}ms.");
-    
+
     let _ = state.tx.send(json!({"type": "LOGIC_UPDATE"}).to_string());
     Json(json!({"status": "ok"})).into_response()
 }
@@ -65,7 +65,7 @@ pub async fn trigger_batch_reload(
 ) -> Response {
     let start_time = std::time::Instant::now();
     let compile_time = params.get("time").map_or("0", std::string::String::as_str);
-    
+
     let library_root = state.config.read().await.library_root.clone();
     let mut processed_ids = Vec::new();
     let mut removed_ids = Vec::new();
@@ -89,7 +89,7 @@ pub async fn trigger_batch_reload(
         let elapsed = start_time.elapsed().as_millis();
         log::info!("Updated {} albums, Removed {} albums in {}ms.", processed_ids.len(), removed_ids.len(), compile_time);
         log::info!("Rebuilt Query Engine in {elapsed}ms.");
-        
+
         if processed_ids.len() == 1 && removed_ids.is_empty() {
             let dict_entry = {
                 let query = state.query.lock().await;
@@ -120,12 +120,12 @@ pub async fn trigger_reload(
     let start_time = std::time::Instant::now();
     if let Some(path) = params.get("path") {
         let library_root = state.config.read().await.library_root.clone();
-        
+
         let (update_res, dict_entry) = {
             let mut query = state.query.lock().await;
             let scanner = crate::server::library::scanner::Library::new(library_root);
             let res = scanner.update_album(path, &mut query);
-            
+
             let entry = match &res {
                 crate::server::library::scanner::UpdateResult::Updated(id) => {
                     let _ = query.build_cache();
@@ -139,7 +139,7 @@ pub async fn trigger_reload(
         let elapsed = start_time.elapsed().as_millis();
         log::info!("Processed 1 album.");
         log::info!("Rebuilt Query Engine in {elapsed}ms.");
-        
+
         match update_res {
             crate::server::library::scanner::UpdateResult::Updated(id) => {
                 let _ = state.tx.send(json!({
@@ -155,7 +155,7 @@ pub async fn trigger_reload(
                 }).to_string());
             }
         }
-        
+
         return Json(json!({"status": "ok"})).into_response();
     }
     StatusCode::NOT_FOUND.into_response()
@@ -182,7 +182,7 @@ pub async fn open_lock_file(
 ) -> Response {
     let path = {
         let config_guard = state.config.read().await;
-        config_guard.library_root.join(id).join("metadata.lock.json")
+        config_guard.library_root.join(id).join("album.lock.json")
     };
     if path.exists() {
         let _ = std::process::Command::new("xdg-open").arg(path).spawn();

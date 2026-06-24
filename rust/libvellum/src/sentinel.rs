@@ -13,8 +13,8 @@ pub enum TrustState {
     BrokenAssets,
 }
 
-pub fn verify_trust(album_root: &Path, manifests: Option<&Vec<String>>) -> Result<TrustState, VellumError> {
-    let lock_path = album_root.join("metadata.lock.json");
+pub fn verify_trust(album_root: &Path) -> Result<TrustState, VellumError> {
+    let lock_path = album_root.join("album.lock.json");
     if !lock_path.exists() {
         return Ok(TrustState::Missing);
     }
@@ -29,7 +29,7 @@ pub fn verify_trust(album_root: &Path, manifests: Option<&Vec<String>>) -> Resul
         return Ok(TrustState::Missing);
     };
 
-    if check_manifest_mtimes(album_root, album_data, manifests) == TrustState::BrokenIntent {
+    if check_manifest_mtimes(album_root, album_data) == TrustState::BrokenIntent {
         return Ok(TrustState::BrokenIntent);
     }
 
@@ -44,118 +44,70 @@ pub fn verify_trust(album_root: &Path, manifests: Option<&Vec<String>>) -> Resul
     Ok(TrustState::Valid)
 }
 
-fn check_manifest_mtimes(album_root: &Path, album_data: &serde_json::Value, manifests: Option<&Vec<String>>) -> TrustState {
-    let lock_meta_mtime = album_data
-        .get("metadata_toml_mtime")
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or(0);
-
-    let lock_manifests_sum = album_data
-        .get("manifests_mtime_sum")
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or(0);
-    
-    let metadata_path = album_root.join("metadata.toml");
-    let current_meta_mtime = fs::metadata(&metadata_path)
-        .and_then(|m| m.modified())
-        .map(|t| {
-            t.duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-        })
-        .unwrap_or(0);
-
-    if current_meta_mtime != lock_meta_mtime && lock_meta_mtime != 0 {
-        return TrustState::BrokenIntent;
-    }
-
-    let mut current_manifests_sum: u64 = current_meta_mtime;
-    if let Some(names) = manifests {
-        for name in names {
-            let p = album_root.join(name);
-            if p.exists() {
-                current_manifests_sum += fs::metadata(&p)
-                    .and_then(|m| m.modified())
-                    .map(|t| {
-                        t.duration_since(SystemTime::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs()
-                    })
+fn check_manifest_mtimes(album_root: &Path, album_data: &serde_json::Value) -> TrustState {
+    if let Some(manifests) = album_data.get("manifests").and_then(serde_json::Value::as_array) {
+        for m in manifests {
+            if let Some(file) = m.get("file") {
+                let rel_path = file.get("path").and_then(serde_json::Value::as_str).unwrap_or("");
+                let lock_mtime = file.get("mtime").and_then(serde_json::Value::as_u64).unwrap_or(0);
+                let abs_path = album_root.join(rel_path);
+                
+                let current_mtime = fs::metadata(&abs_path)
+                    .and_then(|meta| meta.modified())
+                    .map(|t| t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs())
                     .unwrap_or(0);
+                
+                if current_mtime != lock_mtime && lock_mtime != 0 {
+                    return TrustState::BrokenIntent;
+                }
             }
         }
     }
-
-    if current_manifests_sum != lock_manifests_sum && lock_manifests_sum != 0 {
-        return TrustState::BrokenIntent;
-    }
-
     TrustState::Valid
 }
 
 fn check_cover_integrity(album_root: &Path, album_data: &serde_json::Value) -> TrustState {
-    let lock_cover_path = album_data
-        .get("cover_path")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("");
-    if !lock_cover_path.is_empty() && lock_cover_path != "default_cover.png" {
-        let abs_cover = album_root.join(lock_cover_path);
-        if !abs_cover.exists() {
-            return TrustState::BrokenAssets;
-        }
-
-        let lock_cover_size = album_data
-            .get("cover_byte_size")
-            .and_then(serde_json::Value::as_u64)
-            .unwrap_or(0);
-        let current_cover_size = fs::metadata(&abs_cover).map(|m| m.len()).unwrap_or(0);
-
-        if lock_cover_size != current_cover_size {
-            return TrustState::BrokenAssets;
+    if let Some(file) = album_data
+        .get("covers")
+        .and_then(|c| c.get("main"))
+        .and_then(|m| m.get("file"))
+    {
+        let rel_path = file.get("path").and_then(serde_json::Value::as_str).unwrap_or("");
+        if !rel_path.is_empty() {
+            let abs_path = album_root.join(rel_path);
+            if !abs_path.exists() {
+                return TrustState::BrokenAssets;
+            }
+            let lock_size = file.get("byte_size").and_then(serde_json::Value::as_u64).unwrap_or(0);
+            let current_size = fs::metadata(&abs_path).map(|m| m.len()).unwrap_or(0);
+            if lock_size != current_size {
+                return TrustState::BrokenAssets;
+            }
         }
     }
     TrustState::Valid
 }
 
 fn check_tracks_integrity(album_root: &Path, lock_json: &serde_json::Value) -> TrustState {
-    if let Some(tracks) = lock_json
-        .get("tracks")
-        .and_then(serde_json::Value::as_array)
-    {
+    if let Some(tracks) = lock_json.get("tracks").and_then(serde_json::Value::as_array) {
         for track in tracks {
-            let rel_path = track
-                .get("track_path")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("");
-            if rel_path.is_empty() {
-                return TrustState::BrokenPhysics;
-            }
-
-            let abs_path = album_root.join(rel_path);
-            let Ok(meta) = fs::metadata(&abs_path) else {
-                return TrustState::BrokenPhysics;
-            };
-
-            let lock_track_mtime = track
-                .get("track_mtime")
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0);
-            let lock_track_size = track
-                .get("track_size")
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0);
-
-            let current_track_mtime = meta
-                .modified()
-                .map(|t| {
-                    t.duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                })
-                .unwrap_or(0);
-            let current_track_size = meta.len();
-
-            if lock_track_mtime != current_track_mtime || lock_track_size != current_track_size {
+            if let Some(file) = track.get("file") {
+                let rel_path = file.get("path").and_then(serde_json::Value::as_str).unwrap_or("");
+                if rel_path.is_empty() { return TrustState::BrokenPhysics; }
+                
+                let abs_path = album_root.join(rel_path);
+                let Ok(meta) = fs::metadata(&abs_path) else { return TrustState::BrokenPhysics; };
+                
+                let lock_track_mtime = file.get("mtime").and_then(serde_json::Value::as_u64).unwrap_or(0);
+                let lock_track_size = file.get("byte_size").and_then(serde_json::Value::as_u64).unwrap_or(0);
+                
+                let current_track_mtime = meta.modified().map(|t| t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs()).unwrap_or(0);
+                let current_track_size = meta.len();
+                
+                if lock_track_mtime != current_track_mtime || lock_track_size != current_track_size {
+                    return TrustState::BrokenPhysics;
+                }
+            } else {
                 return TrustState::BrokenPhysics;
             }
         }

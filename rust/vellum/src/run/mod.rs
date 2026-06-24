@@ -60,9 +60,9 @@ pub async fn execute(
         unreachable!();
     };
 
-    let lock_file_path = library_root.join(&target_id).join("metadata.lock.json");
+    let lock_file_path = library_root.join(&target_id).join("album.lock.json");
     let json_data = std::fs::read_to_string(&lock_file_path).context(format!(
-        "Failed to read metadata.lock.json for album '{target_id}'"
+        "Failed to read album.lock.json for album '{target_id}'"
     ))?;
 
     let lock_json: serde_json::Value = serde_json::from_str(&json_data)?;

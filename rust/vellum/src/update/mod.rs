@@ -182,11 +182,21 @@ fn find_missing_paths(all_albums: &[PathBuf], scan_root: &Path, cache: &HashMap<
     missing_paths
 }
 
-fn start_notification_task(mut args: NotificationTaskArgs) -> tokio::task::JoinHandle<()> {
+fn start_notification_task(args: NotificationTaskArgs) -> tokio::task::JoinHandle<()> {
+    let mut rx = args.notify_rx;
+    let cache_for_task = args.cache_for_task;
+    let exts_for_task = args.exts_for_task;
+    let manifests_for_task = args.manifests_for_task;
+    let lib_root_for_task = args.lib_root_for_task;
+    let missing_paths = args.missing_paths;
+    let start_time = args.start_time;
+    let verbose = args.verbose;
+    let silent = args.silent;
+
     tokio::spawn(async move {
         let mut updated_paths = Vec::new();
-        while let Some(signal) = args.notify_rx.recv().await {
-            if args.verbose && !args.silent {
+        while let Some(signal) = rx.recv().await {
+            if verbose && !silent {
                 log::info!("Updated: {} - {}", signal.artist, signal.album);
             }
             updated_paths.push(signal.path);
@@ -195,20 +205,20 @@ fn start_notification_task(mut args: NotificationTaskArgs) -> tokio::task::JoinH
         let mut paths_for_server = Vec::new();
 
         {
-            let mut c = args.cache_for_task.lock().await;
+            let mut c = cache_for_task.lock().await;
             for album_root in &updated_paths {
                 let album_path_str = album_root.to_string_lossy().to_string();
                 let metadata_path = album_root.join("metadata.toml");
-                let mtime_sum = get_mtime_sum(album_root, &metadata_path, &args.exts_for_task, args.manifests_for_task.as_ref());
+                let mtime_sum = get_mtime_sum(album_root, &metadata_path, &exts_for_task, manifests_for_task.as_ref());
                 c.insert(album_path_str.clone(), AlbumCacheEntry { mtime_sum });
                 paths_for_server.push(album_path_str);
             }
 
-            for missing in args.missing_paths {
+            for missing in missing_paths {
                 let p_str = missing.to_string_lossy().to_string();
                 
-                if args.verbose && !args.silent {
-                    let display_path = missing.strip_prefix(&*args.lib_root_for_task).unwrap_or(&missing);
+                if verbose && !silent {
+                    let display_path = missing.strip_prefix(&*lib_root_for_task).unwrap_or(&missing);
                     log::info!("Removed: {}", display_path.display());
                 }
 
@@ -222,12 +232,11 @@ fn start_notification_task(mut args: NotificationTaskArgs) -> tokio::task::JoinH
             return;
         }
 
+        let elapsed = start_time.elapsed().as_millis();
         let client = reqwest::Client::new();
-        let elapsed_ms = args.start_time.elapsed().as_millis();
-        let url = format!("http://127.0.0.1:8000/api/internal/batch_reload?time={elapsed_ms}");
-
         let _ = client
-            .post(&url)
+            .post("http://127.0.0.1:8000/api/internal/batch_reload")
+            .query(&[("time", elapsed.to_string())])
             .json(&paths_for_server)
             .timeout(std::time::Duration::from_secs(30))
             .send()
@@ -237,31 +246,20 @@ fn start_notification_task(mut args: NotificationTaskArgs) -> tokio::task::JoinH
 
 async fn validate_library_root(cache_dir: &Path, current_hash: &str) -> Result<()> {
     let current_json_path = cache_dir.join("current.json");
-    let mut needs_reset = false;
-
     if current_json_path.exists() {
         let content = fs::read_to_string(&current_json_path).unwrap_or_default();
-        if let Ok(state) = serde_json::from_str::<CurrentState>(&content) {
-            if state.hash != current_hash {
-                needs_reset = true;
-            }
-        } else {
-            needs_reset = true;
+        let saved_state: Result<CurrentState, _> = serde_json::from_str(&content);
+        if let Ok(state) = saved_state && state.hash == current_hash {
+            return Ok(());
         }
-    } else {
-        needs_reset = true;
     }
 
-    if needs_reset {
-        log::info!("Library root changed. Triggering server reset.");
-        let _ = fs::write(
-            &current_json_path,
-            serde_json::to_string(&CurrentState {
-                hash: current_hash.to_string(),
-            })?,
-        );
-        let _ = trigger_server_reset().await;
-    }
+    let state = CurrentState {
+        hash: current_hash.to_string(),
+    };
+    let content = serde_json::to_string(&state)?;
+    let _ = fs::write(&current_json_path, content);
+    let _ = trigger_server_reset().await;
     Ok(())
 }
 
@@ -297,7 +295,7 @@ fn verify_albums_parallel(
                          return (album_root, mtime_sum, false);
                     }
 
-                match verify_trust(&album_root, manifests) {
+                match verify_trust(&album_root) {
                     Ok(TrustState::Valid) => (album_root, mtime_sum, false),
                     Ok(_) => (album_root, mtime_sum, true),
                     Err(e) => {

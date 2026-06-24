@@ -136,9 +136,9 @@ fn format_json_value(value: &Value, indent: usize, out: &mut String) {
                 out.push_str("[]");
                 return;
             }
-            
+
             let is_simple = arr.iter().all(|v| !matches!(v, Value::Object(_) | Value::Array(_)));
-            
+
             if is_simple {
                 out.push('[');
                 let mut it = arr.iter().peekable();
@@ -227,15 +227,7 @@ fn finalize(
         |arr| arr.iter().filter_map(|val| val.as_str().map(ToString::to_string)).collect()
     );
 
-    let is_match = verify::calculate_file_tag_subset_match(&v, h_arr, &subset_keys);
-    
-    if let Some(info) = v
-        .get_mut("album")
-        .and_then(|a| a.get_mut("info"))
-        .and_then(|i| i.as_object_mut())
-    {
-        info.insert("file_tag_subset_match".to_string(), json!(is_match));
-    }
+    verify::calculate_file_tag_subset_match(&mut v, h_arr, &subset_keys);
 
     strip_empty_values(&mut v);
 
@@ -243,17 +235,17 @@ fn finalize(
         .get("paths")
         .and_then(|p| p.get("album_root"))
         .and_then(Value::as_str);
-        
+
     if let Some(path) = album_root_str {
         let album_root = Path::new(path);
-        
+
         let mut content = String::new();
         format_json_value(&v, 0, &mut content);
-        
+
         if target == ExportTarget::Stdout {
             println!("{content}");
         } else {
-            std::fs::write(album_root.join("metadata.lock.json"), content)?;
+            std::fs::write(album_root.join("album.lock.json"), content)?;
             if let Some(tx_arc) = notify_tx {
                 let root_clone = album_root.to_path_buf();
                 let tx = (*tx_arc).clone();

@@ -28,11 +28,18 @@ pub fn build(
     let manifest_names = config.get("compiler").and_then(|c| c.get("manifests")).and_then(Value::as_array);
     let manifest_data = load_and_merge(album_root, manifest_names)?;
 
-    let (c_path, c_hash, c_mtime, c_size) = assets::resolve_cover_info(album_root);
-    let loaded_image =
-        assets::pregenerate_covers(config, album_root, c_path.as_deref(), &c_hash);
+    let main_cover_path = assets::resolve_cover_info(album_root);
+    
+    let mut cover_hash_address = String::new();
+    if let Some(cp) = &main_cover_path {
+        let content = std::fs::read(cp).unwrap_or_default();
+        if !content.is_empty() {
+            cover_hash_address = libvellum::utils::calculate_blake3_address(&content);
+        }
+    }
 
-    let cover_metrics = resolve_cover_metrics(config, &c_hash, loaded_image.as_ref(), &manifest_data);
+    let loaded_image = assets::pregenerate_covers(config, main_cover_path.as_deref(), &cover_hash_address);
+    let cover_metrics = resolve_cover_metrics(config, &cover_hash_address, loaded_image.as_ref());
 
     let PreparedContext { audio_files, registry, library_root } = prepare_build_context(config, manifest_cfg, album_root)?;
 
@@ -51,6 +58,22 @@ pub fn build(
 
     validate_track_indices(track_entries, album_root)?;
 
+    let mut manifest_entries = Vec::new();
+    for m in &manifest_data.manifests {
+        let abs_p = album_root.join(m);
+        if let Ok(info) = libvellum::utils::get_file_info(&abs_p, m, true) {
+            manifest_entries.push(json!({ "file": info }));
+        }
+    }
+
+    let mut covers_entry = serde_json::Map::new();
+    if let Some(cp) = &main_cover_path {
+        let rel_path = libvellum::resolvers::rel_path(cp, album_root);
+        if let Ok(info) = libvellum::utils::get_file_info(cp, &rel_path, true) {
+            covers_entry.insert("main".to_string(), json!({ "file": info }));
+        }
+    }
+
     let empty_obj = json!({});
     let album_source = manifest_data.json.get("album").unwrap_or(&empty_obj);
 
@@ -61,7 +84,6 @@ pub fn build(
         track_entries,
         album_source,
         album_root,
-        &library_root,
         &registry,
     )?;
 
@@ -70,36 +92,30 @@ pub fn build(
         tracks: &final_tracks,
         album_root,
         library_root: &library_root,
-        meta_hash: &manifest_data.meta_hash,
-        meta_mtime: manifest_data.meta_mtime,
-        manifests_mtime_sum: manifest_data.manifests_mtime_sum,
-        cover_hash: &c_hash,
-        cover_path: c_path.as_deref(),
-        cover_mtime: c_mtime,
-        cover_byte_size: c_size,
         cover_metrics: cover_metrics.as_ref(),
         config,
+        manifests: manifest_entries,
+        covers: Value::Object(covers_entry),
     };
 
     let album_obj = build_album(&album_ctx, &registry)?;
 
-    let final_json = json!({
-        "album": album_obj,
-        "tracks": final_tracks,
-        "ctx": {
-            "config": config,
-            "registry": registry,
-            "metadata": manifest_data.json,
-            "harvest": harvested_cache,
-            "paths": {
-                "album_root": album_root.to_string_lossy(),
-                "project_root": project_root.to_string_lossy(),
-                "library_root": library_root.to_string_lossy()
-            }
+    let mut final_json = serde_json::Map::new();
+    final_json.insert("album".to_string(), album_obj);
+    final_json.insert("tracks".to_string(), Value::Array(final_tracks));
+    final_json.insert("ctx".to_string(), json!({
+        "config": config,
+        "registry": registry,
+        "metadata": manifest_data.json,
+        "harvest": harvested_cache,
+        "paths": {
+            "album_root": album_root.to_string_lossy(),
+            "project_root": project_root.to_string_lossy(),
+            "library_root": library_root.to_string_lossy()
         }
-    });
+    }));
 
-    Ok(final_json)
+    Ok(Value::Object(final_json))
 }
 
 fn prepare_build_context(
@@ -161,7 +177,6 @@ fn resolve_cover_metrics(
     config: &Value,
     c_hash: &str,
     loaded_image: Option<&image::DynamicImage>,
-    _manifest_data: &libvellum::compiler::manifest::ManifestData,
 ) -> Option<CoverMetrics> {
     if c_hash.is_empty() {
         return None;
@@ -210,7 +225,6 @@ fn process_tracks(
     track_entries: &[Value],
     album_source: &Value,
     album_root: &Path,
-    library_root: &Path,
     registry: &Map<String, Value>,
 ) -> Result<(Vec<Value>, Vec<Value>), VellumError> {
     let mut harvested_spine = Vec::new();
@@ -220,10 +234,9 @@ fn process_tracks(
 
     let mut total_discs = 1;
     for t in track_entries {
-        if let Ok(d) = extract_strict_u32(t.get("discnumber"), "discnumber", Some(1))
-            && d > total_discs {
-                total_discs = d;
-            }
+        if let Ok(d) = extract_strict_u32(t.get("discnumber"), "discnumber", Some(1)) {
+            total_discs = total_discs.max(d);
+        }
     }
 
     let mut final_tracks = Vec::new();
@@ -245,7 +258,6 @@ fn process_tracks(
             source: &track_entries[idx],
             album_source,
             album_root,
-            library_root,
         };
 
         let t_obj = build_track(&t_ctx, total_discs, registry)?;
@@ -256,70 +268,6 @@ fn process_tracks(
     Ok((final_tracks, harvested_cache))
 }
 
-fn construct_track_info(ctx: &TrackContext, total_discs: u32) -> Value {
-    let mut info = serde_json::Map::new();
-
-    let lyrics_path = ctx
-        .source
-        .get("lyrics_path")
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .or_else(|| {
-            libvellum::resolvers::resolve_lyrics_path(
-                ctx.album_root,
-                ctx.track_number,
-                ctx.disc_number,
-                total_discs,
-            )
-        });
-
-    info.insert(
-        "track_path".to_string(),
-        json!(libvellum::resolvers::rel_path(
-            &ctx.harvest.path,
-            ctx.album_root
-        )),
-    );
-    info.insert(
-        "track_library_path".to_string(),
-        json!(libvellum::resolvers::rel_path(
-            &ctx.harvest.path,
-            ctx.library_root
-        )),
-    );
-    info.insert(
-        "track_duration".to_string(),
-        json!(ctx.harvest.physics.duration_ms),
-    );
-    info.insert(
-        "track_duration_time".to_string(),
-        json!(libvellum::resolvers::format_ms(
-            ctx.harvest.physics.duration_ms
-        )),
-    );
-    info.insert("encoding".to_string(), json!(ctx.harvest.physics.format));
-    info.insert(
-        "sample_rate".to_string(),
-        json!(ctx.harvest.physics.sample_rate),
-    );
-    info.insert(
-        "bits_per_sample".to_string(),
-        json!(ctx.harvest.physics.bit_depth.unwrap_or(0)),
-    );
-    info.insert("channels".to_string(), json!(ctx.harvest.physics.channels));
-    info.insert("track_mtime".to_string(), json!(ctx.harvest.physics.mtime));
-    info.insert(
-        "track_size".to_string(),
-        json!(ctx.harvest.physics.file_size),
-    );
-    info.insert(
-        "lyrics_path".to_string(),
-        json!(lyrics_path.unwrap_or_default()),
-    );
-
-    Value::Object(info)
-}
-
 fn build_track(
     ctx: &TrackContext,
     total_discs: u32,
@@ -327,75 +275,54 @@ fn build_track(
 ) -> Result<Value, VellumError> {
     let mut obj = serde_json::Map::new();
 
-    obj.insert("info".to_string(), construct_track_info(ctx, total_discs));
-
-    obj.insert("title".to_string(), resolvers::resolve_top_level_track_key("title", ctx)?);
-    obj.insert("artist".to_string(), resolvers::resolve_top_level_track_key("artist", ctx)?);
-    obj.insert("tracknumber".to_string(), json!(ctx.track_number));
     obj.insert("discnumber".to_string(), json!(ctx.disc_number));
+    obj.insert("tracknumber".to_string(), json!(ctx.track_number));
+    obj.insert("artist".to_string(), resolvers::resolve_top_level_track_key("artist", ctx)?);
+    obj.insert("title".to_string(), resolvers::resolve_top_level_track_key("title", ctx)?);
 
-    let mut tags = serde_json::Map::new();
+    let lyrics_path_str = ctx.source.get("lyrics_path").and_then(Value::as_str).map(ToString::to_string)
+        .or_else(|| libvellum::resolvers::resolve_lyrics_path(ctx.album_root, ctx.track_number, ctx.disc_number, total_discs));
+    
+    if let Some(lp) = lyrics_path_str {
+        let abs_lp = ctx.album_root.join(&lp);
+        if let Ok(file_info) = libvellum::utils::get_file_info(&abs_lp, &lp, true) {
+            let mut l_obj = serde_json::Map::new();
+            l_obj.insert("file".to_string(), file_info);
+            obj.insert("lyrics".to_string(), Value::Object(l_obj));
+        }
+    }
+
+    let mut keys = serde_json::Map::new();
     for (key, meta) in registry {
         let level = meta.get("level").and_then(Value::as_str).unwrap_or("");
-        if level != "tracks" && level != "track" {
-            continue;
-        }
-
-        if ["title", "artist", "tracknumber", "discnumber"].contains(&key.as_str()) {
-            continue;
-        }
+        if level != "tracks" && level != "track" { continue; }
+        if ["title", "artist", "tracknumber", "discnumber"].contains(&key.as_str()) { continue; }
         let val = resolvers::resolve_track_key(key, meta, ctx)?.unwrap_or(Value::Null);
-        tags.insert(key.clone(), val);
+        keys.insert(key.clone(), val);
     }
-    obj.insert("tags".to_string(), Value::Object(tags));
-    Ok(Value::Object(obj))
-}
+    obj.insert("keys".to_string(), Value::Object(keys));
 
-fn construct_album_info(ctx: &AlbumContext) -> Result<Value, VellumError> {
     let mut info = serde_json::Map::new();
-    let dur: u64 = ctx
-        .tracks
-        .iter()
-        .filter_map(|t| {
-            t.get("info")
-                .and_then(|i| i.get("track_duration"))
-                .and_then(Value::as_u64)
-        })
-        .sum();
+    info.insert("sample_rate".to_string(), json!(ctx.harvest.physics.sample_rate));
+    info.insert("bits_per_sample".to_string(), json!(ctx.harvest.physics.bit_depth.unwrap_or(0)));
+    info.insert("bitrate_kbps".to_string(), json!(ctx.harvest.physics.bit_depth.unwrap_or(0)));
+    info.insert("encoding".to_string(), json!(ctx.harvest.physics.format));
+    info.insert("channels".to_string(), json!(ctx.harvest.physics.channels));
+    info.insert("duration_milliseconds".to_string(), json!(ctx.harvest.physics.duration_ms));
+    info.insert("duration_formatted".to_string(), json!(libvellum::resolvers::format_ms(ctx.harvest.physics.duration_ms)));
+    info.insert("embedded_keys_subset_match".to_string(), json!(false));
+    
+    obj.insert("info".to_string(), Value::Object(info));
 
-    info.insert(
-        "album_path".to_string(),
-        json!(libvellum::resolvers::rel_path(
-            ctx.album_root,
-            ctx.library_root
-        )),
-    );
-    info.insert(
-        "date_added".to_string(),
-        json!(libvellum::resolvers::resolve_album_info_date_added(ctx.album_root, ctx.source, ctx.config)?),
-    );
-    info.insert("album_duration".to_string(), json!(dur));
-    info.insert(
-        "album_duration_time".to_string(),
-        json!(libvellum::resolvers::format_ms(dur)),
-    );
-    info.insert(
-        "total_discs".to_string(),
-        json!(libvellum::resolvers::calculate_total_discs(ctx.tracks)),
-    );
-    info.insert("total_tracks".to_string(), json!(ctx.tracks.len()));
-    info.insert("metadata_toml_hash".to_string(), json!(ctx.meta_hash));
-    info.insert("metadata_toml_mtime".to_string(), json!(ctx.meta_mtime));
-    info.insert("manifests_mtime_sum".to_string(), json!(ctx.manifests_mtime_sum));
-    info.insert(
-        "cover_path".to_string(),
-        json!(ctx.cover_path.unwrap_or("default_cover.png")),
-    );
-    info.insert("cover_hash".to_string(), json!(ctx.cover_hash));
-    info.insert("cover_mtime".to_string(), json!(ctx.cover_mtime));
-    info.insert("cover_byte_size".to_string(), json!(ctx.cover_byte_size));
+    let track_rel_path = libvellum::resolvers::rel_path(&ctx.harvest.path, ctx.album_root);
+    if let Ok(mut file_info) = libvellum::utils::get_file_info(&ctx.harvest.path, &track_rel_path, false) {
+        if let Some(f_obj) = file_info.as_object_mut() {
+            f_obj.insert("hash".to_string(), Value::Null);
+        }
+        obj.insert("file".to_string(), file_info);
+    }
 
-    Ok(Value::Object(info))
+    Ok(Value::Object(obj))
 }
 
 fn build_album(
@@ -404,28 +331,49 @@ fn build_album(
 ) -> Result<Value, VellumError> {
     let mut obj = serde_json::Map::new();
 
-    obj.insert("info".to_string(), construct_album_info(ctx)?);
-    obj.insert("album".to_string(), resolvers::resolve_top_level_album_key("album", ctx)?);
     obj.insert("albumartist".to_string(), resolvers::resolve_top_level_album_key("albumartist", ctx)?);
-    obj.insert("date".to_string(), resolvers::resolve_top_level_album_key("date", ctx)?);
-    obj.insert("genre".to_string(), resolvers::resolve_top_level_album_key("genre", ctx)?);
+    obj.insert("album".to_string(), resolvers::resolve_top_level_album_key("album", ctx)?);
     obj.insert("comment".to_string(), resolvers::resolve_top_level_album_key("comment", ctx)?);
+    obj.insert("date".to_string(), resolvers::resolve_top_level_album_key("date", ctx)?);
     obj.insert("original_date".to_string(), resolvers::resolve_top_level_album_key("original_date", ctx)?);
     obj.insert("release_date".to_string(), resolvers::resolve_top_level_album_key("release_date", ctx)?);
+    obj.insert("genre".to_string(), resolvers::resolve_top_level_album_key("genre", ctx)?);
+    
+    let styles = libvellum::types::resolve_type_array(ctx.source, "styles", "", ctx.album_root)?;
+    obj.insert("styles".to_string(), styles);
 
-    let mut tags = serde_json::Map::new();
+    let total_discs = libvellum::resolvers::calculate_total_discs(ctx.tracks);
+    obj.insert("total_discs".to_string(), json!(total_discs));
+    obj.insert("total_tracks".to_string(), json!(ctx.tracks.len()));
+
+    obj.insert("id".to_string(), json!(libvellum::resolvers::rel_path(ctx.album_root, ctx.library_root)));
+
+    let mut keys = serde_json::Map::new();
     for (key, meta) in registry {
         if meta.get("level").and_then(Value::as_str) != Some("album") {
             continue;
         }
-
-        if ["album", "albumartist", "date", "genre", "comment", "original_date", "release_date"].contains(&key.as_str()) {
+        if ["album", "albumartist", "date", "genre", "comment", "original_date", "release_date", "styles"].contains(&key.as_str()) {
             continue;
         }
         let val = resolvers::resolve_album_key(key, meta, ctx)?.unwrap_or(Value::Null);
-        tags.insert(key.clone(), val);
+        keys.insert(key.clone(), val);
     }
+    obj.insert("keys".to_string(), Value::Object(keys));
 
-    obj.insert("tags".to_string(), Value::Object(tags));
+    let mut info = serde_json::Map::new();
+    info.insert("date_added".to_string(), json!(libvellum::resolvers::resolve_album_info_date_added(ctx.album_root, ctx.source, ctx.config)?));
+    
+    let dur_ms: u64 = ctx.tracks.iter()
+        .filter_map(|t| t.get("info").and_then(|i| i.get("duration_milliseconds")).and_then(Value::as_u64))
+        .sum();
+    info.insert("duration_milliseconds".to_string(), json!(dur_ms));
+    info.insert("duration_formatted".to_string(), json!(libvellum::resolvers::format_ms(dur_ms)));
+    
+    obj.insert("info".to_string(), Value::Object(info));
+
+    obj.insert("manifests".to_string(), Value::Array(ctx.manifests.clone()));
+    obj.insert("covers".to_string(), ctx.covers.clone());
+
     Ok(Value::Object(obj))
 }

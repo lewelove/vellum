@@ -1,4 +1,4 @@
-use crate::compile::builder::assets::CoverMetrics;
+use libvellum::models::CoverMetrics;
 use crate::harvest::TrackJson;
 use serde_json::Value;
 use std::path::Path;
@@ -8,15 +8,10 @@ pub struct AlbumContext<'a> {
     pub tracks: &'a [Value],
     pub album_root: &'a Path,
     pub library_root: &'a Path,
-    pub meta_hash: &'a str,
-    pub meta_mtime: u64,
-    pub manifests_mtime_sum: u64,
-    pub cover_hash: &'a str,
-    pub cover_path: Option<&'a str>,
-    pub cover_mtime: u64,
-    pub cover_byte_size: u64,
     pub cover_metrics: Option<&'a CoverMetrics>,
     pub config: &'a Value,
+    pub manifests: Vec<Value>,
+    pub covers: Value,
 }
 
 pub struct TrackContext<'a> {
@@ -26,5 +21,4 @@ pub struct TrackContext<'a> {
     pub source: &'a Value,
     pub album_source: &'a Value,
     pub album_root: &'a Path,
-    pub library_root: &'a Path,
 }

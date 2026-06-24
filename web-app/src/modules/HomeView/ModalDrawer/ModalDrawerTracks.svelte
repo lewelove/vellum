@@ -18,17 +18,17 @@
 
   function formatDuration(str: string) {
     if (!str) return "0:00";
-    
+
     let parts = str.split(':');
-    
+
     while (parts.length > 2 && parseInt(parts[0]) === 0) {
       parts.shift();
     }
-    
+
     if (parts[0].length > 1 && parts[0].startsWith('0')) {
       parts[0] = parts[0].substring(1);
     }
-    
+
     return parts.join(':');
   }
 
@@ -38,7 +38,7 @@
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
     const s = totalSeconds % 60;
-    
+
     const pad = (num: number) => String(num).padStart(2, '0');
 
     if (h > 0) {
@@ -50,7 +50,7 @@
   function getDiscDuration(discNumber: number) {
     const totalMs = tracks
       .filter(t => t.discnumber === discNumber)
-      .reduce((acc, t) => acc + (parseInt(t.info?.track_duration) || 0), 0);
+      .reduce((acc, t) => acc + (parseInt(t.info?.duration_milliseconds) || 0), 0);
     return formatMs(totalMs);
   }
 
@@ -82,7 +82,7 @@
       {/if}
       <div class="disc-header-row">
         <span class="disc-label">Disc {track.discnumber}</span>
-        
+
         <div class="disc-header-right">
           <span class="v-mono disc-duration-label">{getDiscDuration(track.discnumber)}</span>
           <button 
@@ -121,7 +121,7 @@
           <span class="v-truncate v-track-artist track-artist">{track.artist}</span>
         {/if}
       </div>
-      <span class="v-mono v-track-meta track-meta">{formatDuration(track.info?.track_duration_time)}</span>
+      <span class="v-mono v-track-meta track-meta">{formatDuration(track.info?.duration_formatted)}</span>
     </div>
   {/each}
 </div>

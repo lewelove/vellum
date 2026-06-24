@@ -1,16 +1,12 @@
 use crate::error::VellumError;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::path::Path;
-use std::time::SystemTime;
 use crate::types::toml_to_json;
 
 pub struct ManifestData {
     pub json: Value,
-    pub meta_hash: String,
-    pub meta_mtime: u64,
-    pub manifests_mtime_sum: u64,
+    pub manifests: Vec<String>,
 }
 
 pub fn load_and_merge(
@@ -18,71 +14,41 @@ pub fn load_and_merge(
     manifest_names: Option<&Vec<Value>>,
 ) -> Result<ManifestData, VellumError> {
     let metadata_path = album_root.join("metadata.toml");
-    let meta = std::fs::metadata(&metadata_path)
+    let _ = std::fs::metadata(&metadata_path)
         .map_err(|_| VellumError::MissingPrimaryManifest { path: album_root.to_path_buf() })?;
 
-    let meta_mtime = meta
-        .modified()
-        .unwrap_or(SystemTime::UNIX_EPOCH)
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let manifests_mtime_sum = calculate_manifests_mtime_sum(album_root, manifest_names, meta_mtime);
-
+    let mut manifests = vec!["metadata.toml".to_string()];
     let content = std::fs::read_to_string(&metadata_path)?;
-    let meta_hash = format!("{:x}", Sha256::digest(content.as_bytes()));
 
     let parsed_toml = toml::from_str::<toml::Value>(&content)
         .map_err(|source| VellumError::ManifestParseError { path: metadata_path.clone(), source })?;
     let mut metadata_json = toml_to_json(parsed_toml);
 
-    if let Some(manifests) = manifest_names {
-        for m_val in manifests {
+    if let Some(names) = manifest_names {
+        for m_val in names {
             if let Some(m_name) = m_val.as_str() {
-                merge_auxiliary_manifest(album_root, m_name, &mut metadata_json)?;
+                let is_merged = merge_auxiliary_manifest(album_root, m_name, &mut metadata_json)?;
+                if is_merged {
+                    manifests.push(m_name.to_string());
+                }
             }
         }
     }
 
     Ok(ManifestData {
         json: metadata_json,
-        meta_hash,
-        meta_mtime,
-        manifests_mtime_sum,
+        manifests,
     })
-}
-
-fn calculate_manifests_mtime_sum(
-    album_root: &Path,
-    manifest_names: Option<&Vec<Value>>,
-    base_mtime: u64,
-) -> u64 {
-    let mut sum = base_mtime;
-    if let Some(manifests) = manifest_names {
-        for m_val in manifests {
-            if let Some(m_name) = m_val.as_str() {
-                let m_path = album_root.join(m_name);
-                if m_path.exists() {
-                    sum += std::fs::metadata(&m_path)
-                        .and_then(|m| m.modified())
-                        .map(|t| t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs())
-                        .unwrap_or(0);
-                }
-            }
-        }
-    }
-    sum
 }
 
 fn merge_auxiliary_manifest(
     album_root: &Path,
     m_name: &str,
     primary_json: &mut Value,
-) -> Result<(), VellumError> {
+) -> Result<bool, VellumError> {
     let m_path = album_root.join(m_name);
     if !m_path.exists() {
-        return Ok(());
+        return Ok(false);
     }
     let m_content = std::fs::read_to_string(&m_path)?;
     let parsed_aux = toml::from_str::<toml::Value>(&m_content)
@@ -99,10 +65,11 @@ fn merge_auxiliary_manifest(
         }
 
     if let Some(aux_tracks) = m_json.get_mut("tracks").and_then(Value::as_array_mut)
-        && !aux_tracks.is_empty() {
-            merge_aux_tracks(album_root, m_name, aux_tracks, primary_json)?;
-        }
-    Ok(())
+        .filter(|t| !t.is_empty())
+    {
+        merge_aux_tracks(album_root, m_name, aux_tracks, primary_json)?;
+    }
+    Ok(true)
 }
 
 fn merge_aux_tracks(

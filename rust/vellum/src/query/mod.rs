@@ -64,7 +64,7 @@ pub async fn run(query_str: Option<String>, flags: QueryFlags) -> Result<()> {
 
     for id in target_ids {
         if flags.raw {
-            let lock_file_path = lib_root.join(&id).join("metadata.lock.json");
+            let lock_file_path = lib_root.join(&id).join("album.lock.json");
             if let Ok(content) = std::fs::read_to_string(&lock_file_path) {
                 println!("{content}");
             }
@@ -75,7 +75,7 @@ pub async fn run(query_str: Option<String>, flags: QueryFlags) -> Result<()> {
             let final_path = if flags.toml {
                 base_path.join("metadata.toml")
             } else if flags.lock {
-                base_path.join("metadata.lock.json")
+                base_path.join("album.lock.json")
             } else {
                 base_path
             };

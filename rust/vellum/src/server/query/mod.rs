@@ -205,7 +205,7 @@ impl QueryEngine {
         if !logic_path.exists() {
             std::fs::write(&logic_path, DEFAULT_LOGIC)?;
         }
-        
+
         let logic_content = std::fs::read_to_string(&logic_path)?;
         let mut manifest: LogicManifest = toml::from_str(&logic_content)?;
         manifest.normalize();
@@ -279,14 +279,17 @@ impl QueryEngine {
                     if let Some(tracks) = parsed.get("tracks").and_then(Value::as_array) {
                         for track in tracks {
                             if let Some(tinfo) = track.get("info") {
-                                let tp = tinfo.get("track_library_path").and_then(Value::as_str).unwrap_or("").to_string();
+                                let rel = track.get("file").and_then(|f| f.get("path")).and_then(Value::as_str).unwrap_or("");
+                                let tp_path = Path::new(id).join(rel);
+                                let tp = tp_path.to_string_lossy().to_string();
+
                                 let track_no = track.get("tracknumber").cloned().unwrap_or_else(|| json!(0));
                                 let disc_no = track.get("discnumber").cloned().unwrap_or_else(|| json!(1));
                                 let title = track.get("title").cloned().unwrap_or_else(|| json!("Unknown"));
                                 let artist = track.get("artist").cloned().unwrap_or_else(|| json!("Unknown"));
-                                let duration = tinfo.get("track_duration_time").cloned().unwrap_or_else(|| json!("0:00"));
-                                let duration_ms = tinfo.get("track_duration").and_then(Value::as_u64).unwrap_or(0);
-                                
+                                let duration = tinfo.get("duration_formatted").cloned().unwrap_or_else(|| json!("0:00"));
+                                let duration_ms = tinfo.get("duration_milliseconds").and_then(Value::as_u64).unwrap_or(0);
+
                                 let track_light = json!({
                                     "path": tp,
                                     "trackNo": track_no,
@@ -299,8 +302,7 @@ impl QueryEngine {
                                 });
                                 self.track_lookup.insert(tp.clone(), track_light);
 
-                                let raw_rel = tinfo.get("track_path").and_then(Value::as_str).unwrap_or("");
-                                let full_rel_path = Path::new(id).join(raw_rel);
+                                let full_rel_path = Path::new(id).join(rel);
                                 let normalized = full_rel_path.to_string_lossy().trim_start_matches('/').to_string();
                                 self.path_lookup.insert(normalized, id.to_string());
                             }
@@ -313,13 +315,13 @@ impl QueryEngine {
                         "albumartist": album.get("albumartist"),
                         "date": album.get("date"),
                         "genre": album.get("genre"),
-                        "cover_path": info.get("cover_path"),
-                        "cover_hash": info.get("cover_hash"),
-                        "album_duration_time": info.get("album_duration_time"),
-                        "total_discs": info.get("total_discs"),
-                        "total_tracks": info.get("total_tracks"),
-                        "unix_added": info.get("unix_added"),
-                        "tags": album.get("tags")
+                        "cover_path": album.get("covers").and_then(|c| c.get("main")).and_then(|m| m.get("file")).and_then(|f| f.get("path")),
+                        "cover_hash": album.get("covers").and_then(|c| c.get("main")).and_then(|m| m.get("file")).and_then(|f| f.get("hash")).and_then(|h| h.get("address")),
+                        "duration_formatted": info.get("duration_formatted"),
+                        "total_discs": album.get("total_discs"),
+                        "total_tracks": album.get("total_tracks"),
+                        "unix_added": info.get("date_added"),
+                        "keys": album.get("keys")
                     });
                     self.dict.insert(id.to_string(), entry);
                 }
@@ -377,7 +379,7 @@ impl QueryEngine {
                         .map(|l| l.trim().to_string())
                         .filter(|l| !l.is_empty() && !l.starts_with('#'))
                         .collect();
-                    
+
                     if let Ok(json_arr) = serde_json::to_string(&lines) {
                         let sql = "SELECT a.uid FROM json_each(?1) j JOIN albums a ON a.id = j.value ORDER BY j.key";
                         if let Ok(mut stmt) = self.conn.prepare(sql) {
@@ -410,13 +412,13 @@ impl QueryEngine {
             let sql = format!("SELECT uid, {expanded_select} FROM albums");
             let mut stmt = self.conn.prepare(&sql)?;
             let mut rows = stmt.query([])?;
-            
+
             let mut map: HashMap<String, HashSet<u32>> = HashMap::new();
-            
+
             while let Some(row) = rows.next()? {
                 let uid: u32 = row.get(0)?;
                 let raw_val: rusqlite::types::Value = row.get(1)?;
-                
+
                 let val_str = match raw_val {
                     rusqlite::types::Value::Text(s) => s,
                     rusqlite::types::Value::Integer(i) => i.to_string(),
@@ -516,7 +518,7 @@ impl QueryEngine {
                 }
             }
         }
-        
+
         results.sort_by(|a, b| {
             let label_a = a.get("label").and_then(Value::as_str).unwrap_or("").to_lowercase();
             let label_b = b.get("label").and_then(Value::as_str).unwrap_or("").to_lowercase();

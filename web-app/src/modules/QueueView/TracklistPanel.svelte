@@ -52,7 +52,7 @@
 
   let mappedTracks = $derived(player.queue.map(item => {
     const fullAlbum = item.album_id ? library.fullAlbumCache[item.album_id] : null;
-    const meta = fullAlbum?.tracks?.find((t: any) => t.info?.track_library_path === item.file);
+    const meta = fullAlbum?.tracks?.find((t: any) => `${fullAlbum.album.id}/${t.file?.path}` === item.file);
 
     return {
       id: item.id,
@@ -60,8 +60,8 @@
       isPlaying: player.currentFile === item.file,
       trackNo: meta ? meta.tracknumber : "#",
       discNo: meta ? meta.discnumber : 1,
-      duration: meta ? meta.info?.track_duration_time : "",
-      durationMs: meta ? meta.info?.track_duration : 0,
+      duration: meta ? meta.info?.duration_formatted : "",
+      durationMs: meta ? meta.info?.duration_milliseconds : 0,
       title: meta ? meta.title : (item.title || item.file),
       artist: meta ? meta.artist : (item.artist || ""),
       albumId: item.album_id || null
@@ -136,7 +136,7 @@
 
             {#each group.tracks as track, i (track.id)}
               {@const showDiscHeader = isMultiDiscAlbum && (i === 0 || track.discNo !== group.tracks[i-1].discNo)}
-              
+
               {#if showDiscHeader}
                 {#if i > 0}
                   <div class="disc-separator"></div>
@@ -172,9 +172,9 @@
         </div>
       </div>
     </div>
-    
+
     <div class="panel-splitter"></div>
-    
+
     <div class="sidebar-buttons">
       {@render NavButtons()}
     </div>

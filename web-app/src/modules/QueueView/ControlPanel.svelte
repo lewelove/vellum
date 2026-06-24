@@ -4,13 +4,13 @@
 
   let currentFile = $derived(player.currentFile);
   let activeId = $derived(player.currentAlbumId);
-  
+
   let fullAlbum = $derived(activeId ? library.fullAlbumCache[activeId] : null);
-  let currentTrackFull = $derived(fullAlbum?.tracks?.find((t: any) => t.info?.track_library_path === currentFile) || null);
+  let currentTrackFull = $derived(fullAlbum?.tracks?.find((t: any) => `${fullAlbum.album.id}/${t.file?.path}` === currentFile) || null);
 
   let lyricsText = $state("");
   let isLoading = $state(false);
-  let isInstrumental = $derived(currentTrackFull?.tags?.instrumental === true);
+  let isInstrumental = $derived(currentTrackFull?.keys?.instrumental === true);
 
   let title = $derived(currentTrackFull?.title || player.title || "Unknown Title");
   let artist = $derived(currentTrackFull?.artist || player.artist || "Unknown Artist");
@@ -54,19 +54,19 @@
       return;
     }
 
-    if (trackFull.tags?.instrumental === true) {
+    if (trackFull.keys?.instrumental === true) {
       lyricsText = "";
       isLoading = false;
       return;
     }
 
-    if (trackFull.info?.lyrics_path) {
+    if (trackFull.lyrics && trackFull.lyrics.file) {
       isLoading = true;
       try {
           const encodedId = encodeURIComponent(activeId as string);
-          const pathPart = trackFull.info.lyrics_path; 
+          const pathPart = trackFull.lyrics.file.path; 
           const url = `/api/assets/lyrics/${encodedId}/${pathPart}`;
-          
+
           const res = await fetch(url);
           if (res.ok) {
               lyricsText = await res.text();
@@ -75,13 +75,13 @@
           }
       } catch (e) {}
     }
-    
-    if (trackFull.tags && trackFull.tags.lyrics) {
-      lyricsText = trackFull.tags.lyrics;
+
+    if (trackFull.keys && trackFull.keys.lyrics) {
+      lyricsText = trackFull.keys.lyrics;
     } else {
       lyricsText = "";
     }
-    
+
     isLoading = false;
   }
 
