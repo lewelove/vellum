@@ -50,7 +50,7 @@
         // definition of object for any file
         "file": {
           
-          // relative to album.id file pathFlac
+          // relative to album.id file path
           "path": "/",
 
           // present for every file except in tracks[]
