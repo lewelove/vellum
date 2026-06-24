@@ -126,7 +126,7 @@
                   </div>
                   <div class="header-row">
                     <span class="v-truncate header-artist">{group.albumMeta.albumartist}</span>
-                    <span class="v-mono header-meta">{group.albumMeta.album_duration_time}</span>
+                    <span class="v-mono header-meta">{group.albumMeta.duration_formatted}</span>
                   </div>
                 </div>
               </div>
@@ -136,7 +136,7 @@
 
             {#each group.tracks as track, i (track.id)}
               {@const showDiscHeader = isMultiDiscAlbum && (i === 0 || track.discNo !== group.tracks[i-1].discNo)}
-
+              
               {#if showDiscHeader}
                 {#if i > 0}
                   <div class="disc-separator"></div>
@@ -172,9 +172,9 @@
         </div>
       </div>
     </div>
-
+    
     <div class="panel-splitter"></div>
-
+    
     <div class="sidebar-buttons">
       {@render NavButtons()}
     </div>

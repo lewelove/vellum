@@ -1,5 +1,5 @@
 <script lang="ts">
-import { fade } from "svelte/transition";
+  import { fade } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { 
     playAlbum, 
@@ -346,4 +346,3 @@ import { fade } from "svelte/transition";
     width: 0px;
   }
 </style>
-

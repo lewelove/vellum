@@ -14,7 +14,7 @@
   let coverHash = $derived(activeAlbum?.cover_hash || "");
   let fullAlbum = $derived(activeId ? library.fullAlbumCache[activeId] : null);
 
-  let palette = $derived(fullAlbum?.album?.tags?.cover_palette || activeAlbum?.tags?.cover_palette || []);
+  let palette = $derived(fullAlbum?.album?.keys?.cover_palette || activeAlbum?.keys?.cover_palette || []);
   let hasPalette = $derived(palette && palette.length > 0);
 
   let isViewVisible = $derived(nav.activeTab === 'queue');

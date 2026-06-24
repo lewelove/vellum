@@ -5,13 +5,13 @@ import { nav } from "./navigation.svelte.ts";
 class LibraryState {
   dict: Record<string, any> = $state({});
   trackPathMap: Record<string, any> = $state({});
-
+  
   libraryViewIds: string[] = $state([]);
   shelfViewIds: string[] = $state([]);
-
+  
   libraryAlbums = $derived(this.mapIdsToAlbums(this.libraryViewIds));
   shelfAlbums = $derived(this.mapIdsToAlbums(this.shelfViewIds));
-
+  
   mapIdsToAlbums(ids: string[]): any[] {
     return ids.map(id => {
       let a = this.dict[id];
@@ -22,16 +22,16 @@ class LibraryState {
           cover_hash: a.cover_hash,
           total_discs: a.total_discs,
           total_tracks: a.total_tracks,
-          album_duration_time: a.duration_formatted,
-          tags: a.keys
+          duration_formatted: a.duration_formatted,
+          keys: a.keys
       } : null;
     }).filter(Boolean);
   }
-
+  
   sidebarGroups: Map<string, any[]> = $state(new Map()); 
   isLoading: boolean = $state(true);
   isConnected: boolean = $state(false);
-
+  
   homeSubView: "library" | "shelves" = $state("library");
   focusedAlbums: Record<string, any> = $state({ library: null, shelves: null, queue: null });
 
@@ -44,7 +44,7 @@ class LibraryState {
     const key = nav.activeTab === 'home' ? this.homeSubView : nav.activeTab;
     this.focusedAlbums[key] = val;
   }
-
+  
   activeLibrary: string = $state("library");
   activeLibraryFilter: string | null = $state(null);
   activeFilter: { key: string | null, val: string | null } = $state({ key: null, val: null });
@@ -114,7 +114,7 @@ class LibraryState {
     this.activeSort = $state.snapshot(state.activeSort);
     this.activeFilter = $state.snapshot(state.activeFilter);
   }
-
+  
   libraryVersion: number = $state(0);
   shelfVersion: number = $state(0);
 
@@ -124,9 +124,9 @@ class LibraryState {
   isShaderActive: boolean = $derived(this.isShaderEnabled && player.state !== "stop");
   queuePanels: Record<string, boolean> = $state({ hud: true });
   themeVersion: number = $state(Date.now());
-
+  
   sidebarWidth: number = $state(280);
-
+  
   manifest: Record<string, any> = $state({ filters: {}, libraries: {}, groupers: {}, orders: {}, shelves: {} });
 
   config: Record<string, any> = $state({
@@ -177,7 +177,7 @@ class LibraryState {
       if (json.config) this.config = { ...this.config, ...json.config };
       if (json.ui_state) {
           this.applyPersistedState(json.ui_state);
-
+          
           const libDef = this.availableLibraries[this.activeLibrary];
           if (libDef) {
               if (libDef.allowed_filters && !libDef.allowed_filters.includes(this.activeLibraryFilter)) {
@@ -195,14 +195,14 @@ class LibraryState {
               }
           }
       }
-
+      
       this.orchestratePrewarming();
       this.refreshView(true);
       this.refreshSidebar();
-
+      
     } else if (json.type === "VIEW_DATA") {
       const isShelves = (nav.activeTab === "home" && this.homeSubView === "shelves");
-
+      
       if (isShelves) {
         this.shelfViewIds = json.ids || [];
         if (this._pendingViewReset) this.shelfVersion++;
@@ -210,7 +210,7 @@ class LibraryState {
         this.libraryViewIds = json.ids || [];
         if (this._pendingViewReset) this.libraryVersion++;
       }
-
+      
       this.isLoading = false;
       this._pendingViewReset = false;
     } else if (json.type === "GROUP_RESULT") {
@@ -226,7 +226,7 @@ class LibraryState {
     } else if (json.type === "ALBUM_REMOVED") {
       delete this.dict[json.id];
       delete this.fullAlbumCache[json.id];
-
+      
       for (const tab of Object.keys(this.focusedAlbums)) {
         if (this.focusedAlbums[tab] && this.focusedAlbums[tab].id === json.id) {
           this.focusedAlbums[tab] = null;
@@ -242,7 +242,7 @@ class LibraryState {
         delete this.dict[json.id];
       }
       delete this.fullAlbumCache[json.id];
-
+      
       for (const tab of Object.keys(this.focusedAlbums)) {
         if (this.focusedAlbums[tab] && this.focusedAlbums[tab].id === json.id) {
           this.ensureFullAlbum(json.id).then(data => {
@@ -304,7 +304,7 @@ class LibraryState {
       this.homeSubView = state.homeSubView || "library";
       this.librariesState = state.librariesState || {};
       this.activeLibrary = state.activeLibrary || state.activeCollection || "library";
-
+      
       this.loadLibraryState(this.activeLibrary);
 
       if (state.activeLibraryFilter !== undefined) this.activeLibraryFilter = state.activeLibraryFilter;
@@ -322,7 +322,7 @@ class LibraryState {
       this.activeShelf = state.activeShelf || null;
       this.isShaderEnabled = state.isShaderEnabled ?? true;
       this.sidebarWidth = state.sidebarWidth || 280;
-
+      
       this.queuePanels = state.queuePanels || { hud: true };
       if (this.queuePanels.hud === undefined) {
         this.queuePanels.hud = this.queuePanels.control !== false;
@@ -358,7 +358,7 @@ class LibraryState {
   refreshView(resetScroll: boolean = true) {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
     this._pendingViewReset = resetScroll;
-
+    
     if (nav.activeTab === "home" && this.homeSubView === "shelves") {
         const firstShelf = (this.manifest.shelves_order && this.manifest.shelves_order[0]) || Object.keys(this.availableShelves)[0];
         this._ws.send(JSON.stringify({
@@ -547,7 +547,7 @@ class LibraryState {
     const key = nav.activeTab === 'home' ? this.homeSubView : nav.activeTab;
     this.focusedAlbums[key] = null;
   }
-
+  
   toggleShader() {
     this.isShaderEnabled = !this.isShaderEnabled;
     this.persistState();
