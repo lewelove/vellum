@@ -1,4 +1,6 @@
 **/target/
+**/result/
+**/result
 **/node_modules/
 .direnv/
 .repomixignore

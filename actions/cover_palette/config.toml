@@ -1,0 +1,4 @@
+type = "kmeansnv"
+sort = "gradient"
+args = "k=12,n=12,d=0.0"
+threshold = 0.001
