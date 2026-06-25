@@ -2,7 +2,7 @@ mod compile;
 mod harvest;
 mod manifest;
 mod query;
-mod run;
+mod x;
 mod server;
 mod update;
 
@@ -67,13 +67,15 @@ enum Commands {
         #[arg(long)]
         stdout: bool,
     },
-    Run {
+    X {
         #[arg(value_name = "NAME", required = true)]
         name: String,
         #[arg(long, short = 'p')]
         playing: bool,
         #[arg(long)]
         id: Option<String>,
+        #[arg(long, short = 'q', conflicts_with_all = ["playing", "id"])]
+        query: Option<String>,
         #[arg(long, short = 'i')]
         intermediary: bool,
     },
@@ -179,7 +181,7 @@ async fn main() -> Result<()> {
             let options = manifest::ManifestOptions { mode, force, stdout };
             manifest::run(expanded, &options)
         }
-        Commands::Run { name, playing, id, intermediary } => run::execute(name, playing, id, intermediary).await,
+        Commands::X { name, playing, id, query, intermediary } => x::execute(name, playing, id, query, intermediary).await,
         Commands::Query { query_str, playing, lock, id, uid, json } => {
             let flags = query::QueryFlags { playing, lock, id, uid, json };
             query::run(query_str, flags).await

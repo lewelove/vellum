@@ -33,44 +33,64 @@ pub async fn execute(
     name: String,
     playing: bool,
     id_arg: Option<String>,
+    query_arg: Option<String>,
     intermediary: bool,
 ) -> Result<()> {
     let (config, _, config_path) = AppConfig::load().context("Failed to load config")?;
     let config_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
 
-    if !playing && id_arg.is_none() {
-        anyhow::bail!("At least one flag (--playing or --id) must be provided.");
+    if !playing && id_arg.is_none() && query_arg.is_none() {
+        anyhow::bail!("At least one flag (--playing, --id, or --query) must be provided.");
     }
 
     let library_root = expand_path(&config.storage.library_root)
         .canonicalize()
         .unwrap_or_else(|_| expand_path(&config.storage.library_root));
 
-    let target_id = if let Some(id) = id_arg {
-        id
+    let target_ids = if let Some(query_str) = query_arg {
+        let client = reqwest::Client::new();
+        let res = client
+            .post("http://127.0.0.1:8000/api/internal/query")
+            .json(&serde_json::json!({ 
+                "query": query_str
+            }))
+            .send()
+            .await
+            .context("Failed to connect to the Vellum server. Is it running?")?;
+
+        if !res.status().is_success() {
+            let err_text = res.text().await.unwrap_or_default();
+            anyhow::bail!("Server rejected query: {err_text}");
+        }
+
+        res.json().await.context("Invalid response from server")?
+    } else if let Some(id) = id_arg {
+        vec![id]
     } else if playing {
         let playing_path = get_playing_album(&config.storage.library_root).await?;
-        playing_path
+        let id = playing_path
             .strip_prefix(&library_root)
             .map_or_else(
                 |_| playing_path.to_string_lossy().to_string(),
                 |p| p.to_string_lossy().to_string(),
-            )
+            );
+        vec![id]
     } else {
         unreachable!();
     };
 
-    let lock_file_path = library_root.join(&target_id).join("album.lock.json");
-    let json_data = std::fs::read_to_string(&lock_file_path).context(format!(
-        "Failed to read album.lock.json for album '{target_id}'"
-    ))?;
+    let mut lock_jsons = Vec::new();
+    for target_id in &target_ids {
+        let lock_file_path = library_root.join(target_id).join("album.lock.json");
+        if let Ok(json_data) = std::fs::read_to_string(&lock_file_path)
+            && let Ok(lock_json) = serde_json::from_str::<serde_json::Value>(&json_data)
+        {
+            lock_jsons.push(lock_json);
+        }
+    }
 
-    let lock_json: serde_json::Value = serde_json::from_str(&json_data)?;
     let config_json = serde_json::to_value(&config)?;
-    let combined_json = serde_json::json!({
-        "config": config_json,
-        "album": lock_json
-    });
+    let combined_json = serde_json::json!([lock_jsons, config_json]);
 
     if intermediary {
         let pretty_json = serde_json::to_string_pretty(&combined_json)?;
@@ -78,58 +98,58 @@ pub async fn execute(
         return Ok(());
     }
 
-    let script_rel_path = config
-        .scripts
+    let action_rel_path = config
+        .actions
         .as_ref()
         .and_then(|s| s.get(&name))
-        .context(format!("Script '{name}' not found in config.toml [scripts] section"))?;
+        .context(format!("Action '{name}' not found in config.toml [actions] section"))?;
 
-    let script_path = if Path::new(script_rel_path).is_absolute() {
-        PathBuf::from(script_rel_path)
+    let action_path = if Path::new(action_rel_path).is_absolute() {
+        PathBuf::from(action_rel_path)
     } else {
-        config_dir.join(script_rel_path)
+        config_dir.join(action_rel_path)
     };
 
-    if !script_path.exists() {
-        anyhow::bail!("Script path '{}' does not exist.", script_path.display());
+    if !action_path.exists() {
+        anyhow::bail!("Action path '{}' does not exist.", action_path.display());
     }
 
     let env_vars = load_env_vars(&config);
 
-    log::info!("Executing script '{name}' for album '{target_id}'");
+    log::info!("Executing action '{name}' for {} album(s)", target_ids.len());
 
-    let cmd = if script_path.extension().is_some_and(|e| e == "py") {
+    let cmd = if action_path.extension().is_some_and(|e| e == "py") {
         "python"
-    } else if script_path.extension().is_some_and(|e| e == "sh") {
+    } else if action_path.extension().is_some_and(|e| e == "sh") {
         "sh"
     } else {
-        script_path.to_str().unwrap()
+        action_path.to_str().unwrap()
     };
 
     let mut command = Command::new(cmd);
     command.envs(&env_vars);
     if cmd == "python" || cmd == "sh" {
-        command.arg(&script_path);
+        command.arg(&action_path);
     }
 
     let mut child = command
         .stdin(Stdio::piped())
         .spawn()
-        .context(format!("Failed to spawn script at {}", script_path.display()))?;
+        .context(format!("Failed to spawn action at {}", action_path.display()))?;
 
     if let Some(mut stdin) = child.stdin.take() {
         let payload = serde_json::to_string(&combined_json)?;
         stdin
             .write_all(payload.as_bytes())
-            .context("Failed to write to script stdin")?;
+            .context("Failed to write to action stdin")?;
     }
 
-    let status = child.wait().context("Failed to wait on script")?;
+    let status = child.wait().context("Failed to wait on action")?;
 
     if status.success() {
-        log::info!("Script completed successfully.");
+        log::info!("Action completed successfully.");
     } else {
-        log::error!("Script failed with status: {status}");
+        log::error!("Action failed with status: {status}");
     }
 
     Ok(())

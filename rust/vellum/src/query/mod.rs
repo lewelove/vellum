@@ -37,7 +37,7 @@ pub async fn run(query_str: Option<String>, flags: QueryFlags) -> Result<()> {
         let ids: Vec<String> = res.json().await.context("Invalid response from server")?;
         target_ids = ids;
     } else if flags.playing {
-        let playing_path = crate::run::get_playing_album(&config.storage.library_root).await?;
+        let playing_path = crate::x::get_playing_album(&config.storage.library_root).await?;
         let rel_path = playing_path.strip_prefix(&lib_root).map_or_else(|_| playing_path.to_string_lossy().to_string(), |p| p.to_string_lossy().to_string());
         target_ids.push(rel_path);
     } else {

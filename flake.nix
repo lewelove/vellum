@@ -109,7 +109,7 @@
               ui-npm)
                 cd "$ROOT/web-app" && npm run dev
                 ;;
-              server|manifest|compile|update|harvest|run|query)
+              server|manifest|compile|update|harvest|x|query)
                 if [ ! -f "$BIN" ]; then
                   echo "Error: vellum binary not found at $BIN. Run 'build vellum --release' first."
                   exit 1
@@ -137,7 +137,7 @@
                 echo "  update          : Update library"
                 echo "  query           : Run SQL queries against the library"
                 echo "  harvest         : Harvest raw metadata to JSON"
-                echo "  run             : Run defined scripts via runtime router"
+                echo "  x               : Run defined actions via runtime router"
                 echo "    --lint        : Run clippy with -D warnings"
                 echo "    --fmt         : Run fmt check"
                 echo "    --deny        : Run cargo-deny check"
