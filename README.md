@@ -4,7 +4,7 @@ Vellum is an MPD client and album centric library manager built on plaintext arc
 
 ## Philosophy
 
-- **The Album as the Atomic Unit**. Vellum focuses purely on collection and management of albums. The point is to bring feeling of physical collecting to the digital landscape. Album is the base unit of Vellum because album is the base unit of any music collection in real life.
+- **The Album as the Atomic Unit**. Vellum focuses purely on collection and management of albums. The point is to bring feeling of physical collecting to the digital one. Album is the base unit of Vellum because album is the base unit of any music collection in real life.
 
 - **Immutable Audio / Mutable Metadata**. A ripped audio files should be a bit-perfect preservation of the original media. Audio files are inherently static; your metadata is inherently dynamic. This is why Vellum treats the audio file strictly as a read-only source and separates everything mutable into separate ancillary files.
 
@@ -24,8 +24,8 @@ Think of an album directory as of an entry in the physical archive. It contains 
 Vellum is in active development. To ensure a reproducible environment it is managed by Nix.
 
 **Prerequisites:** 
-* `nix`
-* A running `mpd` instance
+- `nix`
+- A running `mpd` instance
 
 ### 1. Setup the Environment
 
@@ -89,7 +89,8 @@ vellum ui
 
 The `vellum` CLI tool is the central driver for managing your library's state. 
 
-* `vellum manifest` — Scans your library root for unmanaged audio directories and generates the initial `metadata.toml` anchor files.
-* `vellum update` — The core compiler command. Reads your TOML changes and writes the resolved `metadata.lock.json` files.
-* `vellum server` — Starts the Axum backend server and the MPD synchronization watchdog.
-* `vellum ui` — Starts the Vite/Svelte development server for the web interface.
+- `vellum manifest` — Scans your library root for unmanaged audio directories and generates the initial `metadata.toml` anchor files.
+- `vellum update` — The core compiler command. Reads your TOML changes and writes the resolved `metadata.lock.json` files.
+- `vellum server` — Starts the Axum backend server and the MPD synchronization watchdog.
+- `vellum ui` — Starts the Vite/Svelte development server for the web interface.
+- `vellum x` — Run defined actions via runtime router.
