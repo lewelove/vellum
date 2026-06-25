@@ -54,7 +54,7 @@ fn main() -> Result<()> {
 
     let library_root = expand_path(library_root_str);
 
-    let config_path = expand_path("~/.config/vellum/scripts/cover_palette/config.toml");
+    let config_path = expand_path("~/dev/vellum/actions/cover_palette/config.toml");
     let script_config: ScriptConfig = if config_path.exists() {
         let content = std::fs::read_to_string(&config_path)?;
         toml::from_str(&content).unwrap_or_default()
