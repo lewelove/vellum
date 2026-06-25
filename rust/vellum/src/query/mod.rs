@@ -4,10 +4,10 @@ use libvellum::utils::expand_path;
 
 pub struct QueryFlags {
     pub playing: bool,
-    pub toml: bool,
     pub lock: bool,
-    pub raw: bool,
     pub id: bool,
+    pub uid: bool,
+    pub json: bool,
 }
 
 pub async fn run(query_str: Option<String>, flags: QueryFlags) -> Result<()> {
@@ -18,31 +18,13 @@ pub async fn run(query_str: Option<String>, flags: QueryFlags) -> Result<()> {
 
     let mut target_ids = Vec::new();
 
-    if let Some(q) = query_str {
-        let q_trim = q.trim();
-        let full_sql = if q_trim.is_empty() {
-            "SELECT id FROM albums".to_string()
-        } else {
-            let upper_q = q_trim.to_uppercase();
-            if upper_q.starts_with("SELECT") {
-                q_trim.to_string()
-            } else {
-                let prefix = if upper_q.starts_with("WHERE")
-                    || upper_q.starts_with("ORDER")
-                    || upper_q.starts_with("LIMIT")
-                {
-                    "SELECT id FROM albums "
-                } else {
-                    "SELECT id FROM albums WHERE "
-                };
-                format!("{prefix}{q_trim}")
-            }
-        };
-
+    if query_str.is_some() {
         let client = reqwest::Client::new();
         let res = client
             .post("http://127.0.0.1:8000/api/internal/query")
-            .json(&serde_json::json!({ "query": full_sql }))
+            .json(&serde_json::json!({ 
+                "query": query_str.unwrap_or_default()
+            }))
             .send()
             .await
             .context("Failed to connect to the Vellum server. Is it running?")?;
@@ -62,24 +44,32 @@ pub async fn run(query_str: Option<String>, flags: QueryFlags) -> Result<()> {
         anyhow::bail!("No query provided. Use --playing or provide an SQL query.");
     }
 
-    for id in target_ids {
-        if flags.raw {
-            let lock_file_path = lib_root.join(&id).join("album.lock.json");
-            if let Ok(content) = std::fs::read_to_string(&lock_file_path) {
-                println!("{content}");
+    if flags.json {
+        let mut albums = Vec::new();
+        for id in &target_ids {
+            let lock_file_path = lib_root.join(id).join("album.lock.json");
+            if let Ok(content) = std::fs::read_to_string(&lock_file_path)
+                && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&content)
+            {
+                albums.push(json_val);
             }
-        } else if flags.id {
-            println!("{id}");
-        } else {
-            let base_path = lib_root.join(&id);
-            let final_path = if flags.toml {
-                base_path.join("metadata.toml")
+        }
+        println!("{}", serde_json::to_string_pretty(&albums)?);
+    } else {
+        for id in target_ids {
+            if flags.id {
+                println!("{id}");
+            } else if flags.uid {
+                let base_path = lib_root.join(&id);
+                println!("{}", base_path.display());
             } else if flags.lock {
-                base_path.join("album.lock.json")
+                let base_path = lib_root.join(&id);
+                let final_path = base_path.join("album.lock.json");
+                println!("{}", final_path.display());
             } else {
-                base_path
-            };
-            println!("{}", final_path.display());
+                let base_path = lib_root.join(&id);
+                println!("{}", base_path.display());
+            }
         }
     }
 

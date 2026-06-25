@@ -83,13 +83,13 @@ enum Commands {
         #[arg(long)]
         playing: bool,
         #[arg(long)]
-        toml: bool,
-        #[arg(long)]
         lock: bool,
         #[arg(long)]
-        raw: bool,
-        #[arg(long)]
         id: bool,
+        #[arg(long)]
+        uid: bool,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -180,8 +180,8 @@ async fn main() -> Result<()> {
             manifest::run(expanded, &options)
         }
         Commands::Run { name, playing, id, intermediary } => run::execute(name, playing, id, intermediary).await,
-        Commands::Query { query_str, playing, toml, lock, raw, id } => {
-            let flags = query::QueryFlags { playing, toml, lock, raw, id };
+        Commands::Query { query_str, playing, lock, id, uid, json } => {
+            let flags = query::QueryFlags { playing, lock, id, uid, json };
             query::run(query_str, flags).await
         }
     }

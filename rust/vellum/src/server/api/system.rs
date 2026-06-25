@@ -230,19 +230,31 @@ pub async fn run_query(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Response {
-    if let Some(query_str) = payload.get("query").and_then(|q| q.as_str()) {
-        let expanded = crate::server::query::expand_shorthand(query_str);
-        let query = state.query.lock().await;
-        match query.query_ids(&expanded) {
-            Ok(ids) => return Json(ids).into_response(),
-            Err(e) => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({"error": e.to_string()})),
-                )
-                    .into_response();
-            }
+    let query = state.query.lock().await;
+    let q_str = payload.get("query").and_then(|v| v.as_str()).unwrap_or("").trim();
+    
+    let sql = if q_str.is_empty() {
+        "SELECT id FROM albums".to_string()
+    } else {
+        let upper_q = q_str.to_uppercase();
+        if upper_q.starts_with("SELECT") {
+            q_str.to_string()
+        } else {
+            let prefix = if upper_q.starts_with("WHERE")
+                || upper_q.starts_with("ORDER")
+                || upper_q.starts_with("LIMIT")
+            {
+                "SELECT id FROM albums "
+            } else {
+                "SELECT id FROM albums WHERE "
+            };
+            format!("{prefix}{q_str}")
         }
+    };
+
+    let expanded = crate::server::query::expand_shorthand(&sql);
+    match query.query_ids(&expanded) {
+        Ok(ids) => Json(ids).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"error": e.to_string()}))).into_response(),
     }
-    StatusCode::BAD_REQUEST.into_response()
 }
