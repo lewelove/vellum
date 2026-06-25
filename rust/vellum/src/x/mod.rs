@@ -104,10 +104,12 @@ pub async fn execute(
         .and_then(|s| s.get(&name))
         .context(format!("Action '{name}' not found in config.toml [actions] section"))?;
 
-    let action_path = if Path::new(action_rel_path).is_absolute() {
-        PathBuf::from(action_rel_path)
+    let expanded_action_path = expand_path(action_rel_path);
+
+    let action_path = if expanded_action_path.is_absolute() {
+        expanded_action_path
     } else {
-        config_dir.join(action_rel_path)
+        config_dir.join(expanded_action_path)
     };
 
     if !action_path.exists() {
