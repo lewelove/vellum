@@ -11,22 +11,20 @@ Vellum is an MPD client and album centric library manager built on plaintext arc
 ## Cool Features
 
 ### All Metadata in Plaintext
-Entire library metadata: from songs names and album length in milliseconds, to custom source urls of where you got it and ReplayGain values, to literally anything specific you can **write** about an album in your collection is stored and compiled within ancillary plaintext files. Edit them in Neovim, version control them, upload them to remote repository. Every change can be tracked, backed up and reverted, completely independent of the audio file's embedded tags. Once it's in Git you will never lose your library data ever again.
+Entire library metadata: from songs names and album length in milliseconds, to custom album source URLs and ReplayGain values, to literally anything specific you can *write* about an album in your collection is stored and compiled within ancillary plaintext files. Edit them in Neovim, version control them, upload them to remote repository. Every change can be tracked, backed up and reverted, completely independent of the audio file's embedded tags. Once it's in Git you will never lose your library data ever again.
 
 ### Album as a Compiled Data Object
-Think of an album directory as of an entry in the physical archive. It contains data written with human intent (`metadata.toml` and other `.toml` manifests) as well as the source files you're trying to preserve (audio, cover art, lyrics, etc...). In this way, album stops being an opaque fuzzy object interpreted by each different media player on the fly, and becomes a set of data points you can compile into a standard machine-readable JSON object (`album.lock.json`), the album's **index** in said archive. The engine reads your intent expressed in manifests, links the source files and scans the physical properties of the audio (bit depth, duration, etc...) to produce it. The `album.lock.json` is the one server uses to register album in your collection and to retrieve data from for further user-album interaction.
+Think of an album directory as of an entry in the physical archive. It contains data written with human intent (`metadata.toml` and other `.toml` manifests) as well as the source files you're trying to preserve (audio, cover art, lyrics, etc...). In this way, album stops being an opaque fuzzy object interpreted by each different media player on the fly, and becomes a set of data points you can compile into a standard machine-readable JSON object (`album.lock.json`), the album's **index** in said archive. The engine reads your intent expressed in manifests, links the source files and scans the physical properties of the audio (bit depth, duration, etc...) to produce it. The `album.lock.json` is the file server uses to register album in your collection and to retrieve data from for further user-album interaction.
 
-### Decoupled Web-UI and Backend
-**Vellum is a Rust web server first. User Interface intentionally comes second.** Want to change UI theme? Want to add some cool display feature? No worry. You can just edit contents of the `web-app/` or completely rewrite your own UI in html, css and javascript, and run it in a browser, wiring it up to a running Vellum server using its web api **today**. And it doesn't stop there, any UI framework supporting web api functionality can control MPD and retrieve album data from Vellum. You can build TUI apps, Godot based game-interfaces, or you can even use Curl to control it if you want to. Project's goal is to create as many robust primitives as possible, so you can interface your album collection in any weird+brilliant way.
+### Decoupled Frontend and Backend
+**Vellum is a Rust web server first. User Interface intentionally comes second.** Want to change UI theme? Want to add some cool display feature? No worry. You can directly edit contents of the `web-app/` or completely rewrite your own UI in HTML, CSS and JavaScript, and run it in a browser, wiring it up to a running Vellum server using its web api **today**. Any UI framework supporting web api functionality can control MPD and retrieve album data through Vellum. You can build TUI apps, Godot based game-interfaces, or you can even use Curl to control it if you want to. Project's goal is to provide robust primitives, so you can interface your album collection in any weird+brilliant way.
 
 ## Contributing
-I am the lone developer of this project. There are many desired, or even essential things not implemented currenly. If you have any ideas or requests, or if you want to contribute with patches, please submit everything to issues and PRs respectively. I would be sincirely happy to read through, work on and merge them.
-
-I am also open to code critique. I want to keep Vellum maintainable and open to new contributors. If you have constructive criticism of the codebase for me to take acton upon, please submit it to the issues as well.
+I am the lone developer of this project. There are many desired, or even essential things not implemented currenly. If you have any ideas or requests, or if you want to contribute with patches, please submit everything to issues and PRs respectively. I would be sincirely happy to read through, work on and merge them. I am also open to code critique. I want to keep Vellum maintainable and open to new contributors. If you have constructive criticism of the codebase for me to take acton upon, please submit it to the issues as well.
 
 ## Getting Started
 
-Vellum is in active development. To ensure a reproducible environment it is managed by Nix.
+Vellum is in the state of active development. To ensure a reproducible environment it is managed by Nix.
 
 **Prerequisites:** 
 - `nix`
