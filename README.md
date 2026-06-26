@@ -70,6 +70,8 @@ You create `~/.config/vellum/config.toml` file:
 - In `[storage]` section you define `library_root = "path/to/your/library"` containing all of your album folders.
 - Optionally in `[compiler.keys]` you define all tags besides standard ones you want to be present in `album.lock.json`. Format: `tag_name = { level = "album"/"track" }`. 
 
+For config reference check out [my Vellum dotfiles](https://github.com/lewelove/nix-config/tree/main/dotfiles/.config/vellum). The config documetation is coming soon...
+
 ### 3. Configure Your Library
 
 You place a folder containing album's audio files in your library root. To make it visible to Vellum you create `metadata.toml` file in it or run `vellum manifest` to read embedded tags and generate manifest from them. In this toml you have two sections: `[album]` header and multiple of `[[tracks]]` for each audio file. Tags are expressed in standard `tagname = "Value"` format. The `[album]` header contains metadata *common* across an album (album artist, album title, genre, date, etc.), and each of `[[tracks]]` contains metadata *unique* to each track (track number, disc number, title).
