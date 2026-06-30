@@ -170,6 +170,16 @@ fn prepare_build_context(
 
     merge_local_registry(album_root, &mut registry);
 
+    let mut sorted_registry = Map::new();
+    let mut keys: Vec<String> = registry.keys().cloned().collect();
+    keys.sort();
+    for k in keys {
+        if let Some(v) = registry.remove(&k) {
+            sorted_registry.insert(k, v);
+        }
+    }
+    registry = sorted_registry;
+
     Ok(PreparedContext { audio_files, registry, library_root })
 }
 
