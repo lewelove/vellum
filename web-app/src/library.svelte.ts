@@ -6,8 +6,13 @@ class LibraryState {
   dict: Record<string, any> = $state({});
   trackPathMap: Record<string, any> = $state({});
   
+  sidebarShelves: Record<string, string[]> = $state({});
   libraryViewIds: string[] = $state([]);
-  shelfViewIds: string[] = $state([]);
+  
+  shelfViewIds = $derived.by(() => {
+      const shelfKey = this.activeShelf || (this.manifest.shelves_order && this.manifest.shelves_order[0]) || Object.keys(this.availableShelves)[0];
+      return shelfKey ? (this.sidebarShelves[shelfKey] || []) : [];
+  });
   
   libraryAlbums = $derived(this.mapIdsToAlbums(this.libraryViewIds));
   shelfAlbums = $derived(this.mapIdsToAlbums(this.shelfViewIds));
@@ -171,6 +176,7 @@ class LibraryState {
 
   dispatchSocketAction(json: any) {
     if (json.type === "INIT_DICT") {
+      if (json.shelves) this.sidebarShelves = json.shelves;
       this.dict = json.dict || {};
       this.trackPathMap = json.trackMap || {};
       if (json.manifest) this.manifest = json.manifest;
@@ -201,15 +207,8 @@ class LibraryState {
       this.refreshSidebar();
       
     } else if (json.type === "VIEW_DATA") {
-      const isShelves = (nav.activeTab === "home" && this.homeSubView === "shelves");
-      
-      if (isShelves) {
-        this.shelfViewIds = json.ids || [];
-        if (this._pendingViewReset) this.shelfVersion++;
-      } else {
-        this.libraryViewIds = json.ids || [];
-        if (this._pendingViewReset) this.libraryVersion++;
-      }
+      this.libraryViewIds = json.ids || [];
+      if (this._pendingViewReset) this.libraryVersion++;
       
       this.isLoading = false;
       this._pendingViewReset = false;
@@ -224,6 +223,7 @@ class LibraryState {
     } else if (json.type === "LOGIC_UPDATE") {
       window.location.reload(); 
     } else if (json.type === "ALBUM_REMOVED") {
+      if (json.shelves) this.sidebarShelves = json.shelves;
       delete this.dict[json.id];
       delete this.fullAlbumCache[json.id];
       
@@ -236,6 +236,7 @@ class LibraryState {
       this.refreshView(false);
       this.refreshSidebar();
     } else if (json.type === "ALBUM_UPDATED") {
+      if (json.shelves) this.sidebarShelves = json.shelves;
       if (json.dictEntry && Object.keys(json.dictEntry).length > 0) {
         this.dict[json.id] = json.dictEntry;
       } else {
@@ -360,11 +361,9 @@ class LibraryState {
     this._pendingViewReset = resetScroll;
     
     if (nav.activeTab === "home" && this.homeSubView === "shelves") {
-        const firstShelf = (this.manifest.shelves_order && this.manifest.shelves_order[0]) || Object.keys(this.availableShelves)[0];
-        this._ws.send(JSON.stringify({
-            type: "SHELF_REQUEST",
-            shelf: this.activeShelf || firstShelf
-        }));
+        if (resetScroll) this.shelfVersion++;
+        this.isLoading = false;
+        this._pendingViewReset = false;
     } else {
         this._ws.send(JSON.stringify({
             type: "VIEW_REQUEST",
@@ -475,7 +474,7 @@ class LibraryState {
   setShelf(key: string) {
     this.activeShelf = key;
     this.focusedAlbum = null;
-    this.refreshView(true);
+    this.shelfVersion++;
     this.persistState();
   }
 

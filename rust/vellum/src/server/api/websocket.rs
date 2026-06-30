@@ -15,9 +15,13 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     log::info!("Client connected");
 
     let init_payload = {
-        let (dict, track_map, manifest) = {
+        let (dict, track_map, manifest, shelves) = {
             let q = state.query.lock().await;
-            (q.dict.clone(), q.track_lookup.clone(), q.manifest.clone())
+            let mut s = std::collections::HashMap::new();
+            for key in q.manifest.shelves.keys() {
+                s.insert(key.clone(), q.request_shelf_view(key));
+            }
+            (q.dict.clone(), q.track_lookup.clone(), q.manifest.clone(), s)
         };
         let ui_data = state.ui_state.read().await.clone();
         let (covers, shader) = {
@@ -30,6 +34,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             "dict": dict,
             "trackMap": track_map,
             "manifest": manifest,
+            "shelves": shelves,
             "ui_state": ui_data,
             "config": {
                 "covers": covers,
@@ -66,10 +71,6 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                                 let filter_val = req.get("filter").and_then(|v| v.get("val")).and_then(|v| v.as_str());
                                 
                                 let ids = state.query.lock().await.request_view(library, library_filter, sort, filter_key, filter_val, reverse);
-                                let _ = socket.send(ax_ws::Message::Text(json!({ "type": "VIEW_DATA", "ids": ids }).to_string().into())).await;
-                            } else if req_type == "SHELF_REQUEST" {
-                                let shelf = req.get("shelf").and_then(|v| v.as_str()).unwrap_or("");
-                                let ids = state.query.lock().await.request_shelf_view(shelf);
                                 let _ = socket.send(ax_ws::Message::Text(json!({ "type": "VIEW_DATA", "ids": ids }).to_string().into())).await;
                             } else if req_type == "GROUP_REQUEST" {
                                 let library = req.get("library").and_then(|v| v.as_str()).unwrap_or("library");

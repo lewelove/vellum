@@ -91,19 +91,36 @@ pub async fn trigger_batch_reload(
         log::info!("Rebuilt Query Engine in {elapsed}ms.");
 
         if processed_ids.len() == 1 && removed_ids.is_empty() {
-            let dict_entry = {
+            let (dict_entry, shelves) = {
                 let query = state.query.lock().await;
-                query.dict.get(&processed_ids[0]).cloned()
+                let entry = query.dict.get(&processed_ids[0]).cloned();
+                let mut s = std::collections::HashMap::new();
+                for key in query.manifest.shelves.keys() {
+                    s.insert(key.clone(), query.request_shelf_view(key));
+                }
+                drop(query);
+                (entry, s)
             };
             let _ = state.tx.send(json!({
                 "type": "ALBUM_UPDATED",
                 "id": processed_ids[0],
-                "dictEntry": dict_entry.unwrap_or_else(|| json!({}))
+                "dictEntry": dict_entry.unwrap_or_else(|| json!({})),
+                "shelves": shelves
             }).to_string());
         } else if removed_ids.len() == 1 && processed_ids.is_empty() {
+            let shelves = {
+                let query = state.query.lock().await;
+                let mut s = std::collections::HashMap::new();
+                for key in query.manifest.shelves.keys() {
+                    s.insert(key.clone(), query.request_shelf_view(key));
+                }
+                drop(query);
+                s
+            };
             let _ = state.tx.send(json!({
                 "type": "ALBUM_REMOVED",
-                "id": removed_ids[0]
+                "id": removed_ids[0],
+                "shelves": shelves
             }).to_string());
         } else {
             let _ = state.tx.send(json!({"type": "LOGIC_UPDATE"}).to_string());
@@ -121,7 +138,7 @@ pub async fn trigger_reload(
     if let Some(path) = params.get("path") {
         let library_root = state.config.read().await.library_root.clone();
 
-        let (update_res, dict_entry) = {
+        let (update_res, dict_entry, shelves) = {
             let mut query = state.query.lock().await;
             let scanner = crate::server::library::scanner::Library::new(library_root);
             let res = scanner.update_album(path, &mut query);
@@ -133,7 +150,14 @@ pub async fn trigger_reload(
                 },
                 crate::server::library::scanner::UpdateResult::Removed(_) => None,
             };
-            (res, entry)
+            
+            let mut s = std::collections::HashMap::new();
+            for key in query.manifest.shelves.keys() {
+                s.insert(key.clone(), query.request_shelf_view(key));
+            }
+            drop(query);
+            
+            (res, entry, s)
         };
 
         let elapsed = start_time.elapsed().as_millis();
@@ -145,13 +169,15 @@ pub async fn trigger_reload(
                 let _ = state.tx.send(json!({
                     "type": "ALBUM_UPDATED",
                     "id": id,
-                    "dictEntry": dict_entry.unwrap_or_else(|| json!({}))
+                    "dictEntry": dict_entry.unwrap_or_else(|| json!({})),
+                    "shelves": shelves
                 }).to_string());
             }
             crate::server::library::scanner::UpdateResult::Removed(id) => {
                 let _ = state.tx.send(json!({
                     "type": "ALBUM_REMOVED",
-                    "id": id
+                    "id": id,
+                    "shelves": shelves
                 }).to_string());
             }
         }
