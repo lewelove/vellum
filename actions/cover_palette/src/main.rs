@@ -102,7 +102,10 @@ fn main() -> Result<()> {
                 );
 
                 let out_path = album_dir.join("cover_palette.toml");
-                let _ = std::fs::write(&out_path, toml_content);
+                if std::fs::write(&out_path, toml_content).is_ok() {
+                    let abs_path = out_path.canonicalize().unwrap_or(out_path);
+                    println!("Created cover_palette.toml at: {}", abs_path.display());
+                }
             }
         }
     }
