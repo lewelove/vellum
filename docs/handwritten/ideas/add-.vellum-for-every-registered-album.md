@@ -2,6 +2,8 @@
 
 the idea is to transition registered album to inclusion of `.vellum` folder inside it
 
-`.vellum` holds compiled album.lock.json and local.toml
+`.vellum` holds:
+- compiled album.lock.json and album.lock.jsonb
+- generated local.toml
 
 any `.toml` manifest placed in `.vellum` instantly registered and merged into lock
