@@ -25,32 +25,6 @@ fn create_directories(cache_root: &Path, state_root: &Path) {
     std::fs::create_dir_all(state_root).ok();
 }
 
-fn resolve_compiler_paths(
-    config_dir: &Path,
-    shader_cfg: Option<&libvellum::config::ShaderConfig>,
-) -> (Option<PathBuf>, Option<PathBuf>, Option<PathBuf>) {
-    let resolved_shader_path = if let Some(s) = shader_cfg
-        && let Some(p) = &s.path {
-            let expanded = expand_path(p);
-            let absolute = if expanded.is_absolute() {
-                expanded
-            } else {
-                config_dir.join(expanded)
-            };
-            absolute.canonicalize().ok().or(Some(absolute))
-        } else {
-            None
-        };
-
-    let css_path = config_dir.join("vellum.css");
-    let resolved_css_path = css_path.canonicalize().ok();
-
-    let logic_path = config_dir.join("logic.toml");
-    let resolved_logic_path = logic_path.canonicalize().ok();
-
-    (resolved_shader_path, resolved_css_path, resolved_logic_path)
-}
-
 fn load_state(state_root: &Path) -> serde_json::Value {
     let state_file = state_root.join("state.json");
     if state_file.exists() {
@@ -96,10 +70,11 @@ pub async fn run(port: u16) -> Result<()> {
 
     create_directories(&cache_root, &state_root);
 
-    let shader_cfg = config.theme.as_ref().and_then(|t| t.shader.clone());
     let covers = config.compiler.as_ref().map(|c| c.covers.clone()).unwrap_or_default();
+    let interfaces = config.interfaces.unwrap_or_default();
     
-    let (resolved_shader_path, resolved_css_path, resolved_logic_path) = resolve_compiler_paths(&config_dir, shader_cfg.as_ref());
+    let logic_path = config_dir.join("logic.toml");
+    let resolved_logic_path = logic_path.canonicalize().ok();
 
     let mut query_engine = query::QueryEngine::new()?;
     
@@ -115,12 +90,10 @@ pub async fn run(port: u16) -> Result<()> {
         library_root: library_root.clone(),
         cache_root,
         state_root: state_root.clone(),
-        shader: shader_cfg,
-        resolved_shader_path,
-        resolved_css_path,
         resolved_logic_path,
         resolved_shelf_files,
         covers,
+        interfaces,
     };
 
     let ui_state_val = load_state(&state_root);

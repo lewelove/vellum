@@ -24,9 +24,9 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             (q.dict.clone(), q.track_lookup.clone(), q.manifest.clone(), s)
         };
         let ui_data = state.ui_state.read().await.clone();
-        let (covers, shader) = {
+        let covers = {
             let c = state.config.read().await;
-            (c.covers.clone(), c.shader.clone())
+            c.covers.clone()
         };
         
         json!({
@@ -37,8 +37,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             "shelves": shelves,
             "ui_state": ui_data,
             "config": {
-                "covers": covers,
-                "shader": shader
+                "covers": covers
             }
         })
         .to_string()

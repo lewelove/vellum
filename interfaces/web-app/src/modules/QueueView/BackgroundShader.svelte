@@ -81,7 +81,7 @@
         return;
     }
     try {
-        const res = await fetch(`/api/theme/shader?v=${Date.now()}`);
+        const res = await fetch(`/api/interfaces/default/assets/${path}?v=${Date.now()}`);
         if (res.ok) {
             shaderSource = await res.text();
         } else {
@@ -93,12 +93,12 @@
   }
 
   $effect(() => {
-    loadExternalShader(library.config.shader?.path);
+    loadExternalShader(library.config.theme?.shader?.path);
   });
 
   $effect(() => {
     let palette = (colors && colors.length > 0) ? [...colors] : [...DEFAULT_PALETTE];
-    const order = library.config.shader?.order || "random";
+    const order = library.config.theme?.shader?.order || "random";
     
     if (order !== "original") {
       palette.sort((a, b) => getChroma(b) - getChroma(a));
@@ -157,7 +157,7 @@
       }
     }
 
-    const equalize = library.config.shader?.equalize ?? 0;
+    const equalize = library.config.theme?.shader?.equalize ?? 0;
     const avgRatio = 1.0 / activeColorCount;
 
     for (let i = 0; i < activeColorCount; i++) {
@@ -274,7 +274,7 @@
       gl.uniform1fv(gl.getUniformLocation(program, "iRatios"), floatRatios);
       gl.uniform1i(gl.getUniformLocation(program, "iCount"), activeColorCount);
 
-      const s = library.config.shader || {};
+      const s = library.config.theme?.shader || {};
       gl.uniform1f(gl.getUniformLocation(program, "iSpeed"), s.speed ?? 0.007);
       gl.uniform1f(gl.getUniformLocation(program, "iZoom"), s.zoom ?? 0.4);
       gl.uniform1f(gl.getUniformLocation(program, "iBlur"), s.blur ?? 0.8);
@@ -303,7 +303,7 @@
   }
 
   $effect(() => {
-    if (colors || coverSize || library.config.shader) {
+    if (colors || coverSize || library.config.theme?.shader) {
       handleResize();
     }
   });

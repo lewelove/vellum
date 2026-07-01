@@ -263,58 +263,6 @@ pub async fn get_lyrics(
     StatusCode::NOT_FOUND.into_response()
 }
 
-pub async fn get_custom_shader(State(state): State<Arc<AppState>>) -> Response {
-    let path_opt = {
-        let guard = state.config.read().await;
-        guard.resolved_shader_path.clone()
-    };
-
-    if let Some(path) = path_opt
-        && let Ok(mut file) = File::open(&path).await {
-            let mut buf = String::new();
-            if file.read_to_string(&mut buf).await.is_ok() {
-                return ([
-                        (
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("text/x-glsl; charset=utf-8"),
-                        ),
-                        (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
-                    ],
-                    buf,
-                )
-                    .into_response();
-            }
-        }
-
-    StatusCode::NOT_FOUND.into_response()
-}
-
-pub async fn get_custom_css(State(state): State<Arc<AppState>>) -> Response {
-    let path_opt = {
-        let guard = state.config.read().await;
-        guard.resolved_css_path.clone()
-    };
-
-    if let Some(path) = path_opt
-        && let Ok(mut file) = File::open(&path).await {
-            let mut buf = String::new();
-            if file.read_to_string(&mut buf).await.is_ok() {
-                return ([
-                        (
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("text/css; charset=utf-8"),
-                        ),
-                        (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
-                    ],
-                    buf,
-                )
-                    .into_response();
-            }
-        }
-
-    StatusCode::NOT_FOUND.into_response()
-}
-
 async fn serve_image(path: PathBuf, is_immutable: bool) -> Response {
     if let Ok(mut file) = File::open(&path).await {
         let mut buf = Vec::new();

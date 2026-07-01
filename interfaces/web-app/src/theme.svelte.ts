@@ -1,5 +1,4 @@
 export const theme = $state({
-
   palette: {
     100: "#242424",
     200: "#323232",
@@ -47,5 +46,13 @@ export const theme = $state({
     "drawer-split-gap": 24,
     "drawer-contents-x-max": 1600
   }
-
 });
+
+export function updateTheme(config: any) {
+  if (!config || !config.theme) return;
+  if (config.theme.palette) Object.assign(theme.palette, config.theme.palette);
+  if (config.theme.colors) Object.assign(theme.colors, config.theme.colors);
+  if (config.theme.typography) Object.assign(theme.typography, config.theme.typography);
+  if (config.theme.albumGrid) Object.assign(theme.albumGrid, config.theme.albumGrid);
+  if (config.theme.drawer) Object.assign(theme.drawer, config.theme.drawer);
+}

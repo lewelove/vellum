@@ -6,6 +6,81 @@ use axum::response::{IntoResponse, Response};
 use serde_json::json;
 use std::sync::Arc;
 
+pub fn get_interface_config_path(name: &str, cfg: Option<&libvellum::config::InterfaceConfig>) -> std::path::PathBuf {
+    if let Some(c) = cfg {
+        if let Some(cp) = &c.config {
+            return libvellum::utils::expand_path(cp);
+        }
+        let dir = c.directory.clone().unwrap_or_else(|| format!("~/.local/share/vellum/interfaces/{name}"));
+        libvellum::utils::expand_path(&dir).join("config.toml")
+    } else {
+        libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{name}/config.toml"))
+    }
+}
+
+pub async fn get_interface_config(
+    Path(name): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Response {
+    let intf_cfg = {
+        let guard = state.config.read().await;
+        guard.interfaces.get(&name).cloned()
+    };
+    let config_path = get_interface_config_path(&name, intf_cfg.as_ref());
+    if let Ok(content) = std::fs::read_to_string(&config_path)
+        && let Ok(toml_val) = toml::from_str::<toml::Value>(&content)
+    {
+        let json_val = libvellum::types::toml_to_json(toml_val);
+        return Json(json_val).into_response();
+    }
+    StatusCode::NOT_FOUND.into_response()
+}
+
+pub async fn serve_interface_asset(
+    Path((name, asset_path)): Path<(String, String)>,
+    State(state): State<Arc<AppState>>,
+) -> Response {
+    let intf_cfg = {
+        let guard = state.config.read().await;
+        guard.interfaces.get(&name).cloned()
+    };
+    
+    let dir = intf_cfg.as_ref()
+        .and_then(|c| c.directory.as_ref())
+        .map_or_else(
+            || libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{name}")),
+            |c| libvellum::utils::expand_path(c),
+        );
+
+    let full_path = dir.join(&asset_path);
+    
+    if !full_path.canonicalize().unwrap_or_default().starts_with(dir.canonicalize().unwrap_or_default()) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    if let Ok(mut file) = tokio::fs::File::open(&full_path).await {
+        let mut buf = Vec::new();
+        if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut buf).await.is_ok() {
+            let mime = match full_path.extension().and_then(|e| e.to_str()) {
+                Some("css") => "text/css",
+                Some("frag" | "glsl" | "vert") => "text/plain",
+                Some("js") => "application/javascript",
+                Some("json") => "application/json",
+                Some("png") => "image/png",
+                Some("jpg" | "jpeg") => "image/jpeg",
+                Some("svg") => "image/svg+xml",
+                Some("woff2") => "font/woff2",
+                _ => "application/octet-stream",
+            };
+            return (
+                [(axum::http::header::CONTENT_TYPE, mime)],
+                buf
+            ).into_response();
+        }
+    }
+    StatusCode::NOT_FOUND.into_response()
+}
+
 pub async fn update_state(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,

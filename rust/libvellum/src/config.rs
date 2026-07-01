@@ -9,10 +9,19 @@ use toml::Value;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AppConfig {
     pub storage: StorageConfig,
-    pub theme: Option<ThemeConfig>,
     pub manifest: Option<ManifestConfig>,
     pub compiler: Option<CompilerConfig>,
     pub actions: Option<HashMap<String, String>>,
+    pub interfaces: Option<HashMap<String, InterfaceConfig>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct InterfaceConfig {
+    #[serde(default)]
+    pub enable: bool,
+    pub directory: Option<String>,
+    pub config: Option<String>,
+    pub run: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -31,22 +40,6 @@ fn default_cache() -> String {
 }
 fn default_state() -> String {
     "~/.local/share/vellum".to_string()
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ThemeConfig {
-    pub shader: Option<ShaderConfig>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ShaderConfig {
-    pub path: Option<String>,
-    pub speed: Option<f32>,
-    pub zoom: Option<f32>,
-    pub blur: Option<f32>,
-    pub grain: Option<f32>,
-    pub equalize: Option<f32>,
-    pub order: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

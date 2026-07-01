@@ -5,165 +5,209 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
+use std::collections::{HashMap, HashSet};
 
 struct ChangeFlags {
-    config_changed: bool,
-    css_changed: bool,
-    logic_changed: bool,
-    shelf_changed: bool,
+    config: bool,
+    logic: bool,
+    shelf: bool,
+    interfaces_config: HashSet<String>,
+    interfaces_asset: HashSet<String>,
 }
 
 pub fn start(config_path: &Path, state: Arc<AppState>) {
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<PathBuf>>(10);
-    
+    let (tx, rx) = tokio::sync::mpsc::channel::<Vec<PathBuf>>(10);
+    let watcher = setup_watcher(tx);
     let canon_config_path = config_path.canonicalize().unwrap_or_else(|_| config_path.to_path_buf());
     let config_dir = canon_config_path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
 
     tokio::spawn(async move {
-        let tx_clone = tx.clone();
-        let mut watcher = RecommendedWatcher::new(
-            move |res: notify::Result<Event>| {
-                if let Ok(event) = res
-                    && (event.kind.is_modify() || event.kind.is_create() || event.kind.is_remove()) {
-                        let _ = tx_clone.blocking_send(event.paths);
-                    }
-            },
-            notify::Config::default(),
-        )
-        .expect("Failed to create config watcher");
-
-        watcher
-            .watch(&config_dir, RecursiveMode::Recursive)
-            .expect("Failed to watch config directory");
-
-        let mut current_watched_shader: Option<PathBuf> = {
-            let guard = state.config.read().await;
-            guard.resolved_shader_path.clone()
-        };
-
-        if let Some(ref p) = current_watched_shader
-            && p.exists() && !p.starts_with(&config_dir) {
-                let _ = watcher.watch(p, RecursiveMode::NonRecursive);
-            }
-
-        let mut current_watched_shelf_files: Vec<PathBuf> = {
-            let guard = state.config.read().await;
-            guard.resolved_shelf_files.clone()
-        };
-
-        for p in &current_watched_shelf_files {
-            if p.exists() && !p.starts_with(&config_dir) {
-                let _ = watcher.watch(p, RecursiveMode::NonRecursive);
-            }
-        }
-
-        while let Some(mut paths) = rx.recv().await {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            while let Ok(more_paths) = rx.try_recv() {
-                paths.extend(more_paths);
-            }
-
-            let flags = classify_events(&paths, &canon_config_path, current_watched_shader.as_ref(), &current_watched_shelf_files);
-
-            if flags.css_changed {
-                log::info!("Filesystem change: reloading custom CSS...");
-                let mut guard = state.config.write().await;
-                let css_path = config_dir.join("vellum.css");
-                guard.resolved_css_path = if css_path.exists() { css_path.canonicalize().ok() } else { None };
-                
-                let payload = json!({ "type": "THEME_UPDATE" }).to_string();
-                let _ = state.tx.send(payload);
-            }
-
-            if flags.logic_changed {
-                current_watched_shelf_files = handle_logic_change(
-                    &state, 
-                    &config_dir, 
-                    &mut watcher, 
-                    &current_watched_shelf_files
-                ).await;
-            }
-
-            if flags.shelf_changed && !flags.logic_changed {
-                log::info!("Filesystem change: reloading shelf files...");
-                {
-                    let mut query = state.query.lock().await;
-                    if let Err(e) = query.build_cache() {
-                        log::error!("Failed to rebuild query cache: {e}");
-                    }
-                }
-                let payload = json!({ "type": "LOGIC_UPDATE" }).to_string();
-                let _ = state.tx.send(payload);
-            }
-
-            if flags.config_changed {
-                current_watched_shader = handle_config_change(
-                    &state, 
-                    &config_dir, 
-                    &mut watcher, 
-                    current_watched_shader.as_ref()
-                ).await;
-            }
-        }
+        run_loop(rx, watcher, canon_config_path, config_dir, state).await;
     });
+}
+
+fn setup_watcher(tx: tokio::sync::mpsc::Sender<Vec<PathBuf>>) -> RecommendedWatcher {
+    RecommendedWatcher::new(
+        move |res: notify::Result<Event>| {
+            if let Ok(event) = res
+                && (event.kind.is_modify() || event.kind.is_create() || event.kind.is_remove())
+            {
+                let _ = tx.blocking_send(event.paths);
+            }
+        },
+        notify::Config::default(),
+    )
+    .expect("Failed to create config watcher")
+}
+
+async fn run_loop(
+    mut rx: tokio::sync::mpsc::Receiver<Vec<PathBuf>>,
+    mut watcher: RecommendedWatcher,
+    canon_config_path: PathBuf,
+    config_dir: PathBuf,
+    state: Arc<AppState>,
+) {
+    let _ = watcher.watch(&config_dir, RecursiveMode::Recursive);
+
+    let mut watched_shelves = get_initial_shelves(&state).await;
+    for p in &watched_shelves {
+        if p.exists() && !p.starts_with(&config_dir) {
+            let _ = watcher.watch(p, RecursiveMode::NonRecursive);
+        }
+    }
+
+    let mut watched_interfaces = get_initial_interfaces(&state).await;
+    for p in watched_interfaces.values() {
+        if p.exists() && !p.starts_with(&config_dir) {
+            let _ = watcher.watch(p, RecursiveMode::Recursive);
+        }
+    }
+
+    while let Some(mut paths) = rx.recv().await {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        while let Ok(more_paths) = rx.try_recv() {
+            paths.extend(more_paths);
+        }
+
+        let flags = classify_events(&paths, &canon_config_path, &watched_shelves, &watched_interfaces);
+        process_events(flags, &state, &config_dir, &mut watcher, &mut watched_shelves, &mut watched_interfaces).await;
+    }
+}
+
+async fn get_initial_shelves(state: &Arc<AppState>) -> Vec<PathBuf> {
+    let guard = state.config.read().await;
+    guard.resolved_shelf_files.clone()
+}
+
+async fn get_initial_interfaces(state: &Arc<AppState>) -> HashMap<String, PathBuf> {
+    let guard = state.config.read().await;
+    guard.interfaces.iter().map(|(name, cfg)| {
+        let path = cfg.directory.as_ref().map_or_else(
+            || {
+                let p = libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{name}"));
+                p.canonicalize().unwrap_or(p)
+            },
+            |dir| {
+                let p = libvellum::utils::expand_path(dir);
+                p.canonicalize().unwrap_or(p)
+            },
+        );
+        (name.clone(), path)
+    }).collect()
 }
 
 fn classify_events(
     paths: &[PathBuf],
     canon_config_path: &Path,
-    current_watched_shader: Option<&PathBuf>,
-    current_watched_shelf_files: &[PathBuf]
+    watched_shelves: &[PathBuf],
+    watched_interfaces: &HashMap<String, PathBuf>,
 ) -> ChangeFlags {
     let mut flags = ChangeFlags {
-        config_changed: false,
-        css_changed: false,
-        logic_changed: false,
-        shelf_changed: false,
+        config: false,
+        logic: false,
+        shelf: false,
+        interfaces_config: HashSet::new(),
+        interfaces_asset: HashSet::new(),
     };
 
     for p in paths {
-        let p = p.canonicalize().unwrap_or_else(|_| p.clone());
+        let p_canon = p.canonicalize().unwrap_or_else(|_| p.clone());
+        let path_str = p_canon.to_string_lossy();
 
-        if p == *canon_config_path {
-            flags.config_changed = true;
+        if path_str.contains("node_modules") || path_str.contains(".svelte-kit") || path_str.contains(".git") {
+            continue;
         }
 
-        if let Some(sp) = current_watched_shader
-            && p == *sp {
-                flags.config_changed = true;
-            }
-
-        if current_watched_shelf_files.contains(&p) {
-            flags.shelf_changed = true;
+        if p_canon == *canon_config_path {
+            flags.config = true;
         }
 
-        if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-            match name {
-                "vellum.css" => {
-                    flags.css_changed = true;
+        if watched_shelves.contains(&p_canon) {
+            flags.shelf = true;
+        }
+
+        if let Some(name) = p_canon.file_name().and_then(|n| n.to_str())
+            && name == "logic.toml"
+        {
+            flags.logic = true;
+        }
+
+        for (name, dir) in watched_interfaces {
+            if p_canon.starts_with(dir) {
+                if p_canon.file_name().is_some_and(|n| n == "config.toml") {
+                    flags.interfaces_config.insert(name.clone());
+                } else {
+                    flags.interfaces_asset.insert(name.clone());
                 }
-                "logic.toml" => {
-                    flags.logic_changed = true;
-                }
-                _ => {}
             }
         }
     }
     flags
 }
 
+async fn process_events(
+    flags: ChangeFlags,
+    state: &Arc<AppState>,
+    config_dir: &Path,
+    watcher: &mut RecommendedWatcher,
+    watched_shelves: &mut Vec<PathBuf>,
+    watched_interfaces: &mut HashMap<String, PathBuf>,
+) {
+    if flags.logic {
+        *watched_shelves = handle_logic_change(state, config_dir, watcher, watched_shelves).await;
+    }
+
+    if flags.shelf && !flags.logic {
+        log::info!("Filesystem change: reloading shelf files...");
+        {
+            let mut query = state.query.lock().await;
+            if let Err(e) = query.build_cache() {
+                log::error!("Failed to rebuild query cache: {e}");
+            }
+        }
+        let _ = state.tx.send(json!({ "type": "LOGIC_UPDATE" }).to_string());
+    }
+
+    for intf_name in flags.interfaces_config {
+        log::info!("Interface '{intf_name}' config changed.");
+        if let Some(dir) = watched_interfaces.get(&intf_name) {
+            let cfg_path = dir.join("config.toml");
+            if let Ok(content) = tokio::fs::read_to_string(&cfg_path).await
+                && let Ok(toml_val) = toml::from_str::<toml::Value>(&content) {
+                    let json_val = libvellum::types::toml_to_json(toml_val);
+                    let _ = state.tx.send(json!({
+                        "type": "INTERFACE_CONFIG_UPDATE",
+                        "name": intf_name,
+                        "config": json_val
+                    }).to_string());
+                }
+        }
+    }
+
+    for intf_name in flags.interfaces_asset {
+        log::info!("Interface '{intf_name}' asset changed.");
+        let _ = state.tx.send(json!({
+            "type": "INTERFACE_ASSET_UPDATE",
+            "name": intf_name
+        }).to_string());
+    }
+
+    if flags.config {
+        *watched_interfaces = handle_config_change(state, config_dir, watcher, watched_interfaces).await;
+    }
+}
+
 async fn handle_logic_change(
     state: &Arc<AppState>,
     config_dir: &Path,
     watcher: &mut RecommendedWatcher,
-    current_watched_shelf_files: &[PathBuf]
+    current_shelves: &[PathBuf]
 ) -> Vec<PathBuf> {
     log::info!("Filesystem change: reloading logic.toml...");
     let logic_path = config_dir.join("logic.toml");
     let resolved = if logic_path.exists() { logic_path.canonicalize().ok() } else { None };
     
-    let mut new_shelf_files = Vec::new();
-
+    let mut new_shelves = Vec::new();
     {
         let mut guard = state.config.write().await;
         guard.resolved_logic_path.clone_from(&resolved);
@@ -177,97 +221,83 @@ async fn handle_logic_change(
             for shelf in query.manifest.shelves.values() {
                 if let Some(file) = &shelf.file {
                     let expanded = libvellum::utils::expand_path(file);
-                    new_shelf_files.push(expanded.canonicalize().unwrap_or(expanded));
+                    new_shelves.push(expanded.canonicalize().unwrap_or(expanded));
                 }
             }
         }
     }
 
-    for p in current_watched_shelf_files {
-        if !new_shelf_files.contains(p) && !p.starts_with(config_dir) {
+    for p in current_shelves {
+        if !new_shelves.contains(p) && !p.starts_with(config_dir) {
             let _ = watcher.unwatch(p);
         }
     }
-    for p in &new_shelf_files {
-        if !current_watched_shelf_files.contains(p) && p.exists() && !p.starts_with(config_dir) {
+    for p in &new_shelves {
+        if !current_shelves.contains(p) && p.exists() && !p.starts_with(config_dir) {
             let _ = watcher.watch(p, RecursiveMode::NonRecursive);
         }
     }
     
     {
         let mut guard = state.config.write().await;
-        guard.resolved_shelf_files.clone_from(&new_shelf_files);
+        guard.resolved_shelf_files.clone_from(&new_shelves);
     }
 
-    let payload = json!({ "type": "LOGIC_UPDATE" }).to_string();
-    let _ = state.tx.send(payload);
-
-    new_shelf_files
+    let _ = state.tx.send(json!({ "type": "LOGIC_UPDATE" }).to_string());
+    new_shelves
 }
 
 async fn handle_config_change(
     state: &Arc<AppState>,
     config_dir: &Path,
     watcher: &mut RecommendedWatcher,
-    current_watched_shader: Option<&PathBuf>
-) -> Option<PathBuf> {
+    current_interfaces: &HashMap<String, PathBuf>
+) -> HashMap<String, PathBuf> {
     log::info!("Filesystem change: reloading config...");
 
     match AppConfig::load() {
         Ok((new_config, _, _)) => {
             let covers = new_config.compiler.as_ref().map(|c| c.covers.clone()).unwrap_or_default();
-            let shader_cfg = new_config.theme.as_ref().and_then(|t| t.shader.clone());
+            let new_interfaces = new_config.interfaces.unwrap_or_default();
+            
+            let mut updated_interfaces = HashMap::new();
+            for (name, cfg) in &new_interfaces {
+                let dir = cfg.directory.as_ref().map_or_else(
+                    || libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{name}")),
+                    |d| libvellum::utils::expand_path(d),
+                );
+                let new_p = dir.canonicalize().unwrap_or(dir);
 
-            let next_shader_path = if let Some(s) = &shader_cfg
-                && let Some(p) = &s.path {
-                    let expanded = libvellum::utils::expand_path(p);
-                    let absolute = if expanded.is_absolute() {
-                        expanded
-                    } else {
-                        config_dir.join(expanded)
-                    };
-                    absolute.canonicalize().ok().or(Some(absolute))
-                } else {
-                    None
-                };
+                if new_p.exists() && !new_p.starts_with(config_dir) && !current_interfaces.values().any(|p| *p == new_p) {
+                    let _ = watcher.watch(&new_p, RecursiveMode::Recursive);
+                }
+                updated_interfaces.insert(name.clone(), new_p);
+            }
 
-            let mut updated_shader = current_watched_shader.cloned();
-
-            if next_shader_path != updated_shader {
-                if let Some(ref old_p) = updated_shader
-                    && !old_p.starts_with(config_dir) {
-                        let _ = watcher.unwatch(old_p);
-                    }
-                if let Some(ref new_p) = next_shader_path
-                    && new_p.exists() && !new_p.starts_with(config_dir) {
-                        let _ = watcher.watch(new_p, RecursiveMode::NonRecursive);
-                    }
-                updated_shader = next_shader_path.clone();
+            for old_p in current_interfaces.values() {
+                if !updated_interfaces.values().any(|p| p == old_p) && !old_p.starts_with(config_dir) {
+                    let _ = watcher.unwatch(old_p);
+                }
             }
 
             {
                 let mut config_guard = state.config.write().await;
                 config_guard.covers.clone_from(&covers);
-                config_guard.shader.clone_from(&shader_cfg);
-                config_guard.resolved_shader_path.clone_from(&next_shader_path);
+                config_guard.interfaces.clone_from(&new_interfaces);
             }
 
-            let payload = json!({
+            let _ = state.tx.send(json!({
                 "type": "CONFIG_UPDATE",
                 "config": {
-                    "covers": covers,
-                    "shader": shader_cfg
+                    "covers": covers
                 }
-            })
-            .to_string();
+            }).to_string());
 
-            let _ = state.tx.send(payload);
-
-            updated_shader
+            updated_interfaces
         }
         Err(e) => {
             log::error!("Failed to reload config: {e}");
-            current_watched_shader.cloned()
+            current_interfaces.clone()
         }
     }
 }

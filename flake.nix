@@ -103,13 +103,7 @@
             if [ "$#" -gt 0 ]; then shift; fi
 
             case "$COMMAND" in
-              ui)
-                cd "$ROOT/web-app" && bun run dev
-                ;;
-              ui-npm)
-                cd "$ROOT/web-app" && npm run dev
-                ;;
-              server|manifest|compile|update|harvest|x|query)
+              interface|server|manifest|compile|update|harvest|x|query)
                 if [ ! -f "$BIN" ]; then
                   echo "Error: vellum binary not found at $BIN. Run 'build vellum --release' first."
                   exit 1
@@ -131,7 +125,7 @@
                 ;;
               help|--help|-h)
                 echo "Vellum CLI Commands:"
-                echo "  ui              : Start Svelte UI Dev Server"
+                echo "  interface       : Run system installed interface"
                 echo "  server          : Start Backend Rust Server"
                 echo "  compile         : Compile metadata locks"
                 echo "  update          : Update library"
@@ -172,7 +166,7 @@
           buildInputs = devPackages;
           shellHook = ''
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibs}:$LD_LIBRARY_PATH"
-            export PATH="$PWD/web-app/node_modules/.bin:$PATH"
+            export PATH="$PWD/interfaces/web-app/node_modules/.bin:$PATH"
           '';
         };
       }

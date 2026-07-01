@@ -23,8 +23,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/album/{*id}", get(assets::get_album_metadata))
         .route("/api/assets/cover/{*id}", get(assets::get_album_cover))
         .route("/api/assets/lyrics/{id}/{*path}", get(assets::get_lyrics))
-        .route("/api/theme/shader", get(assets::get_custom_shader))
-        .route("/api/theme/css", get(assets::get_custom_css))
         .route("/api/play/{*id}", post(playback::play_album))
         .route("/api/play-disc/{*id}", post(playback::play_disc))
         .route("/api/queue/{*id}", post(playback::queue_album))
@@ -38,5 +36,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/open-lock/{*id}", post(system::open_lock_file))
         .route("/api/open-manifest/{*id}", post(system::open_manifest_file))
         .route("/api/update-album/{*id}", post(system::force_update_album))
+        .route("/api/interfaces/{name}/config", get(system::get_interface_config))
+        .route("/api/interfaces/{name}/assets/{*path}", get(system::serve_interface_asset))
         .with_state(state)
 }

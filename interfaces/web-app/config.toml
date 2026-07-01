@@ -1,0 +1,52 @@
+# Vellum Web-App Interface Configuration
+
+[theme.shader]
+order = "original"
+path = "shaders/mountain_eq.frag"
+speed = 0.7
+zoom = 0.9
+blur = 0.8
+grain = 0.1
+
+[theme.palette]
+100 = "#242424"
+200 = "#323232"
+300 = "#424242"
+400 = "#CCCCCC"
+500 = "#FFFFFF"
+
+[theme.colors]
+background-main = "200"
+background-drawer = "100"
+text-main = "500"
+text-muted = "400"
+border-muted = "300"
+
+[theme.typography]
+font-size-title = 14
+font-weight-title = 400
+font-size-artist = 12
+font-weight-artist = 400
+
+[theme.albumGrid]
+crease-height = 20
+gap-x = 20
+gap-y = 16
+cover-size = 200
+text-gap-main = 11
+text-gap-lesser = 2
+font-line-height-title = 16
+font-line-height-artist = 14
+drawer-gap-main = 0
+drawer-chevron-height = 12
+drawer-chevron-width = 24
+
+[theme.drawer]
+drawer-padding-y = 18
+drawer-padding-x = 18
+drawer-font-size-album = 21
+drawer-font-size-artist = 18
+drawer-font-size-track = 14
+drawer-track-y = 32
+drawer-split-gap = 24
+drawer-contents-x-max = 1600

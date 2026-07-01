@@ -5,6 +5,7 @@ mod query;
 mod x;
 mod server;
 mod update;
+mod interface;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -30,6 +31,10 @@ enum Commands {
     Server {
         #[arg(long, default_value = "8000")]
         port: u16,
+    },
+    Interface {
+        #[arg(value_name = "NAME")]
+        name: Option<String>,
     },
     Compile {
         #[arg(value_name = "PATH", required = true)]
@@ -135,6 +140,7 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Commands::Server { port } => server::run(port).await,
+        Commands::Interface { name } => interface::execute(name).await,
         Commands::Compile {
             path,
             stdout,

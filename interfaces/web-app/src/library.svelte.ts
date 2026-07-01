@@ -1,6 +1,7 @@
 import { connectSocket } from "./api.ts";
 import { player, updatePlayerState } from "./modules/player.svelte.ts";
 import { nav } from "./navigation.svelte.ts";
+import { updateTheme } from "./theme.svelte.ts";
 
 class LibraryState {
   dict: Record<string, any> = $state({});
@@ -138,8 +139,7 @@ class LibraryState {
     covers: {
         master: { interpolation: "mitchell", size: 1080 },
         thumbnail: { interpolation: "lanczos", size: 190 }
-    },
-    shader: null
+    }
   });
 
   _ws: WebSocket | null = null;
@@ -150,6 +150,22 @@ class LibraryState {
       () => { this.isConnected = true; },
       (event: MessageEvent) => this.handleSocketMessage(event)
     );
+
+    fetch("/api/interfaces/default/config")
+        .then(res => res.json())
+        .then(data => {
+            this.config = { ...this.config, ...data };
+            updateTheme(data);
+        })
+        .catch(() => {
+            fetch("/api/interfaces/web-app/config")
+                .then(res => res.json())
+                .then(data => {
+                    this.config = { ...this.config, ...data };
+                    updateTheme(data);
+                })
+                .catch(e => console.error(e));
+        });
   }
 
   handleSocketMessage(event: MessageEvent) {
@@ -218,8 +234,17 @@ class LibraryState {
       this.sidebarGroups = newMap;
     } else if (json.type === "MPD_STATUS") {
       updatePlayerState(json);
-    } else if (json.type === "THEME_UPDATE") {
-      this.themeVersion = Date.now();
+    } else if (json.type === "INTERFACE_ASSET_UPDATE") {
+        if (json.name === "web-app" || json.name === "default") {
+            this.themeVersion = Date.now();
+        }
+    } else if (json.type === "INTERFACE_CONFIG_UPDATE") {
+        if (json.name === "web-app" || json.name === "default") {
+            this.config = { ...this.config, ...json.config };
+            updateTheme(json.config);
+            this.themeVersion = Date.now();
+            this.orchestratePrewarming();
+        }
     } else if (json.type === "LOGIC_UPDATE") {
       window.location.reload(); 
     } else if (json.type === "ALBUM_REMOVED") {
