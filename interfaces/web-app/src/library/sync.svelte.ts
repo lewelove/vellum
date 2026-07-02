@@ -1,40 +1,37 @@
 import { connectSocket } from "../api.ts";
 
-export class SyncEngine {
+class SyncEngine extends EventTarget {
   _ws: WebSocket | null = null;
-  _pendingViewReset: boolean = false;
+  isOpen: boolean = $state(false);
 
-  init(onOpen: () => void, onMessage: (msg: any) => void) {
+  connect() {
     this._ws = connectSocket(
-      onOpen,
+      () => {
+        this.isOpen = true;
+        this.dispatchEvent(new Event('open'));
+      },
       (event: MessageEvent) => {
+        const process = (data: any) => {
+          this.dispatchEvent(new CustomEvent('message', { detail: data }));
+        };
         if (event.data instanceof Blob) {
           const reader = new FileReader();
           reader.onload = () => {
-            try {
-              onMessage(JSON.parse(reader.result as string));
-            } catch (err) {
-              console.error(err);
-            }
+            try { process(JSON.parse(reader.result as string)); } catch (err) {}
           };
           reader.readAsText(event.data);
         } else {
-          try {
-            onMessage(JSON.parse(event.data));
-          } catch (err) {
-            console.error(err);
-          }
+          try { process(JSON.parse(event.data)); } catch (err) {}
         }
       }
     );
   }
 
   send(payload: any) {
-    if (!this.isOpen) return;
-    this._ws!.send(JSON.stringify(payload));
-  }
-  
-  get isOpen() {
-    return this._ws && this._ws.readyState === WebSocket.OPEN;
+    if (this.isOpen && this._ws) {
+      this._ws.send(JSON.stringify(payload));
+    }
   }
 }
+
+export const sync = new SyncEngine();

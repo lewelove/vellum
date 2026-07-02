@@ -5,8 +5,8 @@ export const nav = $state<{ activeTab: string }>({
 export async function setTab(tab: string) {
   if (nav.activeTab === tab) return;
   nav.activeTab = tab;
-  
-  const { library } = await import("./library.svelte.ts");
-  library.refreshView(false);
-  library.persistState();
+
+  const { view } = await import("./library/view.svelte.ts");
+  view.refreshView(false);
+  view.persistState();
 }

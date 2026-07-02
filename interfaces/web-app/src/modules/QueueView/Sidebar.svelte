@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { library } from "../../library.svelte.ts";
+  import { view } from "../../library/view.svelte.ts";
   import { player } from "../player.svelte.ts";
   import { setTab } from "../../navigation.svelte.ts";
 
@@ -11,7 +11,7 @@
   async function handleFocus() {
     if (activeId) {
       await setTab("home");
-      await library.setFocus({ id: activeId });
+      await view.setFocus({ id: activeId });
     }
   }
 </script>
@@ -24,15 +24,15 @@
 
 <div class="queue-bar v-glass">
   <div class="nav-group bottom">
-    {@render NavButton({ icon: "icons/outlined/24px/menu_book.svg", label: "Control", active: library.queuePanels.control, onclick: () => library.toggleQueuePanel('control') })}
-    {@render NavButton({ icon: "icons/outlined/24px/format_list_bulleted.svg", label: "Track List", active: library.queuePanels.tracks, onclick: () => library.toggleQueuePanel('tracks') })}
+    {@render NavButton({ icon: "icons/outlined/24px/menu_book.svg", label: "Control", active: view.queuePanels.control, onclick: () => view.toggleQueuePanel('control') })}
+    {@render NavButton({ icon: "icons/outlined/24px/format_list_bulleted.svg", label: "Track List", active: view.queuePanels.tracks, onclick: () => view.toggleQueuePanel('tracks') })}
     {#if hasPalette}
       {@render NavButton({ 
         icon: "icons/outlined/24px/colors.svg", 
         label: "Toggle Shader", 
-        active: library.isShaderEnabled, 
+        active: view.isShaderEnabled, 
         disabled: isStopped,
-        onclick: () => library.toggleShader() 
+        onclick: () => view.toggleShader() 
       })}
     {/if}
     {@render NavButton({

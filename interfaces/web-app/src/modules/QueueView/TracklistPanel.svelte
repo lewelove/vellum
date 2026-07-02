@@ -1,6 +1,7 @@
 <script lang="ts">
   import { player } from "../player.svelte.ts";
-  import { library } from "../../library.svelte.ts";
+  import { collection } from "../../library/collection.svelte.ts";
+  import { view } from "../../library/view.svelte.ts";
   import { jumpToQueueIndex } from "../../api.ts";
   import { setTab } from "../../navigation.svelte.ts";
 
@@ -12,7 +13,7 @@
   async function handleFocus() {
     if (activeId) {
       await setTab("home");
-      await library.setFocus({ id: activeId });
+      await view.setFocus({ id: activeId });
     }
   }
 
@@ -51,7 +52,7 @@
   }
 
   let mappedTracks = $derived(player.queue.map(item => {
-    const fullAlbum = item.album_id ? library.fullAlbumCache[item.album_id] : null;
+    const fullAlbum = item.album_id ? collection.fullAlbumCache[item.album_id] : null;
     const meta = fullAlbum?.tracks?.find((t: any) => `${fullAlbum.album.id}/${t.file?.path}` === item.file);
 
     return {
@@ -72,7 +73,7 @@
     const groups: any[] = [];
     mappedTracks.forEach(track => {
       if (groups.length === 0 || groups[groups.length - 1].albumId !== track.albumId) {
-        const albumMeta = library.dict[track.albumId];
+        const albumMeta = collection.dict[track.albumId];
         groups.push({
           albumId: track.albumId,
           albumMeta,
@@ -93,14 +94,14 @@
 {/snippet}
 
 {#snippet NavButtons()}
-  {@render NavButton({ icon: "icons/outlined/24px/side_navigation.svg", label: "Toggle HUD", active: showHud, onclick: () => library.toggleQueuePanel('hud') })}
+  {@render NavButton({ icon: "icons/outlined/24px/side_navigation.svg", label: "Toggle HUD", active: showHud, onclick: () => view.toggleQueuePanel('hud') })}
   {#if hasPalette}
     {@render NavButton({ 
       icon: "icons/outlined/24px/colors.svg", 
       label: "Toggle Shader", 
-      active: library.isShaderEnabled, 
+      active: view.isShaderEnabled, 
       disabled: isStopped,
-      onclick: () => library.toggleShader() 
+      onclick: () => view.toggleShader() 
     })}
   {/if}
   {@render NavButton({
@@ -136,7 +137,7 @@
 
             {#each group.tracks as track, i (track.id)}
               {@const showDiscHeader = isMultiDiscAlbum && (i === 0 || track.discNo !== group.tracks[i-1].discNo)}
-              
+
               {#if showDiscHeader}
                 {#if i > 0}
                   <div class="disc-separator"></div>
@@ -172,9 +173,9 @@
         </div>
       </div>
     </div>
-    
+
     <div class="panel-splitter"></div>
-    
+
     <div class="sidebar-buttons">
       {@render NavButtons()}
     </div>

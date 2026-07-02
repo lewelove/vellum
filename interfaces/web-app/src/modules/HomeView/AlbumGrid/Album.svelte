@@ -1,11 +1,12 @@
 <script lang="ts">
   import { theme } from "../../../theme.svelte.ts";
-  import { library } from "../../../library.svelte.ts";
+  import { collection } from "../../../library/collection.svelte.ts";
+  import { prewarmer } from "../../../library/prewarmer.svelte.ts";
 
   let { album, active, onclick, scrollY = 0, rowY = 0 }: { album: any, active: boolean, onclick: () => void, scrollY?: number, rowY?: number } = $props();
 
-  let originalUrl = $derived(library.getThumbnailUrl(album));
-  let coverBitmap = $derived(library.pinnedTextures.get(originalUrl));
+  let originalUrl = $derived(collection.getThumbnailUrl(album));
+  let coverBitmap = $derived(prewarmer.pinnedTextures.get(originalUrl));
 
   const coverSize = $derived(theme.albumGrid["cover-size"]);
   const gapY = $derived(theme.albumGrid["gap-y"]);

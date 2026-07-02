@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { library } from "./library.svelte.ts";
+  import { view } from "./library/view.svelte.ts";
+  import { initApp } from "./library/init.ts";
   import { nav, setTab } from "./navigation.svelte.ts";
-  
+
   import HomeView from "./modules/HomeView/HomeView.svelte";
   import QueueView from "./modules/QueueView/QueueView.svelte";
 
@@ -15,7 +16,7 @@
     if (nav.activeTab !== currentTab) {
       const oldTab = currentTab;
       const newTab = nav.activeTab;
-      
+
       if (tabOrder[newTab] > tabOrder[oldTab]) {
         retentionTab = oldTab;
         instantTab = null;
@@ -29,7 +30,7 @@
           if (instantTab === newTab) instantTab = null;
         }, 100);
       }
-      
+
       currentTab = newTab;
     }
   });
@@ -42,14 +43,14 @@
 
   let isQueueInstant = $derived(instantTab === 'queue');
 
-  let isModalVisible = $derived(!!library.focusedAlbum);
+  let isModalVisible = $derived(!!view.focusedAlbum);
 
   function handleKeydown(e: KeyboardEvent) {
     if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName ?? "")) return;
-    
+
     const code = e.code;
     const key = e.key;
-    
+
     if (code === 'Space') {
       e.preventDefault();
       e.stopPropagation();
@@ -64,33 +65,33 @@
     }
 
     const lowerKey = key.toLowerCase();
-    
+
     if (lowerKey === 'escape' && isModalVisible) {
       e.preventDefault();
       e.stopPropagation();
-      library.closeFocus();
+      view.closeFocus();
       return;
     }
 
     if (lowerKey === '1' || lowerKey === 'h') {
-      library.homeSubView = 'library';
+      view.homeSubView = 'library';
       if (nav.activeTab !== 'home') {
         setTab('home');
       } else {
-        library.refreshView(false);
-        library.persistState();
+        view.refreshView(false);
+        view.persistState();
       }
     }
     if (lowerKey === '2' || lowerKey === 'q') {
       setTab('queue');
     }
     if (lowerKey === 's') {
-      library.homeSubView = 'shelves';
+      view.homeSubView = 'shelves';
       if (nav.activeTab !== 'home') {
         setTab('home');
       } else {
-        library.refreshView(false);
-        library.persistState();
+        view.refreshView(false);
+        view.persistState();
       }
     }
   }
@@ -106,7 +107,7 @@
   }
 
   onMount(() => {
-    library.init();
+    initApp();
     window.addEventListener("keydown", handleKeydown, { capture: true });
     window.addEventListener("focusin", handleFocusIn, { capture: true });
     return () => {
@@ -117,11 +118,11 @@
 </script>
 
 <svelte:head>
-  <link rel="stylesheet" href="/api/interfaces/default/assets/vellum.css?v={library.themeVersion}" />
+  <link rel="stylesheet" href="/api/interfaces/default/assets/vellum.css?v={view.themeVersion}" />
 </svelte:head>
 
 <main tabindex="-1">
-  
+
   <div class="view-layer home" class:visible={isHomeVisible} class:active={isHomeActive} aria-hidden={!isHomeActive}>
     <HomeView />
   </div>

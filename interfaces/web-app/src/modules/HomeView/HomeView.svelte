@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { library } from "../../library.svelte.ts";
+  import { view } from "../../library/view.svelte.ts";
+  import { collection } from "../../library/collection.svelte.ts";
 
   import NavBar from "../NavigationBar/NavBar.svelte";
   import AlbumGrid from "./AlbumGrid/AlbumGrid.svelte";
@@ -9,17 +10,17 @@
 
   let isResizing = $state(false);
 
-  let isModalVisible = $derived(!!library.focusedAlbums[library.homeSubView]);
+  let isModalVisible = $derived(!!view.focusedAlbums[view.homeSubView]);
 
   function startResizing() {
     isResizing = true;
     const move = (e: MouseEvent) => { 
       const w = window.innerWidth;
-      library.sidebarWidth = Math.max(140, Math.min(w - e.clientX, 400)); 
+      view.sidebarWidth = Math.max(140, Math.min(w - e.clientX, 400)); 
     };
     const up = () => {
       isResizing = false;
-      library.persistState();
+      view.persistState();
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
     };
@@ -28,7 +29,7 @@
   }
 </script>
 
-<div class="home-view-container" style="--sidebar-width: {library.sidebarWidth}px;">
+<div class="home-view-container" style="--sidebar-width: {view.sidebarWidth}px;">
   <NavBar />
   
   <div class="workspace">
@@ -37,10 +38,10 @@
       class:resizing={isResizing}
     >
       <AlbumGrid 
-        albums={library.homeSubView === 'shelves' ? library.shelfAlbums : library.libraryAlbums} 
-        version={library.homeSubView === 'shelves' ? library.shelfVersion : library.libraryVersion} 
-        activeAlbumId={library.homeSubView === 'shelves' ? library.focusedAlbums.shelves?.id : library.focusedAlbums.library?.id}
-        onfocus={(album) => library.setFocus(album)}
+        albums={view.homeSubView === 'shelves' ? view.shelfAlbums : view.libraryAlbums} 
+        version={view.homeSubView === 'shelves' ? view.shelfVersion : view.libraryVersion} 
+        activeAlbumId={view.focusedAlbums[view.homeSubView]?.id}
+        onfocus={(album) => view.setFocus(album)}
       />
     </section>
 
@@ -51,7 +52,7 @@
       <div class="sidebar-panel">
         <button class="sidebar-resizer" onmousedown={startResizing} aria-label="Resize sidebar"></button>
         <div class="sidebar-inner">
-          {#if library.homeSubView === 'shelves'}
+          {#if view.homeSubView === 'shelves'}
             <SidebarShelves />
           {:else}
             <SidebarLibrary />
@@ -64,8 +65,8 @@
   {#if isModalVisible}
     <div class="modal-layer">
         <ModalDrawer 
-          album={library.focusedAlbums[library.homeSubView]} 
-          onclose={() => library.closeFocus()} 
+          album={view.focusedAlbums[view.homeSubView]} 
+          onclose={() => view.closeFocus()} 
         />
     </div>
   {/if}

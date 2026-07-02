@@ -1,17 +1,18 @@
 <script lang="ts">
-  import { library } from "../../library.svelte.ts";
+  import { view } from "../../library/view.svelte.ts";
+  import { collection } from "../../library/collection.svelte.ts";
 
-  let activeShelf = $derived(library.activeShelf || (library.manifest.shelves_order && library.manifest.shelves_order[0]) || Object.keys(library.availableShelves)[0]);
+  let activeShelf = $derived(view.activeShelf || (collection.manifest.shelves_order && collection.manifest.shelves_order[0]) || Object.keys(collection.availableShelves)[0]);
 
   function selectShelf(key: string) {
-    library.setShelf(key);
+    view.setShelf(key);
   }
 </script>
 
 <div class="sidebar-container">
   <div class="sidebar-scroll">
     <div class="v-scroll-fade-top"></div>
-    {#each library.shelvesList as shelf}
+    {#each collection.shelvesList as shelf}
       <button 
         class="sidebar-item" 
         class:active={activeShelf === shelf.key} 
@@ -92,4 +93,3 @@
     margin-right: 8px;
   }
 </style>
-

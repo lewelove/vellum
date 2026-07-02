@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { library } from "../../../library.svelte.ts";
   import { GridController } from "./GridController.svelte.ts";
   import Album from "./Album.svelte";
 

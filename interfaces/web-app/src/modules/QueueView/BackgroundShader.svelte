@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from "svelte";
-  import { library } from "../../library.svelte.js";
+  import { collection } from "../../library/collection.svelte.ts";
+  import { view } from "../../library/view.svelte.ts";
   
   import vertexShaderSource from "./Shaders/Quad.vert?raw";
   import internalFragmentShader from "./Shaders/Simplex.frag?raw";
@@ -93,12 +94,12 @@
   }
 
   $effect(() => {
-    loadExternalShader(library.config.theme?.shader?.path);
+    loadExternalShader(collection.config.theme?.shader?.path);
   });
 
   $effect(() => {
     let palette = (colors && colors.length > 0) ? [...colors] : [...DEFAULT_PALETTE];
-    const order = library.config.theme?.shader?.order || "random";
+    const order = collection.config.theme?.shader?.order || "random";
     
     if (order !== "original") {
       palette.sort((a, b) => getChroma(b) - getChroma(a));
@@ -157,7 +158,7 @@
       }
     }
 
-    const equalize = library.config.theme?.shader?.equalize ?? 0;
+    const equalize = collection.config.theme?.shader?.equalize ?? 0;
     const avgRatio = 1.0 / activeColorCount;
 
     for (let i = 0; i < activeColorCount; i++) {
@@ -243,7 +244,7 @@
   function render() {
     if (!gl || !program) return;
 
-    if (!visible || !isTabVisible || !library.isShaderActive) {
+    if (!visible || !isTabVisible || !view.isShaderActive) {
       animationFrame = requestAnimationFrame(render);
       return;
     }
@@ -274,7 +275,7 @@
       gl.uniform1fv(gl.getUniformLocation(program, "iRatios"), floatRatios);
       gl.uniform1i(gl.getUniformLocation(program, "iCount"), activeColorCount);
 
-      const s = library.config.theme?.shader || {};
+      const s = collection.config.theme?.shader || {};
       gl.uniform1f(gl.getUniformLocation(program, "iSpeed"), s.speed ?? 0.007);
       gl.uniform1f(gl.getUniformLocation(program, "iZoom"), s.zoom ?? 0.4);
       gl.uniform1f(gl.getUniformLocation(program, "iBlur"), s.blur ?? 0.8);
@@ -303,7 +304,7 @@
   }
 
   $effect(() => {
-    if (colors || coverSize || library.config.theme?.shader) {
+    if (colors || coverSize || collection.config.theme?.shader) {
       handleResize();
     }
   });
@@ -338,7 +339,7 @@
     height: 100%;
     z-index: 0;
     pointer-events: none;
-    opacity: {library.isShaderActive && colors.length > 0 ? 1 : 0};
+    opacity: {view.isShaderActive && colors.length > 0 ? 1 : 0};
     transition: opacity 0.3s ease;
   "
 ></canvas>

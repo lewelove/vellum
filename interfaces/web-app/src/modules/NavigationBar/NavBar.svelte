@@ -1,6 +1,6 @@
 <script lang="ts">
   import { nav, setTab } from "../../navigation.svelte.ts";
-  import { library } from "../../library.svelte.ts";
+  import { view } from "../../library/view.svelte.ts";
 
   let { variant = "solid" } = $props();
 </script>
@@ -16,14 +16,14 @@
   </button>
 {/snippet}
 
-{#snippet SubNavButton({ icon, view, title }: { icon: string, view: "library" | "shelves", title: string })}
+{#snippet SubNavButton({ icon, viewId, title }: { icon: string, viewId: "library" | "shelves", title: string })}
   <button 
     class="v-btn-icon nav-button" 
-    class:active={library.homeSubView === view} 
+    class:active={view.homeSubView === viewId} 
     onclick={() => {
-      library.homeSubView = view;
-      library.refreshView(true);
-      library.persistState();
+      view.homeSubView = viewId;
+      view.refreshView(true);
+      view.persistState();
     }}
     {title}
   >
@@ -41,8 +41,8 @@
     {#if nav.activeTab === 'home'}
       <div class="nav-separator"></div>
       <div class="nav-group middle">
-        {@render SubNavButton({ icon: "icons/outlined/20px/auto_stories.svg", view: "library", title: "Library" })}
-        {@render SubNavButton({ icon: "icons/outlined/24px/newsstand.svg", view: "shelves", title: "Shelves" })}
+        {@render SubNavButton({ icon: "icons/outlined/20px/auto_stories.svg", viewId: "library", title: "Library" })}
+        {@render SubNavButton({ icon: "icons/outlined/24px/newsstand.svg", viewId: "shelves", title: "Shelves" })}
       </div>
     {/if}
   </div>

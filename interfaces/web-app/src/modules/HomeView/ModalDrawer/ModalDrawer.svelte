@@ -10,7 +10,6 @@
     openManifestFile,
     updateAlbum 
   } from "../../../api.ts";
-  import { library } from "../../../library.svelte.ts";
   import ClearCover from "../../ClearCover.svelte";
   import ModalDrawerTracks from "./ModalDrawerTracks.svelte";
 
@@ -42,10 +41,10 @@
     const dpr = window.devicePixelRatio || 1;
     const imgWidth = leftColumnWidth - 64;
     const targetWidth = Math.round(imgWidth * dpr);
-    
+
     const algo = 'mitchell';
     const srcUrl = `/api/covers/${algo}/${targetWidth}px/${coverHash}?v=${coverHash}`;
-    
+
     const img = new Image();
     img.src = srcUrl;
     img.onload = () => {
@@ -84,14 +83,14 @@
     try {
       const track = album.tracks[index];
       const discNumber = track.discnumber;
-      
+
       let intraDiscOffset = 0;
       for (let i = 0; i < index; i++) {
         if (album.tracks[i].discnumber === discNumber) {
           intraDiscOffset++;
         }
       }
-      
+
       await playDisc(album.id, discNumber, intraDiscOffset);
     } catch (err) { 
       console.error(err); 
@@ -120,7 +119,7 @@
   >
     <div class="modal-chassis v-panel">
       <div class="modal-content">
-        
+
         <div class="column-left">
           <div class="cover-container" style="height: {leftColumnWidth - 64}px;">
             <ClearCover 
@@ -138,11 +137,11 @@
             {#if dateString}
               <span class="v-mono meta-date">{dateString}</span>
             {/if}
-            
+
             <div class="meta-stack">
               <div class="v-mono meta-row">
                 <span class="v-truncate meta-val">{durationStr}</span>
-                
+
                 {#if discCount > 1}
                   <span class="meta-sep">•</span>
                   <span class="v-truncate meta-val">{discCount} Discs</span>

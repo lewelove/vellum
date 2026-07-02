@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { library } from "../../library.svelte.ts";
+  import { view } from "../../library/view.svelte.ts";
+  import { collection } from "../../library/collection.svelte.ts";
   import SidebarIndex from "./SidebarIndex.svelte";
 
   let isLibraryMenuOpen = $state(false);
@@ -8,20 +9,20 @@
   let isGroupMenuOpen = $state(false);
   let scrollContainer: HTMLDivElement | null = $state(null);
 
-  let activeLibraryDef = $derived(library.availableLibraries[library.activeLibrary] || {});
+  let activeLibraryDef = $derived(collection.availableLibraries[view.activeLibrary] || {});
   let allowedFilters = $derived(activeLibraryDef.allowed_filters || []);
   let showFilterDropdown = $derived(allowedFilters.length > 1);
 
-  let libraryLabel = $derived(library.availableLibraries[library.activeLibrary]?.label || "Unknown");
-  let filterLabel = $derived(library.availableFilters[library.activeLibraryFilter || ""]?.label || "Unknown");
-  let groupLabel = $derived(library.availableFacets[library.activeSidebarGrouper]?.label || "Unknown");
-  let sortLabel = $derived(library.availableOrders[library.userSortPreference]?.label || "Unknown");
+  let libraryLabel = $derived(collection.availableLibraries[view.activeLibrary]?.label || "Unknown");
+  let filterLabel = $derived(collection.availableFilters[view.activeLibraryFilter || ""]?.label || "Unknown");
+  let groupLabel = $derived(collection.availableFacets[view.activeSidebarGrouper]?.label || "Unknown");
+  let sortLabel = $derived(collection.availableOrders[view.userSortPreference]?.label || "Unknown");
 
-  let items = $derived(library.getSidebarGroup(library.activeSidebarGrouper));
+  let items = $derived(view.getSidebarGroup(view.activeSidebarGrouper));
 
-  let isReverse = $derived(library.userSortOrder === "reverse");
+  let isReverse = $derived(view.userSortOrder === "reverse");
 
-  let activeGrouperDef = $derived(library.availableFacets[library.activeSidebarGrouper] || {});
+  let activeGrouperDef = $derived(collection.availableFacets[view.activeSidebarGrouper] || {});
   let showIndex = $derived(activeGrouperDef.index === true);
   let showCount = $derived(activeGrouperDef.count === true);
 
@@ -62,22 +63,22 @@
   }
 
   function selectLibrary(key: string) {
-    library.setLibrary(key);
+    view.setLibrary(key);
     isLibraryMenuOpen = false;
   }
 
   function selectOrder(key: string) {
-    library.setUserSort(key);
+    view.setUserSort(key);
     isSortMenuOpen = false;
   }
 
   function selectGrouper(key: string) {
-    library.setSidebarGrouper(key);
+    view.setSidebarGrouper(key);
     isGroupMenuOpen = false;
   }
 
   function toggleDirection() {
-    library.toggleSortOrder();
+    view.toggleSortOrder();
   }
 </script>
 
@@ -107,10 +108,10 @@
     
         {#if isLibraryMenuOpen}
           <div class="control-menu v-panel">
-            {#each library.librariesList as lib}
+            {#each collection.librariesList as lib}
               <button 
                 class="menu-item" 
-                class:selected={library.activeLibrary === lib.key}
+                class:selected={view.activeLibrary === lib.key}
                 onclick={() => selectLibrary(lib.key)}
               >
                 {lib.label}
@@ -139,13 +140,13 @@
               {#each allowedFilters as fKey}
                 <button 
                   class="menu-item" 
-                  class:selected={library.activeLibraryFilter === fKey}
+                  class:selected={view.activeLibraryFilter === fKey}
                   onclick={() => {
-                    library.setLibraryFilter(fKey);
+                    view.setLibraryFilter(fKey);
                     isLibraryFilterMenuOpen = false;
                   }}
                 >
-                  {library.availableFilters[fKey]?.label || fKey}
+                  {collection.availableFilters[fKey]?.label || fKey}
                 </button>
               {/each}
             </div>
@@ -168,10 +169,10 @@
     
         {#if isGroupMenuOpen}
           <div class="control-menu v-panel">
-            {#each library.visibleFacets as {key, label}}
+            {#each collection.getVisibleFacets(view.activeLibrary) as {key, label}}
               <button 
                 class="menu-item" 
-                class:selected={library.activeSidebarGrouper === key}
+                class:selected={view.activeSidebarGrouper === key}
                 onclick={() => selectGrouper(key)}
               >
                 {label}
@@ -196,10 +197,10 @@
 
         {#if isSortMenuOpen}
           <div class="control-menu v-panel">
-            {#each library.visibleOrders as {key, label}}
+            {#each collection.getVisibleOrders(view.activeLibrary) as {key, label}}
               <button 
                 class="menu-item" 
-                class:selected={library.userSortPreference === key}
+                class:selected={view.userSortPreference === key}
                 onclick={() => selectOrder(key)}
               >
                 {label}
@@ -227,8 +228,8 @@
           index: i,
           label: item.label,
           count: item.count,
-          active: library.activeFilter.key === library.activeSidebarGrouper && library.activeFilter.val === item.value,
-          onclick: () => library.applyFilter(library.activeSidebarGrouper, item.value)
+          active: view.activeFilter.key === view.activeSidebarGrouper && view.activeFilter.val === item.value,
+          onclick: () => view.applyFilter(view.activeSidebarGrouper, item.value)
         })}
       {/each}
       <div class="scroll-spacer"></div>

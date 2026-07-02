@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { library } from "../library.svelte.ts";
-
   let { hash, width, height, animate = true }: { hash?: string, width: number, height: number, animate?: boolean } = $props();
 
   let dpr = $derived(window.devicePixelRatio || 1);
@@ -34,7 +32,7 @@
         if (!active) return;
         const coverReceived = performance.now();
         console.log(`[Cover API] Cover bytes received in ${(coverReceived - apiCallStart).toFixed(2)}ms`);
-        
+
         localBlobUrl = URL.createObjectURL(blob);
         blobUrl = localBlobUrl;
       })

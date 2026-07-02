@@ -1,9 +1,21 @@
-export class Prewarmer {
+import { collection } from "./collection.svelte.ts";
+import { sync } from "./sync.svelte.ts";
+
+class Prewarmer {
   pinnedTextures: Map<string, ImageBitmap> = $state(new Map());
 
-  async orchestrate(dict: Record<string, any>, getThumbnailUrl: (album: any) => string) {
+  constructor() {
+    sync.addEventListener('message', (e: Event) => {
+      const json = (e as CustomEvent).detail;
+      if (json.type === "INIT_DICT" || json.type === "ALBUM_UPDATED" || json.type === "CONFIG_UPDATE" || json.type === "INTERFACE_CONFIG_UPDATE") {
+        this.orchestrate();
+      }
+    });
+  }
+
+  async orchestrate() {
     const concurrencyLimit = 6;
-    const queue = Object.values(dict);
+    const queue = Object.values(collection.dict);
     let pendingUpdates = false;
     let lastFlush = Date.now();
 
@@ -16,7 +28,7 @@ export class Prewarmer {
     const processor = async () => {
       while (queue.length > 0) {
         const album = queue.shift();
-        const url = getThumbnailUrl(album);
+        const url = collection.getThumbnailUrl(album);
         if (!url || this.pinnedTextures.has(url)) continue;
         try {
           const res = await fetch(url);
@@ -38,3 +50,5 @@ export class Prewarmer {
     if (pendingUpdates) flush();
   }
 }
+
+export const prewarmer = new Prewarmer();
