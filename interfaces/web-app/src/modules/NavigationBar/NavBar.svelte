@@ -22,6 +22,7 @@
     class:active={view.homeSubView === viewId} 
     onclick={() => {
       view.homeSubView = viewId;
+      view.focusedAlbum = null;
       view.refreshView(true);
       view.persistState();
     }}

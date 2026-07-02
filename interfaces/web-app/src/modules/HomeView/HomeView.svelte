@@ -10,7 +10,7 @@
 
   let isResizing = $state(false);
 
-  let isModalVisible = $derived(!!view.focusedAlbums[view.homeSubView]);
+  let isModalVisible = $derived(!!view.focusedAlbum);
 
   function startResizing() {
     isResizing = true;
@@ -40,7 +40,7 @@
       <AlbumGrid 
         albums={view.homeSubView === 'shelves' ? view.shelfAlbums : view.libraryAlbums} 
         version={view.homeSubView === 'shelves' ? view.shelfVersion : view.libraryVersion} 
-        activeAlbumId={view.focusedAlbums[view.homeSubView]?.id}
+        activeAlbumId={view.focusedAlbum?.id}
         onfocus={(album) => view.setFocus(album)}
       />
     </section>
@@ -65,7 +65,7 @@
   {#if isModalVisible}
     <div class="modal-layer">
         <ModalDrawer 
-          album={view.focusedAlbums[view.homeSubView]} 
+          album={view.focusedAlbum} 
           onclose={() => view.closeFocus()} 
         />
     </div>

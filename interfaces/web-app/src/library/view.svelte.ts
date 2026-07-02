@@ -8,7 +8,9 @@ export class ViewState {
   isLoading: boolean = $state(true);
   isConnected: boolean = $state(false);
   homeSubView: "library" | "shelves" = $state("library");
-  focusedAlbums: Record<string, any> = $state({ library: null, shelves: null, queue: null });
+  
+  focusedAlbum: any = $state(null);
+  
   activeLibrary: string = $state("library");
   activeLibraryFilter: string | null = $state(null);
   activeFilter: { key: string | null, val: string | null } = $state({ key: null, val: null });
@@ -63,11 +65,9 @@ export class ViewState {
     } else if (json.type === "LOGIC_UPDATE") {
       window.location.reload();
     } else if (json.type === "ALBUM_REMOVED" || json.type === "ALBUM_UPDATED") {
-      for (const tab of Object.keys(this.focusedAlbums)) {
-        if (this.focusedAlbums[tab] && this.focusedAlbums[tab].id === json.id) {
-          if (json.type === "ALBUM_REMOVED") this.focusedAlbums[tab] = null;
-          else collection.ensureFullAlbum(json.id).then(data => { if (data) this.focusedAlbums[tab] = data; });
-        }
+      if (this.focusedAlbum && this.focusedAlbum.id === json.id) {
+        if (json.type === "ALBUM_REMOVED") this.focusedAlbum = null;
+        else collection.ensureFullAlbum(json.id).then(data => { if (data) this.focusedAlbum = data; });
       }
       this.refreshView(false);
       this.refreshSidebar();
@@ -75,14 +75,6 @@ export class ViewState {
   }
 
   get isShaderActive() { return this.isShaderEnabled && player.state !== "stop"; }
-  
-  get focusedAlbum() { 
-    return this.focusedAlbums[this.homeSubView] || null; 
-  }
-  
-  set focusedAlbum(val) { 
-    this.focusedAlbums[this.homeSubView] = val; 
-  }
 
   get shelfViewIds() {
     const shelfKey = this.activeShelf || (collection.manifest.shelves_order && collection.manifest.shelves_order[0]) || Object.keys(collection.availableShelves)[0];
@@ -240,11 +232,11 @@ export class ViewState {
   }
 
   async setFocus(album: any) {
-    this.focusedAlbums[this.homeSubView] = await collection.ensureFullAlbum(album.id);
+    this.focusedAlbum = await collection.ensureFullAlbum(album.id);
   }
 
   closeFocus() {
-    this.focusedAlbums[this.homeSubView] = null;
+    this.focusedAlbum = null;
   }
 
   toggleShader() {
