@@ -39,6 +39,13 @@ pub async fn execute(name: Option<String>) -> Result<()> {
         .spawn()
         .context(format!("Failed to spawn interface script at {}", run_path.display()))?;
 
-    child.wait().await?;
+    tokio::select! {
+        res = child.wait() => {
+            res.context("Interface child process wait failed")?;
+        }
+        _ = tokio::signal::ctrl_c() => {
+            let _ = child.wait().await;
+        }
+    }
     Ok(())
 }
