@@ -1,154 +1,124 @@
-import { connectSocket } from "./api.ts";
-import { player, updatePlayerState } from "./modules/player.svelte.ts";
+import { updatePlayerState } from "./modules/player.svelte.ts";
 import { nav } from "./navigation.svelte.ts";
 import { updateTheme } from "./theme.svelte.ts";
 
+import { CollectionStore } from "./library/collection.svelte.ts";
+import { ViewState } from "./library/view.svelte.ts";
+import { SyncEngine } from "./library/sync.svelte.ts";
+import { Prewarmer } from "./library/prewarmer.svelte.ts";
+import { PersistenceHandler } from "./library/persistence.svelte.ts";
+
 class LibraryState {
-  dict: Record<string, any> = $state({});
-  trackPathMap: Record<string, any> = $state({});
-  
-  sidebarShelves: Record<string, string[]> = $state({});
-  libraryViewIds: string[] = $state([]);
-  
-  shelfViewIds = $derived.by(() => {
+  _collection = new CollectionStore();
+  _view = new ViewState();
+  _sync = new SyncEngine();
+  _prewarmer = new Prewarmer();
+  _persistence = new PersistenceHandler();
+
+  get dict() { return this._collection.dict; }
+  set dict(v) { this._collection.dict = v; }
+
+  get trackPathMap() { return this._collection.trackPathMap; }
+  set trackPathMap(v) { this._collection.trackPathMap = v; }
+
+  get sidebarShelves() { return this._collection.sidebarShelves; }
+  set sidebarShelves(v) { this._collection.sidebarShelves = v; }
+
+  get libraryViewIds() { return this._collection.libraryViewIds; }
+  set libraryViewIds(v) { this._collection.libraryViewIds = v; }
+
+  get sidebarGroups() { return this._collection.sidebarGroups; }
+  set sidebarGroups(v) { this._collection.sidebarGroups = v; }
+
+  get fullAlbumCache() { return this._collection.fullAlbumCache; }
+  set fullAlbumCache(v) { this._collection.fullAlbumCache = v; }
+
+  get manifest() { return this._collection.manifest; }
+  set manifest(v) { this._collection.manifest = v; }
+
+  get config() { return this._collection.config; }
+  set config(v) { this._collection.config = v; }
+
+  get shelfViewIds() {
       const shelfKey = this.activeShelf || (this.manifest.shelves_order && this.manifest.shelves_order[0]) || Object.keys(this.availableShelves)[0];
       return shelfKey ? (this.sidebarShelves[shelfKey] || []) : [];
-  });
-  
-  libraryAlbums = $derived(this.mapIdsToAlbums(this.libraryViewIds));
-  shelfAlbums = $derived(this.mapIdsToAlbums(this.shelfViewIds));
-  
-  mapIdsToAlbums(ids: string[]): any[] {
-    return ids.map(id => {
-      let a = this.dict[id];
-      return a ? {
-          id: a.id,
-          title: a.album,
-          artist: a.albumartist,
-          cover_hash: a.cover_hash,
-          total_discs: a.total_discs,
-          total_tracks: a.total_tracks,
-          duration_formatted: a.duration_formatted,
-          keys: a.keys
-      } : null;
-    }).filter(Boolean);
-  }
-  
-  sidebarGroups: Map<string, any[]> = $state(new Map()); 
-  isLoading: boolean = $state(true);
-  isConnected: boolean = $state(false);
-  
-  homeSubView: "library" | "shelves" = $state("library");
-  focusedAlbums: Record<string, any> = $state({ library: null, shelves: null, queue: null });
-
-  get focusedAlbum(): any {
-    const key = nav.activeTab === 'home' ? this.homeSubView : nav.activeTab;
-    return this.focusedAlbums[key] || null;
   }
 
-  set focusedAlbum(val: any) {
-    const key = nav.activeTab === 'home' ? this.homeSubView : nav.activeTab;
-    this.focusedAlbums[key] = val;
-  }
-  
-  activeLibrary: string = $state("library");
-  activeLibraryFilter: string | null = $state(null);
-  activeFilter: { key: string | null, val: string | null } = $state({ key: null, val: null });
-  activeSort: { key: string, order: string } = $state({ key: "default", order: "default" });
-  userSortPreference: string = $state("default");
-  userSortOrder: string = $state("default");
-  activeSidebarGrouper: string = $state("genre");
-  activeShelf: string | null = $state(null);
+  get libraryAlbums() { return this._collection.mapIdsToAlbums(this.libraryViewIds); }
+  get shelfAlbums() { return this._collection.mapIdsToAlbums(this.shelfViewIds); }
 
-  librariesState: Record<string, any> = $state({});
+  get isLoading() { return this._view.isLoading; }
+  set isLoading(v) { this._view.isLoading = v; }
 
-  getLibraryState(libKey: string) {
-    if (!this.librariesState[libKey]) {
-      this.librariesState[libKey] = {};
-    }
-    const state = this.librariesState[libKey];
-    const libraryDef = this.availableLibraries[libKey] || {};
-    const allowedFilters = libraryDef.allowed_filters || [];
-    const allowedGroupers = libraryDef.allowed_groupers || [];
-    const allowedOrders = libraryDef.allowed_orders || [];
+  get isConnected() { return this._view.isConnected; }
+  set isConnected(v) { this._view.isConnected = v; }
 
-    if (!state.activeLibraryFilter || !allowedFilters.includes(state.activeLibraryFilter)) {
-      state.activeLibraryFilter = allowedFilters.length > 0 ? allowedFilters[0] : null;
-    }
+  get homeSubView() { return this._view.homeSubView; }
+  set homeSubView(v) { this._view.homeSubView = v; }
 
-    if (!state.activeSidebarGrouper || !allowedGroupers.includes(state.activeSidebarGrouper)) {
-      state.activeSidebarGrouper = allowedGroupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
-    }
+  get focusedAlbums() { return this._view.focusedAlbums; }
+  set focusedAlbums(v) { this._view.focusedAlbums = v; }
 
-    if (!state.userSortPreference || !allowedOrders.includes(state.userSortPreference)) {
-      state.userSortPreference = allowedOrders[0] || (this.manifest.orders_order && this.manifest.orders_order[0]) || Object.keys(this.availableOrders)[0] || "default";
-    }
+  get focusedAlbum() { return this._view.focusedAlbum; }
+  set focusedAlbum(v) { this._view.focusedAlbum = v; }
 
-    if (!state.userSortOrder) {
-      state.userSortOrder = "default";
-    }
+  get activeLibrary() { return this._view.activeLibrary; }
+  set activeLibrary(v) { this._view.activeLibrary = v; }
 
-    if (!state.activeSort) {
-      state.activeSort = { key: state.userSortPreference, order: state.userSortOrder };
-    }
+  get activeLibraryFilter() { return this._view.activeLibraryFilter; }
+  set activeLibraryFilter(v) { this._view.activeLibraryFilter = v; }
 
-    if (!state.activeFilter) {
-      state.activeFilter = { key: null, val: null };
-    }
+  get activeFilter() { return this._view.activeFilter; }
+  set activeFilter(v) { this._view.activeFilter = v; }
 
-    return state;
-  }
+  get activeSort() { return this._view.activeSort; }
+  set activeSort(v) { this._view.activeSort = v; }
 
-  saveCurrentLibraryState() {
-    if (!this.activeLibrary) return;
-    this.librariesState[this.activeLibrary] = {
-      activeLibraryFilter: this.activeLibraryFilter,
-      activeFilter: $state.snapshot(this.activeFilter),
-      userSortPreference: this.userSortPreference,
-      userSortOrder: this.userSortOrder,
-      activeSidebarGrouper: this.activeSidebarGrouper,
-      activeSort: $state.snapshot(this.activeSort)
-    };
-  }
+  get userSortPreference() { return this._view.userSortPreference; }
+  set userSortPreference(v) { this._view.userSortPreference = v; }
 
-  loadLibraryState(key: string) {
-    const state = this.getLibraryState(key);
-    this.activeLibraryFilter = state.activeLibraryFilter;
-    this.activeSidebarGrouper = state.activeSidebarGrouper;
-    this.userSortPreference = state.userSortPreference;
-    this.userSortOrder = state.userSortOrder;
-    this.activeSort = $state.snapshot(state.activeSort);
-    this.activeFilter = $state.snapshot(state.activeFilter);
-  }
-  
-  libraryVersion: number = $state(0);
-  shelfVersion: number = $state(0);
+  get userSortOrder() { return this._view.userSortOrder; }
+  set userSortOrder(v) { this._view.userSortOrder = v; }
 
-  pinnedTextures: Map<string, ImageBitmap> = $state(new Map());
-  fullAlbumCache: Record<string, any> = $state({});
-  isShaderEnabled: boolean = $state(true);
-  isShaderActive: boolean = $derived(this.isShaderEnabled && player.state !== "stop");
-  queuePanels: Record<string, boolean> = $state({ hud: true });
-  themeVersion: number = $state(Date.now());
-  
-  sidebarWidth: number = $state(280);
-  
-  manifest: Record<string, any> = $state({ filters: {}, libraries: {}, groupers: {}, orders: {}, shelves: {} });
+  get activeSidebarGrouper() { return this._view.activeSidebarGrouper; }
+  set activeSidebarGrouper(v) { this._view.activeSidebarGrouper = v; }
 
-  config: Record<string, any> = $state({
-    covers: {
-        master: { interpolation: "mitchell", size: 1080 },
-        thumbnail: { interpolation: "lanczos", size: 190 }
-    }
-  });
+  get activeShelf() { return this._view.activeShelf; }
+  set activeShelf(v) { this._view.activeShelf = v; }
 
-  _ws: WebSocket | null = null;
-  _pendingViewReset: boolean = false;
+  get librariesState() { return this._view.librariesState; }
+  set librariesState(v) { this._view.librariesState = v; }
+
+  get libraryVersion() { return this._view.libraryVersion; }
+  set libraryVersion(v) { this._view.libraryVersion = v; }
+
+  get shelfVersion() { return this._view.shelfVersion; }
+  set shelfVersion(v) { this._view.shelfVersion = v; }
+
+  get themeVersion() { return this._view.themeVersion; }
+  set themeVersion(v) { this._view.themeVersion = v; }
+
+  get sidebarWidth() { return this._view.sidebarWidth; }
+  set sidebarWidth(v) { this._view.sidebarWidth = v; }
+
+  get isShaderEnabled() { return this._view.isShaderEnabled; }
+  set isShaderEnabled(v) { this._view.isShaderEnabled = v; }
+
+  get isShaderActive() { return this._view.isShaderActive; }
+
+  get queuePanels() { return this._view.queuePanels; }
+  set queuePanels(v) { this._view.queuePanels = v; }
+
+  get pinnedTextures() { return this._prewarmer.pinnedTextures; }
+  set pinnedTextures(v) { this._prewarmer.pinnedTextures = v; }
+
+  get _pendingViewReset() { return this._sync._pendingViewReset; }
+  set _pendingViewReset(v) { this._sync._pendingViewReset = v; }
 
   init() {
-    this._ws = connectSocket(
+    this._sync.init(
       () => { this.isConnected = true; },
-      (event: MessageEvent) => this.handleSocketMessage(event)
+      (json) => this.dispatchSocketAction(json)
     );
 
     fetch("/api/interfaces/default/config")
@@ -166,28 +136,6 @@ class LibraryState {
                 })
                 .catch(e => console.error(e));
         });
-  }
-
-  handleSocketMessage(event: MessageEvent) {
-    if (event.data instanceof Blob) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const json = JSON.parse(reader.result as string);
-          this.dispatchSocketAction(json);
-        } catch (err) {
-          console.error(err);
-        }
-      };
-      reader.readAsText(event.data);
-    } else {
-      try {
-        const json = JSON.parse(event.data);
-        this.dispatchSocketAction(json);
-      } catch (err) {
-        console.error(err);
-      }
-    }
   }
 
   dispatchSocketAction(json: any) {
@@ -288,101 +236,79 @@ class LibraryState {
     }
   }
 
-  async orchestratePrewarming() {
-    const concurrencyLimit = 6;
-    const queue = Object.values(this.dict);
-    let pendingUpdates = false;
-    let lastFlush = Date.now();
-
-    const flush = () => {
-      this.pinnedTextures = new Map(this.pinnedTextures);
-      pendingUpdates = false;
-      lastFlush = Date.now();
-    };
-
-    const processor = async () => {
-      while (queue.length > 0) {
-        const album = queue.shift();
-        const url = this.getThumbnailUrl(album);
-        if (!url || this.pinnedTextures.has(url)) continue;
-        try {
-          const res = await fetch(url);
-          const blob = await res.blob();
-          const bitmap = await createImageBitmap(blob, {
-            premultiplyAlpha: 'none',
-            colorSpaceConversion: 'default'
-          });
-          this.pinnedTextures.set(url, bitmap);
-          pendingUpdates = true;
-          if (Date.now() - lastFlush > 100) flush();
-        } catch (err) {}
-      }
-      if (pendingUpdates) flush();
-    };
-
-    const workers = Array.from({ length: concurrencyLimit }, () => processor());
-    await Promise.all(workers);
-    if (pendingUpdates) flush();
+  orchestratePrewarming() {
+    this._prewarmer.orchestrate(this.dict, (album) => this.getThumbnailUrl(album));
   }
 
   applyPersistedState(state: any) {
-      nav.activeTab = state.activeTab || "home";
-      this.homeSubView = state.homeSubView || "library";
-      this.librariesState = state.librariesState || {};
-      this.activeLibrary = state.activeLibrary || state.activeCollection || "library";
-      
-      this.loadLibraryState(this.activeLibrary);
-
-      if (state.activeLibraryFilter !== undefined) this.activeLibraryFilter = state.activeLibraryFilter;
-      if (state.groupKey !== undefined) this.activeSidebarGrouper = state.groupKey;
-      if (state.filter !== undefined) this.activeFilter = state.filter;
-      if (state.sortKey !== undefined) {
-          this.userSortPreference = state.sortKey;
-          this.activeSort.key = state.sortKey;
-      }
-      if (state.sortOrder !== undefined) {
-          this.userSortOrder = state.sortOrder;
-          this.activeSort.order = state.sortOrder;
-      }
-
-      this.activeShelf = state.activeShelf || null;
-      this.isShaderEnabled = state.isShaderEnabled ?? true;
-      this.sidebarWidth = state.sidebarWidth || 280;
-      
-      this.queuePanels = state.queuePanels || { hud: true };
-      if (this.queuePanels.hud === undefined) {
-        this.queuePanels.hud = this.queuePanels.control !== false;
-        delete this.queuePanels.control;
-        delete this.queuePanels.tracks;
-        delete this.queuePanels.lyrics;
-      }
+    this._persistence.applyPersistedState(state, this);
   }
 
   persistState() {
-      this.saveCurrentLibraryState();
-      fetch("/api/state", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-              activeTab: nav.activeTab,
-              homeSubView: this.homeSubView,
-              activeLibrary: this.activeLibrary,
-              librariesState: $state.snapshot(this.librariesState),
-              activeLibraryFilter: this.activeLibraryFilter,
-              sortKey: this.userSortPreference,
-              sortOrder: this.userSortOrder,
-              groupKey: this.activeSidebarGrouper,
-              filter: $state.snapshot(this.activeFilter),
-              activeShelf: this.activeShelf,
-              isShaderEnabled: this.isShaderEnabled,
-              queuePanels: $state.snapshot(this.queuePanels),
-              sidebarWidth: this.sidebarWidth
-          })
-      }).catch(err => console.error(err));
+    this._persistence.persistState(this);
+  }
+
+  getLibraryState(libKey: string) {
+    if (!this.librariesState[libKey]) {
+      this.librariesState[libKey] = {};
+    }
+    const state = this.librariesState[libKey];
+    const libraryDef = this.availableLibraries[libKey] || {};
+    const allowedFilters = libraryDef.allowed_filters || [];
+    const allowedGroupers = libraryDef.allowed_groupers || [];
+    const allowedOrders = libraryDef.allowed_orders || [];
+
+    if (!state.activeLibraryFilter || !allowedFilters.includes(state.activeLibraryFilter)) {
+      state.activeLibraryFilter = allowedFilters.length > 0 ? allowedFilters[0] : null;
+    }
+
+    if (!state.activeSidebarGrouper || !allowedGroupers.includes(state.activeSidebarGrouper)) {
+      state.activeSidebarGrouper = allowedGroupers[0] || (this.manifest.groupers_order && this.manifest.groupers_order[0]) || Object.keys(this.availableFacets)[0] || "genre";
+    }
+
+    if (!state.userSortPreference || !allowedOrders.includes(state.userSortPreference)) {
+      state.userSortPreference = allowedOrders[0] || (this.manifest.orders_order && this.manifest.orders_order[0]) || Object.keys(this.availableOrders)[0] || "default";
+    }
+
+    if (!state.userSortOrder) {
+      state.userSortOrder = "default";
+    }
+
+    if (!state.activeSort) {
+      state.activeSort = { key: state.userSortPreference, order: state.userSortOrder };
+    }
+
+    if (!state.activeFilter) {
+      state.activeFilter = { key: null, val: null };
+    }
+
+    return state;
+  }
+
+  saveCurrentLibraryState() {
+    if (!this.activeLibrary) return;
+    this.librariesState[this.activeLibrary] = {
+      activeLibraryFilter: this.activeLibraryFilter,
+      activeFilter: $state.snapshot(this.activeFilter),
+      userSortPreference: this.userSortPreference,
+      userSortOrder: this.userSortOrder,
+      activeSidebarGrouper: this.activeSidebarGrouper,
+      activeSort: $state.snapshot(this.activeSort)
+    };
+  }
+
+  loadLibraryState(key: string) {
+    const state = this.getLibraryState(key);
+    this.activeLibraryFilter = state.activeLibraryFilter;
+    this.activeSidebarGrouper = state.activeSidebarGrouper;
+    this.userSortPreference = state.userSortPreference;
+    this.userSortOrder = state.userSortOrder;
+    this.activeSort = { ...state.activeSort };
+    this.activeFilter = { ...state.activeFilter };
   }
 
   refreshView(resetScroll: boolean = true) {
-    if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
+    if (!this._sync.isOpen) return;
     this._pendingViewReset = resetScroll;
     
     if (nav.activeTab === "home" && this.homeSubView === "shelves") {
@@ -390,29 +316,29 @@ class LibraryState {
         this.isLoading = false;
         this._pendingViewReset = false;
     } else {
-        this._ws.send(JSON.stringify({
+        this._sync.send({
             type: "VIEW_REQUEST",
             library: this.activeLibrary,
             library_filter: this.activeLibraryFilter,
             sort: this.activeSort.key,
             reverse: this.activeSort.order === "reverse",
             filter: this.activeFilter
-        }));
+        });
     }
   }
 
   refreshSidebar() {
-    if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
-    this._ws.send(JSON.stringify({
+    if (!this._sync.isOpen) return;
+    this._sync.send({
         type: "GROUP_REQUEST",
         library: this.activeLibrary,
         library_filter: this.activeLibraryFilter,
         key: this.activeSidebarGrouper
-    }));
+    });
   }
 
   getSidebarGroup(key: string): any[] {
-    if (!this.sidebarGroups.has(key) && this._ws?.readyState === WebSocket.OPEN) {
+    if (!this.sidebarGroups.has(key) && this._sync.isOpen) {
         this.refreshSidebar();
         return [];
     }
