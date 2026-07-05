@@ -94,6 +94,7 @@ pub async fn run(port: u16) -> Result<()> {
         resolved_shelf_files,
         covers,
         interfaces,
+        config_dir: config_dir.clone(),
     };
 
     let ui_state_val = load_state(&state_root);

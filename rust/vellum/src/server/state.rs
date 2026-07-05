@@ -23,4 +23,5 @@ pub struct AppConfig {
     pub resolved_shelf_files: Vec<PathBuf>,
     pub covers: IndexMap<String, CoversConfig>,
     pub interfaces: std::collections::HashMap<String, InterfaceConfig>,
+    pub config_dir: PathBuf,
 }

@@ -5,28 +5,56 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 use std::sync::Arc;
+use std::path::Path as StdPath;
 
-pub fn get_interface_config_path(name: &str, cfg: Option<&libvellum::config::InterfaceConfig>) -> std::path::PathBuf {
-    if let Some(c) = cfg {
-        if let Some(cp) = &c.config {
-            return libvellum::utils::expand_path(cp);
-        }
-        let dir = c.directory.clone().unwrap_or_else(|| format!("~/.local/share/vellum/interfaces/{name}"));
-        libvellum::utils::expand_path(&dir).join("config.toml")
-    } else {
-        libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{name}/config.toml"))
-    }
+pub fn get_interface_config_path(
+    name: &str, 
+    cfg: Option<&libvellum::config::InterfaceConfig>, 
+    config_dir: &StdPath
+) -> std::path::PathBuf {
+    cfg.map_or_else(
+        || {
+            let default_path = libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{name}/config.toml"));
+            if default_path.is_absolute() {
+                default_path
+            } else {
+                config_dir.join(default_path)
+            }
+        },
+        |c| {
+            c.config.as_ref().map_or_else(
+                || {
+                    let dir = c.directory.clone().unwrap_or_else(|| format!("~/.local/share/vellum/interfaces/{name}"));
+                    let dir_path = libvellum::utils::expand_path(&dir);
+                    let dir_abs = if dir_path.is_absolute() {
+                        dir_path
+                    } else {
+                        config_dir.join(dir_path)
+                    };
+                    dir_abs.join("config.toml")
+                },
+                |cp| {
+                    let p = libvellum::utils::expand_path(cp);
+                    if p.is_absolute() {
+                        p
+                    } else {
+                        config_dir.join(p)
+                    }
+                },
+            )
+        },
+    )
 }
 
 pub async fn get_interface_config(
     Path(name): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Response {
-    let intf_cfg = {
+    let (intf_cfg, config_dir) = {
         let guard = state.config.read().await;
-        guard.interfaces.get(&name).cloned()
+        (guard.interfaces.get(&name).cloned(), guard.config_dir.clone())
     };
-    let config_path = get_interface_config_path(&name, intf_cfg.as_ref());
+    let config_path = get_interface_config_path(&name, intf_cfg.as_ref(), &config_dir);
     if let Ok(content) = std::fs::read_to_string(&config_path)
         && let Ok(toml_val) = toml::from_str::<toml::Value>(&content)
     {
@@ -40,16 +68,23 @@ pub async fn serve_interface_asset(
     Path((name, asset_path)): Path<(String, String)>,
     State(state): State<Arc<AppState>>,
 ) -> Response {
-    let intf_cfg = {
+    let (intf_cfg, config_dir) = {
         let guard = state.config.read().await;
-        guard.interfaces.get(&name).cloned()
+        (guard.interfaces.get(&name).cloned(), guard.config_dir.clone())
     };
     
     let dir = intf_cfg.as_ref()
         .and_then(|c| c.directory.as_ref())
         .map_or_else(
             || libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{name}")),
-            |c| libvellum::utils::expand_path(c),
+            |c| {
+                let p = libvellum::utils::expand_path(c);
+                if p.is_absolute() {
+                    p
+                } else {
+                    config_dir.join(p)
+                }
+            },
         );
 
     let full_path = dir.join(&asset_path);
