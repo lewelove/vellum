@@ -34,41 +34,57 @@ Vellum is in the state of active development. To ensure a reproducible environme
 
 Clone the repository:
 
-```
+```bash
 git clone https://github.com/lewelove/vellum.git
 cd vellum
 ```
 
 Drop into the development shell:
 
-```
+```bash
 nix develop
 ```
 
 Or if you have `direnv` installed:
 
-```
+```bash
 direnv allow
 ```
 
-Once inside the Nix shell, install `node_modules` for UI with bun:
+For default interface to run from cloned developer repo you must `cd` into its directory, install `node_modules` and `chmod +x run.sh`:
 
-```
-cd web-app
+```bash
+cd interfaces/web-app
 bun install
+chmod +x run.sh
 ```
 
 And build the Rust binary:
 
-```
+```bash
 build --release
 ```
 
 ### 2. Configure Vellum
 
 You create `~/.config/vellum/config.toml` file:
-- In `[storage]` section you define `library_root = "path/to/your/library"` containing all of your album folders.
-- Optionally in `[compiler.keys]` you define all tags besides standard ones you want to be present in `album.lock.json`. Format: `tag_name = { level = "album"/"track" }`. 
+
+```toml
+# Define a library path containing all your albums
+[storage]
+library_root = "path/to/your/library/"
+
+# Optionally you can define all keys besides standard ones you want to be present in `album.lock.json`
+[compiler.keys]
+# Format:
+# tag_name = { level = "album" / "track" }
+
+# For `vellum interface` command to run you point default interface to `interfaces/web-app` directory from the previous step
+[interfaces]
+default = {
+  directory = "path/to/repo/interfaces/web-app"
+}
+```
 
 For config reference check out [my Vellum dotfiles](https://github.com/lewelove/nix-config/tree/main/dotfiles/.config/vellum). The config documetation is coming soon...
 
@@ -80,14 +96,16 @@ Then you run `vellum update`. It automatically finds all new or changed `metadat
 
 ### 4. Run It
 
-Because Vellum decouples the frontend UI from the backend coordinator, you will run them as separate processes:
+Because Vellum decouples the interface from the backend server, you will run them as separate processes:
 
-```
+```bash
 # Terminal 1: Start the Rust backend
 vellum server
+```
 
-# Terminal 2: Start the Svelte web interface
-vellum ui
+```bash
+# Terminal 2: Start the default interface (Svelte Web App)
+vellum interface
 ```
 
 ### CLI Usage
@@ -97,5 +115,5 @@ The `vellum` CLI tool is the central driver for managing your library's state.
 - `vellum manifest` — Scans your library root for unmanaged audio directories and generates the initial `metadata.toml` anchor files.
 - `vellum update` — The core compiler command. Reads your TOML changes and writes the resolved `album.lock.json` files.
 - `vellum server` — Starts the Axum backend server and the MPD synchronization watchdog.
-- `vellum ui` — Starts the Vite/Svelte development server for the web interface.
-- `vellum x` — Run defined actions via runtime router.
+- `vellum interface` — Starts processes defined in `[interfaces]`.
+- `vellum x` — Run defined actions via runtime `[actions]` router.
