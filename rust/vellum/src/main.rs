@@ -81,8 +81,6 @@ enum Commands {
         id: Option<String>,
         #[arg(long, short = 'q', conflicts_with_all = ["playing", "id"])]
         query: Option<String>,
-        #[arg(long, short = 'i')]
-        intermediary: bool,
     },
     Query {
         #[arg(value_name = "QUERY")]
@@ -187,7 +185,7 @@ async fn main() -> Result<()> {
             let options = manifest::ManifestOptions { mode, force, stdout };
             manifest::run(expanded, &options)
         }
-        Commands::X { name, playing, id, query, intermediary } => x::execute(name, playing, id, query, intermediary).await,
+        Commands::X { name, playing, id, query } => x::execute(name, playing, id, query).await,
         Commands::Query { query_str, playing, lock, id, uid, json } => {
             let flags = query::QueryFlags { playing, lock, id, uid, json };
             query::run(query_str, flags).await

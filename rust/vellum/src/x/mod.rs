@@ -34,7 +34,6 @@ pub async fn execute(
     playing: bool,
     id_arg: Option<String>,
     query_arg: Option<String>,
-    intermediary: bool,
 ) -> Result<()> {
     let (config, _, config_path) = AppConfig::load().context("Failed to load config")?;
     let config_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
@@ -92,7 +91,7 @@ pub async fn execute(
     let config_json = serde_json::to_value(&config)?;
     let combined_json = serde_json::json!([lock_jsons, config_json]);
 
-    if intermediary {
+    if name == "intermediary" {
         let pretty_json = serde_json::to_string_pretty(&combined_json)?;
         println!("{pretty_json}");
         return Ok(());
