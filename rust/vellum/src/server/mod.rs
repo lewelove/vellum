@@ -7,13 +7,12 @@ pub mod watchdog;
 
 use anyhow::{Context, Result};
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, broadcast};
 use tower_http::cors::{Any, CorsLayer};
 
 use self::state::{AppConfig as ServerConfig, AppState};
-use libvellum::config::AppConfig;
 use libvellum::utils::expand_path;
 
 fn create_directories(cache_root: &Path, state_root: &Path) {
@@ -56,22 +55,22 @@ fn default_state() -> serde_json::Value {
 }
 
 pub async fn run(port: u16) -> Result<()> {
-    let (config, _, config_path): (AppConfig, toml::Value, PathBuf) = AppConfig::load().context("Failed to load application configuration")?;
-    let config_dir = config_path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+    let config = libvellum::lua::ResolvedConfig::load().context("Failed to load application configuration")?;
+    let config_dir = config.path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
 
-    let lib_root_str = &config.storage.library_root;
+    let lib_root_str = &config.app.storage.library;
 
     let library_root = expand_path(lib_root_str)
         .canonicalize()
         .context("Invalid library_root path")?;
 
-    let cache_root = expand_path(&config.storage.cache);
-    let state_root = expand_path(&config.storage.state);
+    let cache_root = expand_path(&config.app.storage.cache);
+    let state_root = expand_path(&config.app.storage.state);
 
     create_directories(&cache_root, &state_root);
 
-    let covers = config.compiler.as_ref().map(|c| c.covers.clone()).unwrap_or_default();
-    let interfaces = config.interfaces.unwrap_or_default();
+    let covers = config.covers.clone();
+    let interfaces = config.app.interfaces.clone();
     
     let logic_path = config_dir.join("logic.toml");
     let resolved_logic_path = logic_path.canonicalize().ok();
@@ -119,7 +118,7 @@ pub async fn run(port: u16) -> Result<()> {
         mpd_engine,
     });
 
-    watchdog::start(&config_path, Arc::clone(&app_state));
+    watchdog::start(&config.path, Arc::clone(&app_state));
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

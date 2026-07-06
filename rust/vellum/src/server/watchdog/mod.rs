@@ -1,4 +1,3 @@
-use libvellum::config::AppConfig;
 use crate::server::state::AppState;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use serde_json::json;
@@ -233,7 +232,7 @@ async fn handle_logic_change(
     log::info!("Filesystem change: reloading logic.toml...");
     let logic_path = config_dir.join("logic.toml");
     let resolved = if logic_path.exists() { logic_path.canonicalize().ok() } else { None };
-    
+
     let mut new_shelves = Vec::new();
     {
         let mut guard = state.config.write().await;
@@ -264,7 +263,7 @@ async fn handle_logic_change(
             let _ = watcher.watch(p, RecursiveMode::NonRecursive);
         }
     }
-    
+
     {
         let mut guard = state.config.write().await;
         guard.resolved_shelf_files.clone_from(&new_shelves);
@@ -283,11 +282,11 @@ async fn handle_config_change(
 ) -> (HashMap<String, PathBuf>, HashMap<String, PathBuf>) {
     log::info!("Filesystem change: reloading config...");
 
-    match AppConfig::load() {
-        Ok((new_config, _, _)) => {
-            let covers = new_config.compiler.as_ref().map(|c| c.covers.clone()).unwrap_or_default();
-            let new_interfaces = new_config.interfaces.unwrap_or_default();
-            
+    match libvellum::lua::ResolvedConfig::load() {
+        Ok(new_config) => {
+            let covers = new_config.covers.clone();
+            let new_interfaces = new_config.app.interfaces.clone();
+
             let mut updated_interfaces = HashMap::new();
             for (name, cfg) in &new_interfaces {
                 let dir = cfg.directory.as_ref().map_or_else(

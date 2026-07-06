@@ -92,7 +92,7 @@ pub fn resolve_release_date(source: &Value, path: &Path) -> Result<String, Vellu
     resolve_date(source, path)
 }
 
-pub fn resolve_album_info_date_added(album_root: &Path, source: &Value, config: &Value) -> Result<String, VellumError> {
+pub fn resolve_album_info_date_added(album_root: &Path, source: &Value, config: &crate::lua::ResolvedConfig) -> Result<String, VellumError> {
     let local_toml_path = album_root.join("local.toml");
     if local_toml_path.exists()
         && let Ok(content) = std::fs::read_to_string(&local_toml_path)
@@ -109,18 +109,11 @@ pub fn resolve_album_info_date_added(album_root: &Path, source: &Value, config: 
         return Ok(crate::types::parse_time(Some(&json_val)));
     }
 
-    let mut keys = Vec::new();
-    if let Some(fallbacks) = config.get("compiler").and_then(|c| c.get("date_added")).and_then(Value::as_array) {
+    if let Some(fallbacks) = &config.app.compiler.date_added {
         for f in fallbacks {
-            if let Some(s) = f.as_str() {
-                keys.push(s.to_string());
+            if let Some(val) = source.get(f) {
+                return Ok(crate::types::parse_time(Some(val)));
             }
-        }
-    }
-
-    for key in &keys {
-        if let Some(val) = source.get(key) {
-            return Ok(crate::types::parse_time(Some(val)));
         }
     }
 

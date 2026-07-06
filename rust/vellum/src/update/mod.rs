@@ -12,7 +12,6 @@ use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 
 use crate::compile;
-use libvellum::config::AppConfig;
 use libvellum::error::VellumError;
 use libvellum::utils::expand_path;
 use libvellum::sentinel::{TrustState, verify_trust};
@@ -46,8 +45,8 @@ pub async fn run(
     verbose: bool,
     silent: bool,
 ) -> Result<()> {
-    let (config, _, _): (AppConfig, toml::Value, PathBuf) = AppConfig::load().context("Failed to load config")?;
-    let library_root = expand_path(&config.storage.library_root)
+    let config = libvellum::lua::ResolvedConfig::load().context("Failed to load config")?;
+    let library_root = expand_path(&config.app.storage.library)
         .canonicalize()
         .context("Invalid library_root")?;
 
@@ -62,16 +61,11 @@ pub async fn run(
             .await;
     }
 
-    let exts = config
-        .manifest
-        .as_ref()
-        .and_then(|m| m.supported_extensions.clone())
-        .unwrap_or_else(|| vec![".flac".to_string()]);
-
-    let manifests = config.compiler.as_ref().and_then(|c| c.manifests.clone());
+    let exts = config.app.manifest.audio_files.clone().unwrap_or_else(|| vec![".flac".to_string()]);
+    let manifests = config.app.compiler.manifests.clone();
 
     let lib_hash = calculate_hash(&library_root.to_string_lossy());
-    let base_cache_dir = expand_path(&config.storage.cache).join("libraries_cache");
+    let base_cache_dir = expand_path(&config.app.storage.cache).join("libraries_cache");
     fs::create_dir_all(&base_cache_dir)?;
 
     validate_library_root(&base_cache_dir, &lib_hash).await?;
@@ -80,12 +74,8 @@ pub async fn run(
     let mut cache = load_cache(&cache_file);
 
     let scan_root = target_path.unwrap_or_else(|| library_root.clone());
-    let scan_depth = config
-        .compiler
-        .as_ref()
-        .and_then(|c| c.scan_depth)
-        .unwrap_or(4);
-    
+    let scan_depth = config.app.compiler.scan_depth.unwrap_or(4);
+
     let all_albums = libvellum::scanner::find_target_albums(&scan_root, scan_depth)?;
     let missing_paths = find_missing_paths(&all_albums, &scan_root, &cache);
 
@@ -172,7 +162,7 @@ fn find_missing_paths(all_albums: &[PathBuf], scan_root: &Path, cache: &HashMap<
     let mut missing_paths = Vec::new();
     let album_set: HashSet<PathBuf> = all_albums.iter().cloned().collect();
     let scan_root_canon = scan_root.canonicalize().unwrap_or_else(|_| scan_root.to_path_buf());
-    
+
     for cached_path_str in cache.keys() {
         let cached_path = PathBuf::from(cached_path_str);
         if cached_path.starts_with(&scan_root_canon) && !album_set.contains(&cached_path) {
@@ -216,7 +206,7 @@ fn start_notification_task(args: NotificationTaskArgs) -> tokio::task::JoinHandl
 
             for missing in missing_paths {
                 let p_str = missing.to_string_lossy().to_string();
-                
+
                 if verbose && !silent {
                     let display_path = missing.strip_prefix(&*lib_root_for_task).unwrap_or(&missing);
                     log::info!("Removed: {}", display_path.display());

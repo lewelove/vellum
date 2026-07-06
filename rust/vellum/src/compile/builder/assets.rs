@@ -4,7 +4,6 @@ use fast_image_resize::{ResizeAlg, ResizeOptions, Resizer};
 use fast_image_resize::PixelType;
 use fast_image_resize::images::Image;
 use image::DynamicImage;
-use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 pub const COVER_CANDIDATES: [&str; 4] = ["cover.jpg", "cover.png", "folder.jpg", "front.jpg"];
@@ -64,12 +63,11 @@ pub fn resize_image(src: &image::RgbImage, target_size: u32, filter: FilterType)
 }
 
 pub fn pregenerate_covers(
-    config: &Value,
+    config: &libvellum::lua::ResolvedConfig,
     cover_path: Option<&Path>,
     cover_hash_address: &str,
 ) -> Option<DynamicImage> {
-    let storage = config.get("storage")?;
-    let cache_str = storage.get("cache").and_then(Value::as_str)?;
+    let cache_str = &config.app.storage.cache;
     let original_path = cover_path?;
     if cover_hash_address.is_empty() {
         return None;
@@ -77,11 +75,9 @@ pub fn pregenerate_covers(
 
     let cache_root = expand_path(cache_str);
 
-    let covers_obj = config.get("compiler").and_then(|c| c.get("covers")).and_then(Value::as_object)?;
-
-    let master_cfg = covers_obj.get("master")?;
-    let master_size = master_cfg.get("size").and_then(Value::as_u64).unwrap_or(1080) as u32;
-    let master_algo_str = master_cfg.get("interpolation").and_then(Value::as_str).unwrap_or("mitchell");
+    let master_cfg = config.covers.get("master")?;
+    let master_size = master_cfg.size;
+    let master_algo_str = master_cfg.interpolation.as_deref().unwrap_or("mitchell");
     let master_algo = parse_interpolation(master_algo_str);
 
     let master_qoi_path = cache_root
@@ -105,12 +101,12 @@ pub fn pregenerate_covers(
 
     let mut master_img: Option<image::RgbImage> = None;
 
-    for (key, cfg) in covers_obj {
+    for (key, cfg) in &config.covers {
         if key == "master" {
             continue;
         }
-        let target_size = cfg.get("size").and_then(Value::as_u64).unwrap_or(190) as u32;
-        let algo_str = cfg.get("interpolation").and_then(Value::as_str).unwrap_or("lanczos");
+        let target_size = cfg.size;
+        let algo_str = cfg.interpolation.as_deref().unwrap_or("lanczos");
         let algo = parse_interpolation(algo_str);
 
         let static_path = cache_root

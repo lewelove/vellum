@@ -1,4 +1,3 @@
-use libvellum::models::CoverMetrics;
 use crate::harvest::TrackJson;
 use serde_json::Value;
 use std::path::Path;
@@ -8,8 +7,7 @@ pub struct AlbumContext<'a> {
     pub tracks: &'a [Value],
     pub album_root: &'a Path,
     pub library_root: &'a Path,
-    pub cover_metrics: Option<&'a CoverMetrics>,
-    pub config: &'a Value,
+    pub config: &'a libvellum::lua::ResolvedConfig,
     pub manifests: Vec<Value>,
     pub covers: Value,
 }

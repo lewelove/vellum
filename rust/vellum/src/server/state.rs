@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, broadcast};
 use indexmap::IndexMap;
-use libvellum::config::{CoversConfig, InterfaceConfig};
+use libvellum::lua::config::{CoversConfig, InterfaceConfig};
 
 pub struct AppState {
     pub query: Arc<Mutex<QueryEngine>>,

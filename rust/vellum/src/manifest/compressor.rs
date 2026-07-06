@@ -1,6 +1,6 @@
 use crate::harvest::sanitize_key;
 use indexmap::IndexMap;
-use libvellum::config::ManifestKeyConfig;
+use libvellum::lua::config::ManifestKeyConfig;
 use serde_json::Value;
 use std::collections::HashSet;
 

@@ -15,10 +15,7 @@ pub struct AlbumUpdateSignal {
 
 pub struct StreamContext {
     pub albums: Vec<PathBuf>,
-    pub config: Arc<Value>,
-    pub project_root: Arc<PathBuf>,
-    pub manifest_cfg: Arc<Value>,
-    pub active_flags: Arc<Vec<String>>,
+    pub config: Arc<libvellum::lua::ResolvedConfig>,
     pub target: ExportTarget,
     pub jobs: Option<usize>,
     pub notify_tx: Option<mpsc::Sender<AlbumUpdateSignal>>,
@@ -52,9 +49,6 @@ fn spawn_builders(
 ) -> tokio::task::JoinHandle<()> {
     let albums = ctx.albums.clone();
     let cfg = Arc::clone(&ctx.config);
-    let root = Arc::clone(&ctx.project_root);
-    let mcfg = Arc::clone(&ctx.manifest_cfg);
-    let flags = Arc::clone(&ctx.active_flags);
     let jobs = ctx.jobs;
 
     tokio::task::spawn_blocking(move || {
@@ -64,7 +58,7 @@ fn spawn_builders(
             .unwrap();
         pool.install(|| {
             albums.par_iter().for_each(|ar| {
-                match builder::build(ar, &root, &cfg, &mcfg, &flags) {
+                match builder::build(ar, &cfg) {
                     Ok(man) => {
                         let _ = dtx.blocking_send(man);
                     }
@@ -204,12 +198,6 @@ fn finalize(
     let harvest = ctx.get("harvest").cloned().unwrap_or_else(|| json!([]));
     let h_arr = harvest.as_array().map_or(&[][..], Vec::as_slice);
 
-    let subset_keys_val = ctx
-        .get("config")
-        .and_then(|c| c.get("compiler"))
-        .and_then(|c| c.get("file_subset_match"))
-        .and_then(Value::as_array);
-
     let default_keys = vec![
         "album".to_string(),
         "albumartist".to_string(),
@@ -222,12 +210,7 @@ fn finalize(
         "discnumber".to_string(),
     ];
 
-    let subset_keys: Vec<String> = subset_keys_val.map_or_else(
-        || default_keys, 
-        |arr| arr.iter().filter_map(|val| val.as_str().map(ToString::to_string)).collect()
-    );
-
-    verify::calculate_file_tag_subset_match(&mut v, h_arr, &subset_keys);
+    verify::calculate_file_tag_subset_match(&mut v, h_arr, &default_keys);
 
     strip_empty_values(&mut v);
 

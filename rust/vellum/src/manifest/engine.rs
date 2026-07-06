@@ -1,6 +1,6 @@
 use crate::harvest::sanitize_key;
 use indexmap::IndexMap;
-use libvellum::config::ManifestKeyConfig;
+use libvellum::lua::config::ManifestKeyConfig;
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -54,9 +54,10 @@ pub fn render_toml_block(
             let key_level = &cfg.level;
             if key_level == level || key_level == &format!("{level}s") {
                 let s_key = sanitize_key(key);
+                let is_array = cfg.type_.as_deref() == Some("list");
                 
                 let rendered_val = pool.get(&s_key).or_else(|| pool.get(key)).map_or_else(
-                    || if cfg.type_.as_deref() == Some("list") { "[]".to_string() } else { "\"\"".to_string() },
+                    || if is_array { "[]".to_string() } else { "\"\"".to_string() },
                     |val| format_toml_value_with_cast(val, &s_key)
                 );
 

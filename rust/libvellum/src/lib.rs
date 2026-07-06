@@ -1,8 +1,8 @@
 pub mod compiler;
-pub mod config;
 pub mod error;
 pub mod harvest;
 pub mod images;
+pub mod lua;
 pub mod models;
 pub mod resolvers;
 pub mod scanner;

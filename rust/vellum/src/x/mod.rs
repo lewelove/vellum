@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use libvellum::config::AppConfig;
 use libvellum::utils::expand_path;
 use mpd_client::Client;
 use std::io::Write;
@@ -7,9 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tokio::net::TcpStream;
 
-fn load_env_vars(config: &AppConfig) -> std::collections::HashMap<String, String> {
+fn load_env_vars(config: &libvellum::lua::ResolvedConfig) -> std::collections::HashMap<String, String> {
     let mut env_vars = std::collections::HashMap::new();
-    if let Some(env_path) = &config.storage.environment {
+    if let Some(env_path) = &config.app.storage.environment {
         let expanded = expand_path(env_path);
         if let Ok(content) = std::fs::read_to_string(&expanded) {
             for line in content.lines() {
@@ -35,16 +34,16 @@ pub async fn execute(
     id_arg: Option<String>,
     query_arg: Option<String>,
 ) -> Result<()> {
-    let (config, _, config_path) = AppConfig::load().context("Failed to load config")?;
-    let config_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
+    let config = libvellum::lua::ResolvedConfig::load().context("Failed to load config")?;
+    let config_dir = config.path.parent().unwrap_or_else(|| Path::new("."));
 
     if !playing && id_arg.is_none() && query_arg.is_none() {
         anyhow::bail!("At least one flag (--playing, --id, or --query) must be provided.");
     }
 
-    let library_root = expand_path(&config.storage.library_root)
+    let library_root = expand_path(&config.app.storage.library)
         .canonicalize()
-        .unwrap_or_else(|_| expand_path(&config.storage.library_root));
+        .unwrap_or_else(|_| expand_path(&config.app.storage.library));
 
     let target_ids = if let Some(query_str) = query_arg {
         let client = reqwest::Client::new();
@@ -66,7 +65,7 @@ pub async fn execute(
     } else if let Some(id) = id_arg {
         vec![id]
     } else if playing {
-        let playing_path = get_playing_album(&config.storage.library_root).await?;
+        let playing_path = get_playing_album(&config.app.storage.library).await?;
         let id = playing_path
             .strip_prefix(&library_root)
             .map_or_else(
@@ -88,7 +87,7 @@ pub async fn execute(
         }
     }
 
-    let config_json = serde_json::to_value(&config)?;
+    let config_json = serde_json::to_value(&config.app)?;
     let combined_json = serde_json::json!([lock_jsons, config_json]);
 
     if name == "intermediary" {
@@ -97,11 +96,10 @@ pub async fn execute(
         return Ok(());
     }
 
-    let action_rel_path = config
+    let action_rel_path = config.app
         .actions
-        .as_ref()
-        .and_then(|s| s.get(&name))
-        .context(format!("Action '{name}' not found in config.toml [actions] section"))?;
+        .get(&name)
+        .context(format!("Action '{name}' not found in config"))?;
 
     let expanded_action_path = expand_path(action_rel_path);
 

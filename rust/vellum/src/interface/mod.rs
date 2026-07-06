@@ -1,15 +1,14 @@
 use anyhow::{Context, Result};
-use libvellum::config::AppConfig;
 use libvellum::utils::expand_path;
 use std::process::Stdio;
 
 pub async fn execute(name: Option<String>) -> Result<()> {
     let name = name.unwrap_or_else(|| "default".to_string());
-    let (config, _, _) = AppConfig::load().context("Failed to load config")?;
-    
-    let mut intf_cfg = config.interfaces
-        .unwrap_or_default()
-        .remove(&name)
+    let config = libvellum::lua::ResolvedConfig::load().context("Failed to load config")?;
+
+    let mut intf_cfg = config.app.interfaces
+        .get(&name)
+        .cloned()
         .unwrap_or_default();
 
     if name == "default" {

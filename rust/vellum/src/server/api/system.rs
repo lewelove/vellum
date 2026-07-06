@@ -9,7 +9,7 @@ use std::path::Path as StdPath;
 
 pub fn get_interface_config_path(
     name: &str, 
-    cfg: Option<&libvellum::config::InterfaceConfig>, 
+    cfg: Option<&libvellum::lua::config::InterfaceConfig>, 
     config_dir: &StdPath
 ) -> std::path::PathBuf {
     cfg.map_or_else(
@@ -72,7 +72,7 @@ pub async fn serve_interface_asset(
         let guard = state.config.read().await;
         (guard.interfaces.get(&name).cloned(), guard.config_dir.clone())
     };
-    
+
     let dir = intf_cfg.as_ref()
         .and_then(|c| c.directory.as_ref())
         .map_or_else(
@@ -88,7 +88,7 @@ pub async fn serve_interface_asset(
         );
 
     let full_path = dir.join(&asset_path);
-    
+
     if !full_path.canonicalize().unwrap_or_default().starts_with(dir.canonicalize().unwrap_or_default()) {
         return StatusCode::FORBIDDEN.into_response();
     }
@@ -260,13 +260,13 @@ pub async fn trigger_reload(
                 },
                 crate::server::library::scanner::UpdateResult::Removed(_) => None,
             };
-            
+
             let mut s = std::collections::HashMap::new();
             for key in query.manifest.shelves.keys() {
                 s.insert(key.clone(), query.request_shelf_view(key));
             }
             drop(query);
-            
+
             (res, entry, s)
         };
 
@@ -368,7 +368,7 @@ pub async fn run_query(
 ) -> Response {
     let query = state.query.lock().await;
     let q_str = payload.get("query").and_then(|v| v.as_str()).unwrap_or("").trim();
-    
+
     let sql = if q_str.is_empty() {
         "SELECT id FROM albums".to_string()
     } else {

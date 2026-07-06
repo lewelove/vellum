@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use libvellum::config::AppConfig;
 use libvellum::utils::expand_path;
 
 pub struct QueryFlags {
@@ -11,10 +10,10 @@ pub struct QueryFlags {
 }
 
 pub async fn run(query_str: Option<String>, flags: QueryFlags) -> Result<()> {
-    let (config, _, _): (AppConfig, toml::Value, std::path::PathBuf) = AppConfig::load().context("Failed to load config")?;
-    let lib_root = expand_path(&config.storage.library_root)
+    let config = libvellum::lua::ResolvedConfig::load().context("Failed to load config")?;
+    let lib_root = expand_path(&config.app.storage.library)
         .canonicalize()
-        .unwrap_or_else(|_| expand_path(&config.storage.library_root));
+        .unwrap_or_else(|_| expand_path(&config.app.storage.library));
 
     let mut target_ids = Vec::new();
 
@@ -37,7 +36,7 @@ pub async fn run(query_str: Option<String>, flags: QueryFlags) -> Result<()> {
         let ids: Vec<String> = res.json().await.context("Invalid response from server")?;
         target_ids = ids;
     } else if flags.playing {
-        let playing_path = crate::x::get_playing_album(&config.storage.library_root).await?;
+        let playing_path = crate::x::get_playing_album(&config.app.storage.library).await?;
         let rel_path = playing_path.strip_prefix(&lib_root).map_or_else(|_| playing_path.to_string_lossy().to_string(), |p| p.to_string_lossy().to_string());
         target_ids.push(rel_path);
     } else {

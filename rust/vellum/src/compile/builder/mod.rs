@@ -3,30 +3,27 @@ pub mod context;
 
 use libvellum::error::VellumError;
 use libvellum::compiler::manifest::{load_and_merge, extract_strict_u32};
-use libvellum::compiler::validation::{validate_track_indices, validate_album_level_keys, merge_local_registry};
+use libvellum::compiler::validation::validate_track_indices;
 use crate::compile::builder::context::{AlbumContext, TrackContext};
 use crate::compile::resolvers;
 use crate::expand_path;
 use crate::harvest;
-use serde_json::{Value, json, Map};
+use serde_json::{Value, json};
 use std::path::Path;
 use libvellum::models::CoverMetrics;
+use serde::de::Error as _;
 
 struct PreparedContext {
     audio_files: Vec<std::path::PathBuf>,
-    registry: Map<String, Value>,
     library_root: std::path::PathBuf,
 }
 
 pub fn build(
     album_root: &Path,
-    project_root: &Path,
-    config: &Value,
-    manifest_cfg: &Value,
-    _active_flags: &[String],
+    config: &libvellum::lua::ResolvedConfig,
 ) -> Result<Value, VellumError> {
-    let manifest_names = config.get("compiler").and_then(|c| c.get("manifests")).and_then(Value::as_array);
-    let manifest_data = load_and_merge(album_root, manifest_names)?;
+    let manifest_names = config.app.compiler.manifests.as_ref().map(|v| v.iter().map(|s| Value::String(s.clone())).collect::<Vec<_>>());
+    let manifest_data = load_and_merge(album_root, manifest_names.as_ref())?;
 
     let main_cover_path = assets::resolve_cover_info(album_root);
     
@@ -41,7 +38,7 @@ pub fn build(
     let loaded_image = assets::pregenerate_covers(config, main_cover_path.as_deref(), &cover_hash_address);
     let cover_metrics = resolve_cover_metrics(config, &cover_hash_address, loaded_image.as_ref());
 
-    let PreparedContext { audio_files, registry, library_root } = prepare_build_context(config, manifest_cfg, album_root)?;
+    let PreparedContext { audio_files, library_root } = prepare_build_context(config, album_root);
 
     let track_entries = manifest_data.json
         .get("tracks")
@@ -77,40 +74,61 @@ pub fn build(
     let empty_obj = json!({});
     let album_source = manifest_data.json.get("album").unwrap_or(&empty_obj);
 
-    validate_album_level_keys(album_source, track_entries, &registry, album_root)?;
-
     let (final_tracks, harvested_cache) = process_tracks(
         audio_files,
         track_entries,
         album_source,
         album_root,
-        &registry,
     )?;
+
+    let ctx_json = json!({
+        "album_source": album_source,
+        "tracks_source": track_entries,
+        "track_count": track_entries.len(),
+        "cover_metrics": cover_metrics,
+        "paths": {
+            "album_root": album_root.to_string_lossy(),
+            "project_root": config.path.parent().unwrap_or_else(|| Path::new(".")).to_string_lossy(),
+            "library_root": library_root.to_string_lossy(),
+        }
+    });
+
+    let lua_res = libvellum::lua::get_or_init_lua_vm(&config.path, |engine| {
+        engine.execute_dispatcher(&ctx_json)
+    }).map_err(|e| VellumError::ManifestParseError { path: album_root.to_path_buf(), source: toml::de::Error::custom(e.to_string()) })?; 
+
+    let album_keys = lua_res.get("album").cloned().unwrap_or(json!({}));
+    let track_keys_array = lua_res.get("tracks").and_then(Value::as_array);
 
     let album_ctx = AlbumContext {
         source: album_source,
         tracks: &final_tracks,
         album_root,
         library_root: &library_root,
-        cover_metrics: cover_metrics.as_ref(),
         config,
         manifests: manifest_entries,
         covers: Value::Object(covers_entry),
     };
 
-    let album_obj = build_album(&album_ctx, &registry)?;
+    let album_obj = build_album(&album_ctx, album_keys)?;
+
+    let mut final_tracks_with_keys = Vec::new();
+    for (i, mut t) in final_tracks.into_iter().enumerate() {
+        let t_keys = track_keys_array.and_then(|arr| arr.get(i)).cloned().unwrap_or(json!({}));
+        if let Some(obj) = t.as_object_mut() {
+            obj.insert("keys".to_string(), t_keys);
+        }
+        final_tracks_with_keys.push(t);
+    }
 
     let mut final_json = serde_json::Map::new();
     final_json.insert("album".to_string(), album_obj);
-    final_json.insert("tracks".to_string(), Value::Array(final_tracks));
+    final_json.insert("tracks".to_string(), Value::Array(final_tracks_with_keys));
     final_json.insert("ctx".to_string(), json!({
-        "config": config,
-        "registry": registry,
-        "metadata": manifest_data.json,
         "harvest": harvested_cache,
         "paths": {
             "album_root": album_root.to_string_lossy(),
-            "project_root": project_root.to_string_lossy(),
+            "project_root": config.path.parent().unwrap_or_else(|| Path::new(".")).to_string_lossy(),
             "library_root": library_root.to_string_lossy()
         }
     }));
@@ -119,72 +137,23 @@ pub fn build(
 }
 
 fn prepare_build_context(
-    config: &Value,
-    manifest_cfg: &Value,
+    config: &libvellum::lua::ResolvedConfig,
     album_root: &Path,
-) -> Result<PreparedContext, VellumError> {
-    let exts: Vec<&str> = manifest_cfg
-        .get("supported_extensions")
-        .and_then(Value::as_array)
-        .map_or_else(
-            || vec![".flac"],
-            |arr| arr.iter().filter_map(Value::as_str).collect(),
-        );
+) -> PreparedContext {
+    let exts: Vec<String> = config.app.manifest.audio_files.clone().unwrap_or_else(|| vec![".flac".to_string()]);
+    let ext_refs: Vec<&str> = exts.iter().map(AsRef::as_ref).collect();
+    let audio_files = libvellum::scanner::scan_audio_files(album_root, &ext_refs);
 
-    let audio_files = libvellum::scanner::scan_audio_files(album_root, &exts);
-
-    let lib_root_raw = config
-        .get("storage")
-        .and_then(|s| s.get("library_root"))
-        .and_then(Value::as_str)
-        .unwrap_or(".");
+    let lib_root_raw = &config.app.storage.library;
     let library_root = expand_path(lib_root_raw)
         .canonicalize()
         .unwrap_or_else(|_| expand_path(lib_root_raw));
 
-    let keys_config = config
-        .get("compiler")
-        .and_then(|c| c.get("keys"))
-        .and_then(Value::as_object)
-        .ok_or_else(|| VellumError::MissingCompilerRegistry)?;
-
-    let mut registry = Map::new();
-
-    if let Some(albums) = keys_config.get("album").and_then(Value::as_object) {
-        for (k, v) in albums {
-            if let Some(mut obj) = v.as_object().cloned() {
-                obj.insert("level".to_string(), json!("album"));
-                registry.insert(k.clone(), Value::Object(obj));
-            }
-        }
-    }
-
-    if let Some(tracks) = keys_config.get("tracks").and_then(Value::as_object) {
-        for (k, v) in tracks {
-            if let Some(mut obj) = v.as_object().cloned() {
-                obj.insert("level".to_string(), json!("tracks"));
-                registry.insert(k.clone(), Value::Object(obj));
-            }
-        }
-    }
-
-    merge_local_registry(album_root, &mut registry);
-
-    let mut sorted_registry = Map::new();
-    let mut keys: Vec<String> = registry.keys().cloned().collect();
-    keys.sort();
-    for k in keys {
-        if let Some(v) = registry.remove(&k) {
-            sorted_registry.insert(k, v);
-        }
-    }
-    registry = sorted_registry;
-
-    Ok(PreparedContext { audio_files, registry, library_root })
+    PreparedContext { audio_files, library_root }
 }
 
 fn resolve_cover_metrics(
-    config: &Value,
+    config: &libvellum::lua::ResolvedConfig,
     c_hash: &str,
     loaded_image: Option<&image::DynamicImage>,
 ) -> Option<CoverMetrics> {
@@ -192,7 +161,7 @@ fn resolve_cover_metrics(
         return None;
     }
     
-    let cache_str = config.get("storage").and_then(|s| s.get("cache")).and_then(Value::as_str).unwrap_or("~/.cache/vellum");
+    let cache_str = &config.app.storage.cache;
     let cache_root = crate::expand_path(cache_str);
     let metrics_dir = cache_root.join("cover_data");
     std::fs::create_dir_all(&metrics_dir).ok();
@@ -235,7 +204,6 @@ fn process_tracks(
     track_entries: &[Value],
     album_source: &Value,
     album_root: &Path,
-    registry: &Map<String, Value>,
 ) -> Result<(Vec<Value>, Vec<Value>), VellumError> {
     let mut harvested_spine = Vec::new();
     for path in audio_files {
@@ -270,7 +238,7 @@ fn process_tracks(
             album_root,
         };
 
-        let t_obj = build_track(&t_ctx, total_discs, registry)?;
+        let t_obj = build_track(&t_ctx, total_discs)?;
         final_tracks.push(t_obj);
         harvested_cache.push(serde_json::to_value(h_data)?);
     }
@@ -281,7 +249,6 @@ fn process_tracks(
 fn build_track(
     ctx: &TrackContext,
     total_discs: u32,
-    registry: &Map<String, Value>,
 ) -> Result<Value, VellumError> {
     let mut obj = serde_json::Map::new();
 
@@ -302,20 +269,10 @@ fn build_track(
         }
     }
 
-    let mut keys = serde_json::Map::new();
-    for (key, meta) in registry {
-        let level = meta.get("level").and_then(Value::as_str).unwrap_or("");
-        if level != "tracks" && level != "track" { continue; }
-        if ["title", "artist", "tracknumber", "discnumber"].contains(&key.as_str()) { continue; }
-        let val = resolvers::resolve_track_key(key, meta, ctx)?.unwrap_or(Value::Null);
-        keys.insert(key.clone(), val);
-    }
-    obj.insert("keys".to_string(), Value::Object(keys));
-
     let mut info = serde_json::Map::new();
     info.insert("sample_rate".to_string(), json!(ctx.harvest.physics.sample_rate));
     info.insert("bits_per_sample".to_string(), json!(ctx.harvest.physics.bit_depth.unwrap_or(0)));
-    info.insert("bitrate_kbps".to_string(), json!(ctx.harvest.physics.bit_depth.unwrap_or(0)));
+    info.insert("bitrate_kbps".to_string(), json!(ctx.harvest.physics.audio_bitrate));
     info.insert("encoding".to_string(), json!(ctx.harvest.physics.format));
     info.insert("channels".to_string(), json!(ctx.harvest.physics.channels));
     info.insert("duration_milliseconds".to_string(), json!(ctx.harvest.physics.duration_ms));
@@ -337,7 +294,7 @@ fn build_track(
 
 fn build_album(
     ctx: &AlbumContext,
-    registry: &Map<String, Value>,
+    keys: Value,
 ) -> Result<Value, VellumError> {
     let mut obj = serde_json::Map::new();
 
@@ -357,19 +314,8 @@ fn build_album(
     obj.insert("total_tracks".to_string(), json!(ctx.tracks.len()));
 
     obj.insert("id".to_string(), json!(libvellum::resolvers::rel_path(ctx.album_root, ctx.library_root)));
-
-    let mut keys = serde_json::Map::new();
-    for (key, meta) in registry {
-        if meta.get("level").and_then(Value::as_str) != Some("album") {
-            continue;
-        }
-        if ["album", "albumartist", "date", "genre", "comment", "original_date", "release_date", "styles"].contains(&key.as_str()) {
-            continue;
-        }
-        let val = resolvers::resolve_album_key(key, meta, ctx)?.unwrap_or(Value::Null);
-        keys.insert(key.clone(), val);
-    }
-    obj.insert("keys".to_string(), Value::Object(keys));
+    
+    obj.insert("keys".to_string(), keys);
 
     let mut info = serde_json::Map::new();
     info.insert("date_added".to_string(), json!(libvellum::resolvers::resolve_album_info_date_added(ctx.album_root, ctx.source, ctx.config)?));

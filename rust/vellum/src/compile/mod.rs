@@ -2,9 +2,7 @@ pub mod builder;
 pub mod engine;
 pub mod resolvers;
 
-use libvellum::config::AppConfig;
 use anyhow::{Context, Result};
-use serde_json::json;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -37,8 +35,7 @@ pub struct CompileOptions {
 }
 
 pub async fn run(mut options: CompileOptions) -> Result<()> {
-    let (config, _raw, path): (AppConfig, toml::Value, PathBuf) = AppConfig::load().context("Config failed")?;
-    let project_root = path.parent().unwrap().to_path_buf();
+    let config = libvellum::lua::ResolvedConfig::load().context("Config failed")?;
     if !options.flags.contains(&"default".to_string()) {
         options.flags.push("default".to_string());
     }
@@ -46,28 +43,19 @@ pub async fn run(mut options: CompileOptions) -> Result<()> {
     let albums = if let Some(l) = options.specific_albums {
         l
     } else {
-        let scan_depth = config.compiler.as_ref().and_then(|c| c.scan_depth).unwrap_or(4);
+        let scan_depth = config.app.compiler.scan_depth.unwrap_or(4);
         libvellum::scanner::find_target_albums(&options.target_path, scan_depth)?
     };
 
     if albums.is_empty() {
         return Ok(());
     }
-    let config_json = serde_json::to_value(&config)?;
-    let manifest_cfg = config_json
-        .get("manifest")
-        .cloned()
-        .unwrap_or_else(|| json!({}));
-    let active_flags = Arc::new(options.flags);
 
     if options.compile_flags.mode == CompileMode::Intermediary {
         for root in &albums {
             let m = builder::build(
                 root,
-                &project_root,
-                &config_json,
-                &manifest_cfg,
-                &active_flags,
+                &config,
             )?;
             if options.compile_flags.pretty {
                 println!("{}", serde_json::to_string_pretty(&m)?);
@@ -80,10 +68,7 @@ pub async fn run(mut options: CompileOptions) -> Result<()> {
 
     let ctx = engine::stream::StreamContext {
         albums: albums.clone(),
-        config: Arc::new(config_json.clone()),
-        project_root: Arc::new(project_root.clone()),
-        manifest_cfg: Arc::new(manifest_cfg),
-        active_flags,
+        config: Arc::new(config),
         target: options.compile_flags.target,
         jobs: options.jobs,
         notify_tx: options.notify_tx,

@@ -2,7 +2,6 @@ pub mod compressor;
 pub mod engine;
 pub mod grouper;
 
-use libvellum::config::AppConfig;
 use libvellum::utils::expand_path;
 use libvellum::harvest::harvest_file;
 use anyhow::{Context, Result};
@@ -24,16 +23,16 @@ pub struct ManifestOptions {
 }
 
 pub fn run(target_path: Option<PathBuf>, options: &ManifestOptions) -> Result<()> {
-    let (config, _raw_config, _): (AppConfig, toml::Value, PathBuf) = AppConfig::load().context("Failed to load config")?;
-    let lib_root = expand_path(&config.storage.library_root);
+    let config = libvellum::lua::ResolvedConfig::load().context("Failed to load config")?;
+    let lib_root = expand_path(&config.app.storage.library);
 
-    let manifest_cfg = config.manifest.context("Missing [manifest] configuration")?;
+    let manifest_cfg = &config.app.manifest;
     let supported_exts: Vec<String> = manifest_cfg
-        .supported_extensions
+        .audio_files
         .as_ref().map_or_else(|| vec![".flac".to_string()], |exts: &Vec<String>| exts.iter().map(|e| e.to_lowercase()).collect());
 
     let grouping_keys = vec!["albumartist".to_string(), "album".to_string()];
-    let manifest_layout = manifest_cfg.keys;
+    let manifest_layout = config.app.manifest.keys.as_ref();
 
     let scan_root = match options.mode {
         ManifestMode::Library => target_path.unwrap_or_else(|| lib_root.clone()),
@@ -58,16 +57,16 @@ pub fn run(target_path: Option<PathBuf>, options: &ManifestOptions) -> Result<()
     }
 
     let buckets = grouper::group_tracks(harvested, &grouping_keys);
-    let unique_manifests = get_unique_manifests(manifest_layout.as_ref());
+    let unique_manifests = get_unique_manifests(manifest_layout);
 
     for (_group_id, tracks) in buckets {
-        process_album_group(tracks, &unique_manifests, &supported_exts, manifest_layout.as_ref(), options)?;
+        process_album_group(tracks, &unique_manifests, &supported_exts, manifest_layout, options)?;
     }
 
     Ok(())
 }
 
-fn get_unique_manifests(layout: Option<&indexmap::IndexMap<String, libvellum::config::ManifestKeyConfig>>) -> Vec<String> {
+fn get_unique_manifests(layout: Option<&indexmap::IndexMap<String, libvellum::lua::config::ManifestKeyConfig>>) -> Vec<String> {
     let mut unique_manifests = HashSet::new();
     unique_manifests.insert("metadata".to_string());
     if let Some(lay) = layout {
@@ -91,7 +90,7 @@ fn process_album_group(
     mut tracks: Vec<(PathBuf, serde_json::Map<String, serde_json::Value>)>,
     manifest_names: &[String],
     supported_exts: &[String],
-    manifest_layout: Option<&indexmap::IndexMap<String, libvellum::config::ManifestKeyConfig>>,
+    manifest_layout: Option<&indexmap::IndexMap<String, libvellum::lua::config::ManifestKeyConfig>>,
     options: &ManifestOptions,
 ) -> Result<()> {
     let validate_exclusivity = match options.mode {
@@ -246,7 +245,7 @@ fn harvest_audio_files(
 fn serialize_manifest(
     album_pool: &serde_json::Map<String, serde_json::Value>,
     track_pools: &[serde_json::Map<String, serde_json::Value>],
-    manifest_layout: Option<&indexmap::IndexMap<String, libvellum::config::ManifestKeyConfig>>,
+    manifest_layout: Option<&indexmap::IndexMap<String, libvellum::lua::config::ManifestKeyConfig>>,
     target_manifest: &str,
 ) -> String {
     let mut toml_content = String::new();
