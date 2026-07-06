@@ -95,9 +95,8 @@ If `level = "track"`, for index (`idx`) of each track in array separately
 
 The `output` spec:
 
-If `output = true`
+If `output = true` (default value if `output` is omitted or `nil`)
 - Return the `input` value unchanged
-- The default value if `output` is omitted or `nil`
 
 If `output = false`
 - Skip the key evaluation entirely
@@ -108,6 +107,11 @@ If `output = function(value, ctx, idx)`
 - Third argument is optional and passed only if `level = "track"`. It always equals to the array index of the track processed
 
 Else throw config error
+
+Notes on implementation:
+- Use "load ctx once, run everything in one pass" pattern for each album compiled
+- For each album compiled we instantiate 1 worker, run them in parallel
+
 
 ```lua
 vl.compile.key( "key_name", {
