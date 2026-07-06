@@ -12,10 +12,10 @@ For modularizing config use `require("name")` of the `name.lua` files reative to
 
 ```lua
 
--- Imports ~/.config/vellum/module.lua
+-- imports ~/.config/vellum/module.lua
 require("module")
 
--- Imports ~/.config/vellum/folder/module.lua
+-- imports ~/.config/vellum/folder/module.lua
 require("folder.module")
 ```
 
@@ -28,9 +28,9 @@ Function that returns the static config struct.
 vl.config({
 
   storage = {
-    -- Path to library root containing all your albums
+    -- path to library root containing all your albums
     library = "",
-    -- Path to .env file vellum will load for actions execution
+    -- path to .env file vellum will load for actions execution
     environment = "",
   },
 
@@ -48,29 +48,26 @@ vl.config({
 
 Set of builtin rust functions to call at compile or action time.
 
-## vl.compile
 
-Sets of config for functions that run at compile time for each album separately.
-
-### vl.compile.cover
+## vl.compiler.covers
 
 ```lua
--- Center crops the cover to 1:1
--- Resizes to `size` using `interpolation` algorithm
--- Saves to cache
-vl.compile.cover( "name", {
-  -- Used for reference, can be omitted
-  name = "",
-  -- Resize algorithm
+-- center crops the cover to 1:1
+-- resizes to `size` using `interpolation` algorithm
+-- saves to cache
+vl.compiler.covers( "name", {
+  -- resize algorithm
   interpolation = "",
-  -- Resize dimensions
+  -- resize dimensions
   size = 1,
 })
 ```
 
-### vl.compile.key
+## vl.compiler.keys.{level}
 
-This fucntion provides config for `"keys"` population in `album.lock.json`. It consumes manifests in album folder, creates intermediary `ctx`, and returns the value to be written in lock.
+This function provides config for `"keys"` population in `album.lock.json`. It consumes manifests in album folder, creates intermediary `ctx`, and returns the value to be written in lock.
+
+### How it works
 
 How `ctx` is created:
 
@@ -108,26 +105,118 @@ If `output = function(value, ctx, idx)`
 
 Else throw config error
 
-Notes on implementation:
-- Use "load ctx once, run everything in one pass" pattern for each album compiled
-- For each album compiled we instantiate 1 worker, run them in parallel
+### Examples
 
+Enables all `key_name_N`, falling back to `type = "object"` and `output = true`.
 
 ```lua
-vl.compile.key( "key_name", {
 
-  -- Determines the level of where the key will be written
-  level = "album" | "track",
+-- can be expressed in one block
 
-  -- One of Vellum Types
-  type = "string" | "integer" | "boolean" | "array" | "datetime" | "url",
+vl.compiler.keys.album({
+  key_name_1 = true
+  key_name_2 = true
+})
 
-  -- Here you can define the funtion that will perform anything you want to the value
-  output = function(value, ctx, idx)
-    return ""
-  end
+-- or in separate
+
+vl.compiler.keys.album({ key_name_3 = true })
+vl.compiler.keys.album({ key_name_4 = true })
+
+-- also the "album" -> "a" shorthand can be used
+
+vl.compiler.keys.a({ key_name_5 = true })
+
+-- same with track level keys
+
+vl.compiler.keys.track({ key_name_6 = true })
+vl.compiler.keys.t({ key_name_7 = true })
+
+```
+
+Enables album and track level keys and sets their parameters.
+
+```lua
+
+vl.compiler.keys.album({
+
+  some_cool_key = {
+
+    -- one of Vellum Types
+    -- defaults to "object"
+    type = "object",
+
+    -- enables the key requirement for album to compile
+    -- if input value is nil throws the compile error
+    -- defaults to false
+    required = false,
+
+    -- here you can define the funtion that will perform anything you want to the value
+    output = function(value, ctx)
+      -- default expression
+      -- returns itself
+      return ctx.album.some_cool_key
+    end
+  }
+
+})
+
+vl.compiler.keys.album({
+
+  -- "empty_key" will exist in album.lock.json but will always contain an empty string
+  empty_key = { output = function(v, ctx) return "" end }
+
+  -- ...more examples...
+
+})
+
+vl.compiler.keys.tracks({
+
+  -- wraps title -> `title`
+  markdown_monospace_title = {
+    output = function(value, ctx, idx)
+      local wrap = "`"
+      return wrap .. ctx.tracks[idx].title .. wrap
+    end
+  }
+
+  -- will always throw a compile error
+  -- reason: output returned nil
+  -- useful with conditionals
+  error! = {
+    output = function(value, ctx, idx)
+      return nil
+    end
+  }
+
+  -- ...more examples...
+
+})
+
+```
+
+## vl.interfaces
+
+This function provides the data for `vellum interface` to run
+
+```lua
+
+vl.interfaces({
+
+  -- the `default` interface name
+  -- always exists
+  default = {
+
+    -- path to override expected executable binary
+    -- defaults to `~/.local/share/vellum/interfaces/{name}/bin.sh`
+    path = "",
+
+    -- the config table
+    -- can be populated with any static data
+    -- converted to JSON and sent as `/api/interfaces/{name}/config` endpoint
+    config = {}, 
+  }
 
 })
 ```
-
 
