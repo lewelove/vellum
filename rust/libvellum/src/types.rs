@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::path::Path;
 use crate::error::VellumError;
-use crate::models::CoverMetrics;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -15,7 +14,6 @@ pub enum VellumDataType {
     Path,
     Url,
     Object,
-    Function,
     #[serde(other)]
     String,
 }
@@ -317,26 +315,5 @@ pub fn resolve_type_object(source: &Value, key: &str, args: &str, path: &Path) -
             found_val: v.to_string(),
         }),
         None => Ok(Value::Null),
-    }
-}
-
-pub fn resolve_type_function(
-    key: &str,
-    source: &Value,
-    cover_metrics: Option<&CoverMetrics>,
-    album_root: &Path,
-) -> Result<Value, VellumError> {
-    match key {
-        "cover_chroma" => Ok(crate::resolvers::resolve_cover_chroma(cover_metrics).unwrap_or(Value::Null)),
-        "cover_entropy" => Ok(crate::resolvers::resolve_cover_entropy(cover_metrics).unwrap_or(Value::Null)),
-        "original_date" => Ok(json!(crate::resolvers::resolve_original_date(source, album_root)?)),
-        "release_date" => Ok(json!(crate::resolvers::resolve_release_date(source, album_root)?)),
-        "comment" => Ok(json!(crate::resolvers::resolve_comment(source, album_root)?)),
-        _ => Err(VellumError::TypeMismatch {
-            path: album_root.to_path_buf(),
-            key: key.to_string(),
-            expected_type: "function".to_string(),
-            found_val: "unknown function key".to_string(),
-        }),
     }
 }

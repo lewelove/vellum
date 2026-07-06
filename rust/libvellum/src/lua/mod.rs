@@ -8,106 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
-const BOOTSTRAP: &str = r#"
-local REGISTRY = {
-    config = {},
-    covers = {},
-    keys = {},
-    keys_order = {}
-}
-
-_G.vl = {
-    compile = {}
-}
-
-function vl.config(t)
-    REGISTRY.config = t
-end
-
-function vl.compile.cover(name, t)
-    REGISTRY.covers[name] = t
-end
-
-function vl.compile.key(name, t)
-    local user_func = t.output
-    if user_func == nil then
-        user_func = function(v) return v end
-    end
-    t.output = user_func
-    if t.type == nil then t.type = "string" end
-    REGISTRY.keys[name] = t
-    table.insert(REGISTRY.keys_order, name)
-end
-
-function __VELLUM_GET_CONFIG()
-    return REGISTRY.config
-end
-
-function __VELLUM_GET_COVERS()
-    local res = {}
-    for k, v in pairs(REGISTRY.covers) do
-        res[k] = {
-            interpolation = v.interpolation,
-            size = v.size
-        }
-    end
-    return res
-end
-
-function __VELLUM_GET_KEYS()
-    local res = {}
-    for _, name in ipairs(REGISTRY.keys_order) do
-        local v = REGISTRY.keys[name]
-        table.insert(res, {
-            name = name,
-            level = v.level,
-            type = v.type,
-            manifests = v.manifests,
-            newline = v.newline or false,
-        })
-    end
-    return res
-end
-
-function __VELLUM_DISPATCHER(ctx)
-    local results = { album = {}, tracks = {} }
-    
-    for key_name, cfg in pairs(REGISTRY.keys) do
-        if cfg.level == "album" then
-            local raw_val = nil
-            if ctx.album then raw_val = ctx.album[key_name] end
-            
-            local status, res = pcall(cfg.output, raw_val, ctx)
-            if status then
-                results.album[key_name] = res
-            else
-                print(string.format("Warning: Error evaluating album key '%s': %s", key_name, res))
-                results.album[key_name] = nil
-            end
-        end
-    end
-    
-    for i = 1, ctx.track_count do
-        results.tracks[i] = {}
-        for key_name, cfg in pairs(REGISTRY.keys) do
-            if cfg.level == "track" then
-                local raw_val = nil
-                if ctx.tracks and ctx.tracks[i] then raw_val = ctx.tracks[i][key_name] end
-                
-                local status, res = pcall(cfg.output, raw_val, ctx, i)
-                if status then
-                    results.tracks[i][key_name] = res
-                else
-                    print(string.format("Warning: Error evaluating track key '%s' at index %d: %s", key_name, i, res))
-                    results.tracks[i][key_name] = nil
-                end
-            end
-        end
-    end
-    
-    return results
-end
-"#;
+const BOOTSTRAP: &str = include_str!("bootstrap.lua");
 
 pub struct LuaEngine {
     pub lua: Lua,
@@ -119,9 +20,6 @@ pub struct KeyConfigRaw {
     pub level: String,
     #[serde(rename = "type")]
     pub type_: crate::types::VellumDataType,
-    pub manifests: Option<String>,
-    #[serde(default)]
-    pub newline: bool,
 }
 
 pub struct EvaluatedLuaData {
@@ -187,8 +85,6 @@ impl LuaEngine {
                 KeyConfig {
                     level: k.level,
                     type_: k.type_,
-                    manifests: k.manifests,
-                    newline: k.newline,
                 },
             );
         }

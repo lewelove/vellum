@@ -89,7 +89,4 @@ pub struct KeyConfig {
     pub level: String,
     #[serde(rename = "type")]
     pub type_: crate::types::VellumDataType,
-    pub manifests: Option<String>,
-    #[serde(default)]
-    pub newline: bool,
 }
