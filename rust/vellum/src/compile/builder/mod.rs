@@ -82,8 +82,8 @@ pub fn build(
     )?;
 
     let ctx_json = json!({
-        "album_source": album_source,
-        "tracks_source": track_entries,
+        "album": album_source,
+        "tracks": track_entries,
         "track_count": track_entries.len(),
         "cover_metrics": cover_metrics,
         "paths": {

@@ -75,8 +75,15 @@ function __VELLUM_DISPATCHER(ctx)
     for key_name, cfg in pairs(REGISTRY.keys) do
         if cfg.level == "album" then
             local raw_val = nil
-            if ctx.album_source then raw_val = ctx.album_source[key_name] end
-            results.album[key_name] = cfg.output(raw_val, ctx)
+            if ctx.album then raw_val = ctx.album[key_name] end
+            
+            local status, res = pcall(cfg.output, raw_val, ctx)
+            if status then
+                results.album[key_name] = res
+            else
+                print(string.format("Warning: Error evaluating album key '%s': %s", key_name, res))
+                results.album[key_name] = nil
+            end
         end
     end
     
@@ -85,8 +92,15 @@ function __VELLUM_DISPATCHER(ctx)
         for key_name, cfg in pairs(REGISTRY.keys) do
             if cfg.level == "track" then
                 local raw_val = nil
-                if ctx.tracks_source[i] then raw_val = ctx.tracks_source[i][key_name] end
-                results.tracks[i][key_name] = cfg.output(raw_val, ctx, i)
+                if ctx.tracks and ctx.tracks[i] then raw_val = ctx.tracks[i][key_name] end
+                
+                local status, res = pcall(cfg.output, raw_val, ctx, i)
+                if status then
+                    results.tracks[i][key_name] = res
+                else
+                    print(string.format("Warning: Error evaluating track key '%s' at index %d: %s", key_name, i, res))
+                    results.tracks[i][key_name] = nil
+                end
             end
         end
     end
