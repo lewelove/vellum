@@ -2,8 +2,15 @@
 
 This function provides the data for `vellum interface` to run.
 
-```lua
+### Specifications
 
+#### Execution:
+
+Each interface is ran by `vellum interface interface_name`. For cli ergonomics the `interface_name` can be also called as `interfac-_name` and it will still run, because all of the `-` in name string will be replaced by `_` before it hitting the lua key.
+
+#### Interface specification:
+
+```lua
 vl.interfaces({
 
   -- the `default` interface name
@@ -19,43 +26,37 @@ vl.interfaces({
     -- can be populated with any static data
     -- converted to JSON and sent as `/api/interfaces/{name}/config` endpoint
     config = {}, 
-
-    assets = {}
   }
 })
 ```
 
-The `{name} = true` can be used to enable interface with default run path and no config
+### Examples
+
+The `{name} = true` can be used to enable interface with default run path and no config:
 
 ```lua
-
 vl.interfaces({
-  -- run with `vellum interface simple_ui`
-  -- inherits `run = "~/.local/share/vellum/interfaces/simple_ui/run.sh"`
+  -- inherits `run = "~/.local/share/vellum/interfaces/interface_name/run.sh"`
   -- no config api
-  simple_ui = true
+  interface_name = true
 })
 ```
 
-Also the `config = {}` and `run = "path/to/run"` can be individually provided to enable it
+Also the `config = {}` and `run = "path/to/run"` can be individually provided to enable it:
 
 ```lua
-
 vl.interfaces({
-  -- run with `vellum interface interface_name`
-  -- inherits `run = "~/.local/share/vellum/interface_name/UwU/run.sh"`
+  -- inherits `run = "~/.local/share/vellum/interfaces/interface_name/run.sh"`
   -- `/api/interfaces/interface_name/config` will return `{ "theme": "dark" }` JSON
   interface_name = { config = { theme = "dark" } }
 })
 ```
 
 ```lua
-
 local repo_path = "~/dev/vellum/"
 
 vl.interfaces({
-  -- run with `vellum interface interface_name`
   -- no config api
-  interface_name = { run = repo_path .. "interfaces/example/cool_script.sh" }
+  interface_name = { run = repo_path .. "interfaces/example/cool_ui.sh" }
 })
 ```
