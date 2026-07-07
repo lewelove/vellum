@@ -37,12 +37,12 @@ def sanitize_filename(name):
     return re.sub(r'[<>:"/\\|?*]', '_', name)
 
 def get_album_lyrics(config, album_lock, access_token):
-    library_root_str = config.get("storage", {}).get("library_root", "")
-    if not library_root_str:
-        print("Error: library_root not defined in config")
+    library_str = config.get("storage", {}).get("library", "")
+    if not library_str:
+        print("Error: library not defined in config")
         return
 
-    library_root = Path(library_root_str).expanduser().resolve()
+    library = Path(library_str).expanduser().resolve()
     
     album_meta = album_lock.get("album", {})
     album_path = album_meta.get("id", "")
@@ -50,7 +50,7 @@ def get_album_lyrics(config, album_lock, access_token):
         print("Error: album_path (id) not found in metadata lock")
         return
 
-    root = (library_root / album_path).resolve()
+    root = (library / album_path).resolve()
     album_artist = album_meta.get("albumartist")
     total_discs = int(album_meta.get("info", {}).get("total_discs", 1))
     tracks = album_lock.get("tracks", [])

@@ -47,12 +47,12 @@ fn main() -> Result<()> {
     let albums = payload.get(0).and_then(Value::as_array).context("Missing albums array")?;
     let config = payload.get(1).context("Missing config")?;
 
-    let library_root_str = config
-        .pointer("/storage/library_root")
+    let library_str = config
+        .pointer("/storage/library")
         .and_then(Value::as_str)
-        .context("Missing library_root in payload")?;
+        .context("Missing library in payload")?;
 
-    let library_root = expand_path(library_root_str);
+    let library = expand_path(library_str);
 
     let config_path = expand_path("~/dev/vellum/actions/cover_palette/config.toml");
     let script_config: ScriptConfig = if config_path.exists() {
@@ -73,7 +73,7 @@ fn main() -> Result<()> {
             .and_then(Value::as_str)
             .unwrap_or("cover.jpg");
 
-        let album_dir = library_root.join(album_path_str);
+        let album_dir = library.join(album_path_str);
         let cover_path = album_dir.join(cover_path_str);
 
         if !cover_path.exists() {
