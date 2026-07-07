@@ -32,13 +32,13 @@ pub fn extract(img: &DynamicImage, args: &str) -> Vec<Srgb> {
         ))
     }).collect();
 
-    if noise > 0.0 {
+    if noise > 0.0
+        && let Ok(dist) = Uniform::new_inclusive(-noise, noise)
+    {
         let mut rng = StdRng::seed_from_u64(42);
-        if let Ok(dist) = Uniform::new_inclusive(-noise, noise) {
-            for pixel in &mut pixels {
-                let offset = dist.sample(&mut rng);
-                pixel.l = (pixel.l + offset).clamp(0.0, 100.0);
-            }
+        for pixel in &mut pixels {
+            let offset = dist.sample(&mut rng);
+            pixel.l = (pixel.l + offset).clamp(0.0, 100.0);
         }
     }
 

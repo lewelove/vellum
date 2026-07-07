@@ -25,14 +25,14 @@ struct ScriptConfig {
 }
 
 fn expand_path(path_str: &str) -> PathBuf {
-    if path_str.starts_with('~') {
-        if let Some(home) = dirs::home_dir() {
-            if path_str == "~" {
-                return home;
-            }
-            if let Some(stripped) = path_str.strip_prefix("~/") {
-                return home.join(stripped);
-            }
+    if path_str.starts_with('~')
+        && let Some(home) = dirs::home_dir()
+    {
+        if path_str == "~" {
+            return home;
+        }
+        if let Some(stripped) = path_str.strip_prefix("~/") {
+            return home.join(stripped);
         }
     }
     PathBuf::from(path_str)
@@ -80,32 +80,32 @@ fn main() -> Result<()> {
             continue;
         }
 
-        if let Ok(img) = image::open(&cover_path) {
-            if let Some(palette) = process_image_to_palette(&img, &script_config) {
-                let hex_colors: Vec<String> = palette
-                    .into_iter()
-                    .map(|(srgb, _)| {
-                        let r_u8 = (srgb.red.clamp(0.0, 1.0) * 255.0).round() as u8;
-                        let g_u8 = (srgb.green.clamp(0.0, 1.0) * 255.0).round() as u8;
-                        let b_u8 = (srgb.blue.clamp(0.0, 1.0) * 255.0).round() as u8;
-                        format!("#{r_u8:02X}{g_u8:02X}{b_u8:02X}")
-                    })
-                    .collect();
+        if let Ok(img) = image::open(&cover_path)
+            && let Some(palette) = process_image_to_palette(&img, &script_config)
+        {
+            let hex_colors: Vec<String> = palette
+                .into_iter()
+                .map(|(srgb, _)| {
+                    let r_u8 = (srgb.red.clamp(0.0, 1.0) * 255.0).round() as u8;
+                    let g_u8 = (srgb.green.clamp(0.0, 1.0) * 255.0).round() as u8;
+                    let b_u8 = (srgb.blue.clamp(0.0, 1.0) * 255.0).round() as u8;
+                    format!("#{r_u8:02X}{g_u8:02X}{b_u8:02X}")
+                })
+                .collect();
 
-                let toml_content = format!(
-                    "[album]\n\ncover_palette = [\n{}\n]\n",
-                    hex_colors
-                        .iter()
-                        .map(|c| format!("  \"{c}\","))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
+            let toml_content = format!(
+                "[album]\n\ncover_palette = [\n{}\n]\n",
+                hex_colors
+                    .iter()
+                    .map(|c| format!("  \"{c}\","))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
 
-                let out_path = album_dir.join("cover_palette.toml");
-                if std::fs::write(&out_path, toml_content).is_ok() {
-                    let abs_path = out_path.canonicalize().unwrap_or(out_path);
-                    println!("Created cover_palette.toml at: {}", abs_path.display());
-                }
+            let out_path = album_dir.join("cover_palette.toml");
+            if std::fs::write(&out_path, toml_content).is_ok() {
+                let abs_path = out_path.canonicalize().unwrap_or(out_path);
+                println!("Created cover_palette.toml at: {}", abs_path.display());
             }
         }
     }
@@ -197,6 +197,7 @@ fn calculate_palette_ratios(
 }
 
 fn sort_palette(palette: &mut Vec<(Srgb, f32)>, sort_type: &str) {
+    let _ = sort_type;
     match sort_type {
         "L" => palette.sort_by(|a, b| {
             let l_a = Oklch::from_color(a.0).l;
@@ -221,7 +222,6 @@ fn sort_palette(palette: &mut Vec<(Srgb, f32)>, sort_type: &str) {
             val_b.partial_cmp(&val_a).unwrap_or(std::cmp::Ordering::Equal)
         }),
         "gradient" => sort_palette_gradient(palette),
-        "original" => {},
         _ => palette.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)),
     }
 }

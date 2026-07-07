@@ -3,6 +3,9 @@ name = "cover_palette"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 image = "0.25.9"
 palette = "0.7.6"

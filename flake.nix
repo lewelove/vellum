@@ -21,9 +21,45 @@
           libXrandr
         ];
 
+        lyricsgenius = ps: ps.buildPythonPackage rec {
+          pname = "lyricsgenius";
+          version = "3.7.6";
+          pyproject = true;
+          
+          src = ps.fetchPypi {
+            inherit pname version;
+            hash = "sha256-zQGrgZEz4o9RSYWmGXH8TcNXUcRSfmF+xJCROQ3cPJ4=";
+          };
+
+          nativeBuildInputs = [
+            ps.hatchling
+          ];
+
+          propagatedBuildInputs = [
+            ps.requests
+            ps.beautifulsoup4
+          ];
+
+          doCheck = false;
+        };
+
+        get_lyrics = pkgs.writers.writePython3Bin "get_lyrics" {
+          libraries = [
+            (lyricsgenius pkgs.python3Packages)
+            pkgs.python3Packages.requests
+            pkgs.python3Packages.beautifulsoup4
+          ];
+          doCheck = false;
+        } (builtins.readFile ./actions/get_lyrics/main.py);
+
+        search_cover = pkgs.writers.writePython3Bin "search_cover" {
+          libraries = [];
+          doCheck = false;
+        } (builtins.readFile ./actions/search_cover/main.py);
+
         build-cli = pkgs.writeShellApplication {
           name = "build";
-          runtimeInputs = [ pkgs.cargo pkgs.rustc pkgs.git pkgs.clippy ];
+          runtimeInputs = [ pkgs.cargo pkgs.rustc pkgs.git pkgs.clippy pkgs.nix ];
           text = ''
             ROOT=$(git rev-parse --show-toplevel)
             ARGS=()
@@ -34,26 +70,44 @@
               case "$arg" in
                 libvellum)  TARGET="libvellum" ;;
                 vellum)     TARGET="vellum" ;;
+                actions)    TARGET="actions" ;;
                 --release)  RELEASE_FLAG="--release" ;;
                 *)          ARGS+=("$arg") ;;
               esac
             done
 
-            cd "$ROOT/rust"
-
-            cargo clippy --workspace -- -D warnings
-            
-            CMD=("cargo" "build")
-            if [ -n "$TARGET" ]; then
-              CMD+=("-p" "$TARGET")
+            if [ "$TARGET" = "actions" ]; then
+              cd "$ROOT"
+              nix build .#get_lyrics --out-link actions/get_lyrics/result
+              nix build .#search_cover --out-link actions/search_cover/result
+              
+              cd "$ROOT/actions"
+              cargo clippy --workspace -- -D warnings
+              
+              CMD=("cargo" "build" "--workspace")
+              if [ -n "$RELEASE_FLAG" ]; then
+                CMD+=("$RELEASE_FLAG")
+              fi
+              
+              CMD+=("''${ARGS[@]}")
+              
+              "''${CMD[@]}"
+            else
+              cd "$ROOT/rust"
+              cargo clippy --workspace -- -D warnings
+              
+              CMD=("cargo" "build")
+              if [ -n "$TARGET" ]; then
+                CMD+=("-p" "$TARGET")
+              fi
+              if [ -n "$RELEASE_FLAG" ]; then
+                CMD+=("$RELEASE_FLAG")
+              fi
+              
+              CMD+=("''${ARGS[@]}")
+              
+              "''${CMD[@]}"
             fi
-            if [ -n "$RELEASE_FLAG" ]; then
-              CMD+=("$RELEASE_FLAG")
-            fi
-            
-            CMD+=("''${ARGS[@]}")
-            
-            "''${CMD[@]}"
           '';
         };
 
@@ -73,6 +127,13 @@
             done
 
             cd "$ROOT/rust"
+            if [ "$LINT" = true ]; then
+              cargo clippy --workspace -- "''${ARGS[@]}" -D warnings
+            else
+              cargo check "''${ARGS[@]}"
+            fi
+
+            cd "$ROOT/actions"
             if [ "$LINT" = true ]; then
               cargo clippy --workspace -- "''${ARGS[@]}" -D warnings
             else
@@ -111,7 +172,6 @@
                 cd "$ROOT" && "$BIN" "$COMMAND" "$@"
                 ;;
               test)
-                cd "$ROOT/rust"
                 TEST_ARGS=()
                 for arg in "$@"; do
                   case "$arg" in
@@ -121,6 +181,11 @@
                     *)      TEST_ARGS+=("$arg") ;;
                   esac
                 done
+
+                cd "$ROOT/rust"
+                cargo test "''${TEST_ARGS[@]}"
+                
+                cd "$ROOT/actions"
                 cargo test "''${TEST_ARGS[@]}"
                 ;;
               help|--help|-h)
@@ -162,6 +227,9 @@
         ] ++ runtimeLibs;
       in
       {
+        packages.get_lyrics = get_lyrics;
+        packages.search_cover = search_cover;
+
         devShells.default = pkgs.mkShell {
           buildInputs = devPackages;
           shellHook = ''
