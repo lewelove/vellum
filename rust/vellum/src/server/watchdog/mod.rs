@@ -343,7 +343,7 @@ async fn handle_config_change(
             (updated_interfaces, updated_configs)
         }
         Err(e) => {
-            log::error!("Failed to reload config: {e}");
+            log::error!("Failed to reload config: {e:?}");
             (current_interfaces.clone(), current_configs.clone())
         }
     }

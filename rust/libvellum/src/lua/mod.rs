@@ -42,6 +42,14 @@ impl LuaEngine {
         let content = std::fs::read_to_string(path)
             .context(format!("Failed to read {}", path.display()))?;
 
+        if let Some(parent) = path.parent() {
+            let parent_str = parent.to_string_lossy();
+            let code = format!("package.path = package.path .. ';{}/?.lua'", parent_str.replace('\\', "/"));
+            let _: () = self.lua.load(&code).exec()
+                .map_err(|e| anyhow::anyhow!("{e}"))
+                .context("Failed to append config directory to package.path")?;
+        }
+
         self.lua
             .load(&content)
             .set_name(path.to_string_lossy())
