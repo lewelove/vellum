@@ -33,16 +33,7 @@ local key_meta = {
         end
         return function(defs)
             for key_name, t in pairs(defs) do
-                if t == true then
-                    t = { output = true }
-                elseif t == false then
-                    t = { output = false }
-                end
-                
                 if type(t) == "table" then
-                    if t.output == nil then
-                        t.output = true
-                    end
                     if t.type == nil then
                         t.type = "object"
                     end
@@ -114,28 +105,26 @@ function __VELLUM_DISPATCHER(ctx)
     for _, key_name in ipairs(REGISTRY.keys_order) do
         local cfg = REGISTRY.keys[key_name]
         if cfg.level == "album" then
-            if cfg.output ~= false then
-                local raw_val = get_album_raw_val(ctx, key_name)
-                
-                if cfg.required and raw_val == nil then
-                    error(string.format("Compile error: Required album key '%s' is nil", key_name))
+            local raw_val = get_album_raw_val(ctx, key_name)
+            
+            if cfg.required and raw_val == nil then
+                error(string.format("Compile error: Required album key '%s' is nil", key_name))
+            end
+            
+            if type(cfg.output) == "function" then
+                local status, res = pcall(cfg.output, raw_val, ctx)
+                if not status then
+                    error(string.format("Error evaluating album key '%s': %s", key_name, res))
                 end
-                
-                if type(cfg.output) == "function" then
-                    local status, res = pcall(cfg.output, raw_val, ctx)
-                    if not status then
-                        error(string.format("Error evaluating album key '%s': %s", key_name, res))
-                    end
-                    if res == nil and cfg.required then
-                        error(string.format("Required album key '%s' resolved to nil", key_name))
-                    end
-                    if res ~= nil then
-                        results.album[key_name] = res
-                    end
-                elseif cfg.output == true then
-                    if raw_val ~= nil then
-                        results.album[key_name] = raw_val
-                    end
+                if res == nil and cfg.required then
+                    error(string.format("Required album key '%s' resolved to nil", key_name))
+                end
+                if res ~= nil then
+                    results.album[key_name] = res
+                end
+            else
+                if raw_val ~= nil then
+                    results.album[key_name] = raw_val
                 end
             end
         end
@@ -146,28 +135,26 @@ function __VELLUM_DISPATCHER(ctx)
         for _, key_name in ipairs(REGISTRY.keys_order) do
             local cfg = REGISTRY.keys[key_name]
             if cfg.level == "track" then
-                if cfg.output ~= false then
-                    local raw_val = get_track_raw_val(ctx, i, key_name)
-                    
-                    if cfg.required and raw_val == nil then
-                        error(string.format("Compile error: Required track key '%s' at index %d is nil", key_name, i))
+                local raw_val = get_track_raw_val(ctx, i, key_name)
+                
+                if cfg.required and raw_val == nil then
+                    error(string.format("Compile error: Required track key '%s' at index %d is nil", key_name, i))
+                end
+                
+                if type(cfg.output) == "function" then
+                    local status, res = pcall(cfg.output, raw_val, ctx, i)
+                    if not status then
+                        error(string.format("Error evaluating track key '%s' at index %d: %s", key_name, i, res))
                     end
-                    
-                    if type(cfg.output) == "function" then
-                        local status, res = pcall(cfg.output, raw_val, ctx, i)
-                        if not status then
-                            error(string.format("Error evaluating track key '%s' at index %d: %s", key_name, i, res))
-                        end
-                        if res == nil and cfg.required then
-                            error(string.format("Required track key '%s' at index %d resolved to nil", key_name, i))
-                        end
-                        if res ~= nil then
-                            results.tracks[i][key_name] = res
-                        end
-                    elseif cfg.output == true then
-                        if raw_val ~= nil then
-                            results.tracks[i][key_name] = raw_val
-                        end
+                    if res == nil and cfg.required then
+                        error(string.format("Required track key '%s' at index %d resolved to nil", key_name, i))
+                    end
+                    if res ~= nil then
+                        results.tracks[i][key_name] = res
+                    end
+                else
+                    if raw_val ~= nil then
+                        results.tracks[i][key_name] = raw_val
                     end
                 end
             end
