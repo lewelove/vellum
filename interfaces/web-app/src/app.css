@@ -23,7 +23,7 @@
   --text-muted: var(--palette-400);
   --border-muted: var(--palette-300);
 
-  --glass-bg: oklch(32% 0 0 / 0.5);
+  --glass-bg: oklch(32% 0 0 / 0.0);
 
   --font-size-title: 14px;
   --font-weight-title: 400;
@@ -150,6 +150,7 @@ main {
 .v-glass {
   backdrop-filter: blur(0px);
   background-color: var(--glass-bg);
+  background-color: transparent;
   box-shadow: var(--panel-shadow);
   transition: background-color 0.3s ease;
 }
