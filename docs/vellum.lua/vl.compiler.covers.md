@@ -32,7 +32,7 @@ For each `cover_name`:
 }
 ```
 
-We generate master image in the first place to always have the source on fastest system disk for the `/api/covers/` dynamic generation and serving.
+The reason behind generating master image is that this way we always have the source on fastest system disk for the `/api/covers/` dynamic generation and serving.
 
 ### Source
 
