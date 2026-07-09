@@ -183,6 +183,6 @@
 
   .view-layer.queue {
     z-index: 2;
-    background-color: var(--background-main);
+    background-color: var(--background-drawer);
   }
 </style>

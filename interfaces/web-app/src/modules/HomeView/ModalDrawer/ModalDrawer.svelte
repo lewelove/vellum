@@ -228,8 +228,8 @@
   }
 
   .modal-chassis {
-    width: 80vw;
     height: 85vh;
+    width: 80vw;
   }
 
   .modal-content {
