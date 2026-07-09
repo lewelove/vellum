@@ -146,7 +146,6 @@
           name = "vellum";
           runtimeInputs = [ 
             pkgs.bun
-            pkgs.nodejs_20
             pkgs.cargo 
             pkgs.rustc 
             pkgs.clippy
