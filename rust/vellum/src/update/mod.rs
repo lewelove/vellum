@@ -262,8 +262,7 @@ fn verify_albums_parallel(
     manifests: Option<&Vec<String>>,
 ) -> Result<Vec<(PathBuf, u64, bool)>> {
     let default_parallelism = std::thread::available_parallelism()
-        .map(std::num::NonZero::get)
-        .unwrap_or(1);
+        .map_or(1, std::num::NonZero::get);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(jobs.unwrap_or(default_parallelism))
         .build()?;
@@ -312,21 +311,19 @@ fn calculate_hash(data: &str) -> String {
 fn get_mtime_sum(dir: &Path, meta: &Path, exts: &[String], manifests: Option<&Vec<String>>) -> u64 {
     let d_mtime = fs::metadata(dir)
         .and_then(|m| m.modified())
-        .map(|t| {
+        .map_or(0, |t| {
             t.duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs()
-        })
-        .unwrap_or(0);
+        });
 
     let mut m_mtime = fs::metadata(meta)
         .and_then(|m| m.modified())
-        .map(|t| {
+        .map_or(0, |t| {
             t.duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs()
-        })
-        .unwrap_or(0);
+        });
 
     if let Some(names) = manifests {
         for name in names {
@@ -334,12 +331,11 @@ fn get_mtime_sum(dir: &Path, meta: &Path, exts: &[String], manifests: Option<&Ve
             if p.exists() {
                 m_mtime += fs::metadata(&p)
                     .and_then(|m| m.modified())
-                    .map(|t| {
+                    .map_or(0, |t| {
                         t.duration_since(SystemTime::UNIX_EPOCH)
                             .unwrap_or_default()
                             .as_secs()
-                    })
-                    .unwrap_or(0);
+                    });
             }
         }
     }
@@ -352,12 +348,11 @@ fn get_mtime_sum(dir: &Path, meta: &Path, exts: &[String], manifests: Option<&Ve
         if cp.exists() {
             c_mtime = fs::metadata(cp)
                 .and_then(|m| m.modified())
-                .map(|t| {
+                .map_or(0, |t| {
                     t.duration_since(SystemTime::UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_secs()
-                })
-                .unwrap_or(0);
+                });
             break;
         }
     }

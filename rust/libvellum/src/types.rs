@@ -84,8 +84,7 @@ pub fn parse_time(val: Option<&Value>) -> String {
             trimmed.parse::<i64>().map_or_else(
                 |_| {
                     chrono::DateTime::parse_from_rfc3339(trimmed)
-                        .map(Into::into)
-                        .unwrap_or(now)
+                        .map_or(now, Into::into)
                 },
                 |i| {
                     if i > 253_402_300_799 {

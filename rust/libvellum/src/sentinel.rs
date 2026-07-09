@@ -54,8 +54,7 @@ fn check_manifest_mtimes(album_root: &Path, album_data: &serde_json::Value) -> T
                 
                 let current_mtime = fs::metadata(&abs_path)
                     .and_then(|meta| meta.modified())
-                    .map(|t| t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs())
-                    .unwrap_or(0);
+                    .map_or(0, |t| t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs());
                 
                 if current_mtime != lock_mtime && lock_mtime != 0 {
                     return TrustState::BrokenIntent;
@@ -79,7 +78,7 @@ fn check_cover_integrity(album_root: &Path, album_data: &serde_json::Value) -> T
                 return TrustState::BrokenAssets;
             }
             let lock_size = file.get("byte_size").and_then(serde_json::Value::as_u64).unwrap_or(0);
-            let current_size = fs::metadata(&abs_path).map(|m| m.len()).unwrap_or(0);
+            let current_size = fs::metadata(&abs_path).map_or(0, |m| m.len());
             if lock_size != current_size {
                 return TrustState::BrokenAssets;
             }
@@ -101,7 +100,7 @@ fn check_tracks_integrity(album_root: &Path, lock_json: &serde_json::Value) -> T
                 let lock_track_mtime = file.get("mtime").and_then(serde_json::Value::as_u64).unwrap_or(0);
                 let lock_track_size = file.get("byte_size").and_then(serde_json::Value::as_u64).unwrap_or(0);
                 
-                let current_track_mtime = meta.modified().map(|t| t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs()).unwrap_or(0);
+                let current_track_mtime = meta.modified().map_or(0, |t| t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs());
                 let current_track_size = meta.len();
                 
                 if lock_track_mtime != current_track_mtime || lock_track_size != current_track_size {

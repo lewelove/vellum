@@ -174,7 +174,7 @@ fn find_harvestable_directories(scan_root: &Path, force: bool, supported_exts: &
             }
 
             let has_audio = fs::read_dir(path)
-                .map(|mut d| {
+                .is_ok_and(|mut d| {
                     d.any(|e| {
                         if let Ok(f) = e
                             && f.path().is_file()
@@ -184,8 +184,7 @@ fn find_harvestable_directories(scan_root: &Path, force: bool, supported_exts: &
                                 }
                         false
                     })
-                })
-                .unwrap_or(false);
+                });
 
             if has_audio {
                 dirs_to_harvest.push(path.to_path_buf());
