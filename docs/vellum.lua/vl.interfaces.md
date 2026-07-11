@@ -6,7 +6,7 @@ This function provides the data for `vellum interface` to run.
 
 #### Execution:
 
-Each interface is ran by `vellum interface interface_name`. For cli ergonomics the `interface_name` can be also called as `interfac-_name` and it will still run, because all of the `-` in name string will be replaced by `_` before it hitting the lua key.
+Each interface is ran by `vellum interface interface_name`. For cli ergonomics the `interface_name` can be also called as `interface-name` and it will still run, because all of the `-` in name string will be replaced by `_` before it hitting the lua key.
 
 #### Interface specification:
 
