@@ -28,6 +28,7 @@ pub struct EvaluatedLuaData {
     pub covers: IndexMap<String, CoversConfig>,
     pub keys: IndexMap<String, KeyConfig>,
     pub interfaces: HashMap<String, InterfaceConfig>,
+    pub dependencies: Vec<PathBuf>,
 }
 
 impl LuaEngine {
@@ -108,11 +109,27 @@ impl LuaEngine {
             .from_value(mlua::Value::Table(interfaces_table))
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
+        let get_deps: mlua::Function = globals
+            .get("__VELLUM_GET_DEPENDENCIES")
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let deps_table: Table = get_deps.call(()).map_err(|e| anyhow::anyhow!("{e}"))?;
+        let deps_str: Vec<String> = self
+            .lua
+            .from_value(mlua::Value::Table(deps_table))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+        let mut dependencies = Vec::new();
+        for d in deps_str {
+            let p = PathBuf::from(d);
+            dependencies.push(p.canonicalize().unwrap_or(p));
+        }
+
         Ok(EvaluatedLuaData {
             app: app_config,
             covers,
             keys,
             interfaces,
+            dependencies,
         })
     }
 
@@ -179,6 +196,7 @@ pub struct ResolvedConfig {
     pub covers: IndexMap<String, CoversConfig>,
     pub keys: IndexMap<String, KeyConfig>,
     pub interfaces: HashMap<String, InterfaceConfig>,
+    pub dependencies: Vec<PathBuf>,
     pub path: PathBuf,
 }
 
@@ -213,11 +231,15 @@ impl ResolvedConfig {
             );
         }
 
+        let mut dependencies = evaluated.dependencies;
+        dependencies.push(path.clone().canonicalize().unwrap_or_else(|_| path.clone()));
+
         Ok(Self {
             app: evaluated.app,
             covers: evaluated.covers,
             keys: evaluated.keys,
             interfaces: evaluated.interfaces,
+            dependencies,
             path,
         })
     }

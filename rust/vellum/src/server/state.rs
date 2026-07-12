@@ -21,6 +21,7 @@ pub struct AppConfig {
     pub state_root: PathBuf,
     pub resolved_logic_path: Option<PathBuf>,
     pub resolved_shelf_files: Vec<PathBuf>,
+    pub resolved_dependencies: Vec<PathBuf>,
     pub covers: IndexMap<String, CoversConfig>,
     pub interfaces: std::collections::HashMap<String, InterfaceConfig>,
     pub config_dir: PathBuf,

@@ -3,7 +3,7 @@ mod library;
 mod mpd;
 mod query;
 mod state;
-mod watchdog;
+mod inotify;
 
 use anyhow::{Context, Result};
 use std::net::SocketAddr;
@@ -71,6 +71,7 @@ pub async fn run(port: u16) -> Result<()> {
 
     let covers = config.covers.clone();
     let interfaces = config.interfaces.clone();
+    let resolved_dependencies = config.dependencies.clone();
     
     let logic_path = config_dir.join("logic.toml");
     let resolved_logic_path = logic_path.canonicalize().ok();
@@ -91,6 +92,7 @@ pub async fn run(port: u16) -> Result<()> {
         state_root: state_root.clone(),
         resolved_logic_path,
         resolved_shelf_files,
+        resolved_dependencies,
         covers,
         interfaces,
         config_dir: config_dir.clone(),
@@ -118,7 +120,7 @@ pub async fn run(port: u16) -> Result<()> {
         mpd_engine,
     });
 
-    watchdog::start(&config.path, Arc::clone(&app_state));
+    inotify::start(Arc::clone(&app_state));
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
