@@ -12,8 +12,6 @@ pub struct AppConfig {
     pub compiler: CompilerConfig,
     #[serde(default)]
     pub actions: HashMap<String, String>,
-    #[serde(default)]
-    pub interfaces: HashMap<String, InterfaceConfig>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -21,8 +19,9 @@ pub struct InterfaceConfig {
     #[serde(default)]
     pub enable: bool,
     pub directory: Option<String>,
-    pub config: Option<String>,
     pub run: Option<String>,
+    #[serde(default)]
+    pub config: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

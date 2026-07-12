@@ -24,7 +24,7 @@ export class ViewState {
   shelfVersion: number = $state(0);
   isShaderEnabled: boolean = $state(true);
   queuePanels: Record<string, boolean> = $state({ hud: true });
-  themeVersion: number = $state(Date.now());
+  assetVersion: number = $state(Date.now());
   sidebarWidth: number = $state(280);
   _pendingViewReset: boolean = false;
 
@@ -61,7 +61,7 @@ export class ViewState {
       this.isLoading = false;
       this._pendingViewReset = false;
     } else if (json.type === "INTERFACE_ASSET_UPDATE" || json.type === "INTERFACE_CONFIG_UPDATE") {
-      this.themeVersion = Date.now();
+      this.assetVersion = Date.now();
     } else if (json.type === "LOGIC_UPDATE") {
       window.location.reload();
     } else if (json.type === "ALBUM_REMOVED" || json.type === "ALBUM_UPDATED") {

@@ -1,29 +1,29 @@
-import { theme } from "../../../theme.svelte.ts";
+import { config } from "../../../config.svelte.ts";
 
 export class LayoutManager {
   containerWidth: number = $state(0);
 
-  gapX: number = $derived(theme.albumGrid["gap-x"] ?? 24);
-  gapY: number = $derived(theme.albumGrid["gap-y"] ?? 12);
-  cardSize: number = $derived(theme.albumGrid["cover-size"] ?? 200);
+  get gapX() { return config.album_grid.spacing.x; }
+  get gapY() { return config.album_grid.spacing.y; }
+  get cardSize() { return config.album_grid.album_card.cover.size; }
   
-  creaseHeight: number = $derived(theme.albumGrid["crease-height"] ?? 0);
+  get creaseHeight() { return config.album_grid.spacing.top; }
   
-  rowHeight: number = $derived(
-    this.gapY +       
-    this.cardSize +     
-    (theme.albumGrid["text-gap-main"] ?? 8) +  
-    (theme.albumGrid["font-line-height-title"] ?? 18) +     
-    (theme.albumGrid["text-gap-lesser"] ?? 2) +
-    (theme.albumGrid["font-line-height-artist"] ?? 16)
-  );
-
-  cols: number = $derived(Math.max(1, Math.floor((this.containerWidth - 40 + this.gapX) / (this.cardSize + this.gapX))));
-  gridWidth: number = $derived((this.cols * this.cardSize) + ((this.cols - 1) * this.gapX));
-
-  get topOffset(): number {
-    return this.creaseHeight - this.gapY;
+  get rowHeight() {
+    let textHeight = 0;
+    if (config.album_grid.album_card.text.enable) {
+      textHeight = config.album_grid.album_card.text.spacing.top + 
+                   Math.round(config.album_grid.album_card.text.title.size * 1.2) + 
+                   config.album_grid.album_card.text.spacing.middle +
+                   Math.round(config.album_grid.album_card.text.albumartist.size * 1.2);
+    }
+    return this.gapY + this.cardSize + textHeight;
   }
+
+  get cols() { return Math.max(1, Math.floor((this.containerWidth - 40 + this.gapX) / (this.cardSize + this.gapX))); }
+  get gridWidth() { return (this.cols * this.cardSize) + ((this.cols - 1) * this.gapX); }
+
+  get topOffset() { return this.creaseHeight - this.gapY; }
 
   getTotalHeight(rowCount: number): number {
     return (rowCount * this.rowHeight) + this.topOffset;
@@ -45,7 +45,7 @@ export class LayoutManager {
   }
 
   chunk<T>(arr: T[]): T[][] {
-    const results: T[][] =[];
+    const results: T[][] = [];
     const columns = this.cols;
     for (let i = 0; i < arr.length; i += columns) {
       results.push(arr.slice(i, i + columns));
@@ -53,4 +53,3 @@ export class LayoutManager {
     return results;
   }
 }
-

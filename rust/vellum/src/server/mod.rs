@@ -1,9 +1,9 @@
-pub mod api;
-pub mod library;
-pub mod mpd;
-pub mod query;
-pub mod state;
-pub mod watchdog;
+mod api;
+mod library;
+mod mpd;
+mod query;
+mod state;
+mod watchdog;
 
 use anyhow::{Context, Result};
 use std::net::SocketAddr;
@@ -70,7 +70,7 @@ pub async fn run(port: u16) -> Result<()> {
     create_directories(&cache_root, &state_root);
 
     let covers = config.covers.clone();
-    let interfaces = config.app.interfaces.clone();
+    let interfaces = config.interfaces.clone();
     
     let logic_path = config_dir.join("logic.toml");
     let resolved_logic_path = logic_path.canonicalize().ok();

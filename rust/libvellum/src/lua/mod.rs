@@ -1,11 +1,12 @@
 pub mod config;
 
 use anyhow::{Context, Result};
-use config::{AppConfig, CoversConfig, KeyConfig};
+use config::{AppConfig, CoversConfig, InterfaceConfig, KeyConfig};
 use indexmap::IndexMap;
 use mlua::{Lua, LuaSerdeExt, Table};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 const BOOTSTRAP: &str = include_str!("bootstrap.lua");
@@ -26,6 +27,7 @@ pub struct EvaluatedLuaData {
     pub app: AppConfig,
     pub covers: IndexMap<String, CoversConfig>,
     pub keys: IndexMap<String, KeyConfig>,
+    pub interfaces: HashMap<String, InterfaceConfig>,
 }
 
 impl LuaEngine {
@@ -97,10 +99,20 @@ impl LuaEngine {
             );
         }
 
+        let get_interfaces: mlua::Function = globals
+            .get("__VELLUM_GET_INTERFACES")
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let interfaces_table: Table = get_interfaces.call(()).map_err(|e| anyhow::anyhow!("{e}"))?;
+        let interfaces: HashMap<String, InterfaceConfig> = self
+            .lua
+            .from_value(mlua::Value::Table(interfaces_table))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
         Ok(EvaluatedLuaData {
             app: app_config,
             covers,
             keys,
+            interfaces,
         })
     }
 
@@ -166,6 +178,7 @@ pub struct ResolvedConfig {
     pub app: AppConfig,
     pub covers: IndexMap<String, CoversConfig>,
     pub keys: IndexMap<String, KeyConfig>,
+    pub interfaces: HashMap<String, InterfaceConfig>,
     pub path: PathBuf,
 }
 
@@ -204,6 +217,7 @@ impl ResolvedConfig {
             app: evaluated.app,
             covers: evaluated.covers,
             keys: evaluated.keys,
+            interfaces: evaluated.interfaces,
             path,
         })
     }

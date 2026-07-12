@@ -1,12 +1,12 @@
 <script>
   import { onMount, onDestroy } from "svelte";
-  import { collection } from "../../library/collection.svelte.ts";
+  import { config } from "../../config.svelte.ts";
   import { view } from "../../library/view.svelte.ts";
   
   import vertexShaderSource from "./Shaders/Quad.vert?raw";
   import internalFragmentShader from "./Shaders/Simplex.frag?raw";
 
-  let { colors =[], coverSize = 0, visible = false, isPlaying = false } = $props();
+  let { colors = [], coverSize = 0, visible = false, isPlaying = false } = $props();
 
   const PALETTE_SIZE_LIMIT = 12;
 
@@ -94,12 +94,12 @@
   }
 
   $effect(() => {
-    loadExternalShader(collection.config.theme?.shader?.path);
+    loadExternalShader(config.shader?.path);
   });
 
   $effect(() => {
     let palette = (colors && colors.length > 0) ? [...colors] : [...DEFAULT_PALETTE];
-    const order = collection.config.theme?.shader?.order || "random";
+    const order = config.shader?.order || "random";
     
     if (order !== "original") {
       palette.sort((a, b) => getChroma(b) - getChroma(a));
@@ -158,7 +158,7 @@
       }
     }
 
-    const equalize = collection.config.theme?.shader?.equalize ?? 0;
+    const equalize = config.shader?.equalize ?? 0;
     const avgRatio = 1.0 / activeColorCount;
 
     for (let i = 0; i < activeColorCount; i++) {
@@ -275,7 +275,7 @@
       gl.uniform1fv(gl.getUniformLocation(program, "iRatios"), floatRatios);
       gl.uniform1i(gl.getUniformLocation(program, "iCount"), activeColorCount);
 
-      const s = collection.config.theme?.shader || {};
+      const s = config.shader || {};
       gl.uniform1f(gl.getUniformLocation(program, "iSpeed"), s.speed ?? 0.007);
       gl.uniform1f(gl.getUniformLocation(program, "iZoom"), s.zoom ?? 0.4);
       gl.uniform1f(gl.getUniformLocation(program, "iBlur"), s.blur ?? 0.8);
@@ -304,7 +304,7 @@
   }
 
   $effect(() => {
-    if (colors || coverSize || collection.config.theme?.shader) {
+    if (colors || coverSize || config.shader) {
       handleResize();
     }
   });

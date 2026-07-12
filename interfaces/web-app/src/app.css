@@ -11,12 +11,6 @@
 }
 
 :root {
-  --palette-100: oklch(26% 0 0);
-  --palette-200: oklch(32% 0 0);
-  --palette-300: oklch(38% 0 0);
-  --palette-400: oklch(82% 0 0);
-  --palette-500: oklch(100% 0 0);
-
   --background-main: var(--palette-200);
   --background-drawer: var(--palette-100);
   --text-main: var(--palette-500);
@@ -24,20 +18,6 @@
   --border-muted: var(--palette-300);
 
   --glass-bg: oklch(32% 0 0 / 0.0);
-
-  --font-size-title: 14px;
-  --font-weight-title: 400;
-  --font-size-artist: 12px;
-  --font-weight-artist: 400;
-
-  --crease-height: 20px;
-  --gap-x: 20px;
-  --gap-y: 16px;
-  --cover-size: 200px;
-  --text-gap-main: 11px;
-  --text-gap-lesser: 2px;
-  --font-line-height-title: 16px;
-  --font-line-height-artist: 14px;
 
   --album-cover-shadow-thumbnail:
     0px 0px 10px 0px oklch(0% 0 0 / 0.3),

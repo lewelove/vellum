@@ -1,6 +1,6 @@
 import { sync } from "./sync.svelte.ts";
 import { updatePlayerState } from "../modules/player.svelte.ts";
-import { updateTheme } from "../theme.svelte.ts";
+import { config as globalConfig, updateConfig } from "../config.svelte.ts";
 
 class CollectionStore {
   dict: Record<string, any> = $state({});
@@ -10,12 +10,7 @@ class CollectionStore {
   sidebarGroups: Map<string, any[]> = $state(new Map());
   fullAlbumCache: Record<string, any> = $state({});
   manifest: Record<string, any> = $state({ filters: {}, libraries: {}, groupers: {}, orders: {}, shelves: {} });
-  config: Record<string, any> = $state({
-    covers: {
-        master: { interpolation: "mitchell", size: 1080 },
-        thumbnail: { interpolation: "lanczos", size: 190 }
-    }
-  });
+  config: Record<string, any> = $state({});
 
   constructor() {
     sync.addEventListener('message', (e: Event) => this.handleMessage((e as CustomEvent).detail));
@@ -49,7 +44,7 @@ class CollectionStore {
     } else if (json.type === "CONFIG_UPDATE" || json.type === "INTERFACE_CONFIG_UPDATE") {
       if (json.config) {
         this.config = { ...this.config, ...json.config };
-        if (json.type === "INTERFACE_CONFIG_UPDATE") updateTheme(json.config);
+        if (json.type === "INTERFACE_CONFIG_UPDATE") updateConfig(json.config);
       }
     } else if (json.type === "MPD_STATUS") {
       updatePlayerState(json);
@@ -74,9 +69,8 @@ class CollectionStore {
 
   getThumbnailUrl(album: any): string {
     if (!album || !album.cover_hash) return "";
-    const thumbConf = this.config.covers?.thumbnail || { interpolation: "lanczos", size: 190 };
-    const algo = thumbConf.interpolation || "lanczos";
-    const size = thumbConf.size || 190;
+    const algo = globalConfig.album_grid.album_card.cover.filter || "lanczos";
+    const size = globalConfig.album_grid.album_card.cover.size || 200;
     return `/api/covers/${algo}/${size}px/${album.cover_hash}`;
   }
 

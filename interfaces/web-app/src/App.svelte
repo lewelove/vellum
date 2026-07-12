@@ -3,6 +3,7 @@
   import { view } from "./library/view.svelte.ts";
   import { initApp } from "./library/init.ts";
   import { nav, setTab } from "./navigation.svelte.ts";
+  import { config } from "./config.svelte.ts";
 
   import HomeView from "./modules/HomeView/HomeView.svelte";
   import QueueView from "./modules/QueueView/QueueView.svelte";
@@ -11,6 +12,12 @@
   let currentTab = $state(nav.activeTab);
   let retentionTab: string | null = $state(null);
   let instantTab: string | null = $state(null);
+
+  $effect(() => {
+    for (const [key, value] of Object.entries(config.palette)) {
+      document.documentElement.style.setProperty(`--palette-${key}`, value as string);
+    }
+  });
 
   $effect(() => {
     if (nav.activeTab !== currentTab) {
@@ -118,7 +125,7 @@
 </script>
 
 <svelte:head>
-  <link rel="stylesheet" href="/api/interfaces/default/assets/vellum.css?v={view.themeVersion}" />
+  <link rel="stylesheet" href="/api/interfaces/default/assets/vellum.css?v={view.assetVersion}" />
 </svelte:head>
 
 <main tabindex="-1">

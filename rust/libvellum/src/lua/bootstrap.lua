@@ -2,12 +2,44 @@ local REGISTRY = {
     config = {},
     covers = {},
     keys = {},
-    keys_order = {}
+    keys_order = {},
+    interfaces = {}
 }
 
 _G.vl = {
     config = function(t)
+        if t.interfaces then
+            for k, v in pairs(t.interfaces) do
+                if type(v) == "boolean" then
+                    if v == true then
+                        REGISTRY.interfaces[k] = { enable = true, config = {} }
+                    end
+                elseif type(v) == "table" then
+                    v.enable = true
+                    if v.config == nil then
+                        v.config = {}
+                    end
+                    REGISTRY.interfaces[k] = v
+                end
+            end
+            t.interfaces = nil
+        end
         REGISTRY.config = t
+    end,
+    interfaces = function(t)
+        for k, v in pairs(t) do
+            if type(v) == "boolean" then
+                if v == true then
+                    REGISTRY.interfaces[k] = { enable = true, config = {} }
+                end
+            elseif type(v) == "table" then
+                v.enable = true
+                if v.config == nil then
+                    v.config = {}
+                end
+                REGISTRY.interfaces[k] = v
+            end
+        end
     end,
     compiler = {
         covers = function(name, t)
@@ -84,6 +116,10 @@ end
 
 function __VELLUM_GET_COVERS()
     return REGISTRY.covers
+end
+
+function __VELLUM_GET_INTERFACES()
+    return REGISTRY.interfaces
 end
 
 function __VELLUM_GET_KEYS()

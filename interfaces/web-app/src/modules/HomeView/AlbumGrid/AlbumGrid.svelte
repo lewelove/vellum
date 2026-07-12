@@ -126,7 +126,7 @@
             height: {ctrl.layout.rowHeight}px;
           "
         >
-          <div class="row-inner" style="gap: var(--gap-x);">
+          <div class="row-inner" style="gap: {ctrl.layout.gapX}px;">
               {#each row.data as album (album.id)}
                 <Album 
                   {album} 

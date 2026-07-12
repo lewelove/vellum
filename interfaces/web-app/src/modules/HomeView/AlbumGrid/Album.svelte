@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { theme } from "../../../theme.svelte.ts";
+  import { config } from "../../../config.svelte.ts";
   import { collection } from "../../../library/collection.svelte.ts";
   import { prewarmer } from "../../../library/prewarmer.svelte.ts";
 
@@ -8,9 +8,9 @@
   let originalUrl = $derived(collection.getThumbnailUrl(album));
   let coverBitmap = $derived(prewarmer.pinnedTextures.get(originalUrl));
 
-  const coverSize = $derived(theme.albumGrid["cover-size"]);
-  const gapY = $derived(theme.albumGrid["gap-y"]);
-  const textGap = $derived(theme.albumGrid["text-gap-main"]);
+  const coverSize = $derived(config.album_grid.album_card.cover.size);
+  const gapY = $derived(config.album_grid.spacing.y);
+  const textGap = $derived(config.album_grid.album_card.text.enable ? config.album_grid.album_card.text.spacing.top : 0);
 
   let absoluteY = $derived(rowY - scrollY);
   let metadataTop = $derived(absoluteY + gapY + coverSize + textGap);
@@ -28,10 +28,10 @@
   let canvas: HTMLCanvasElement | undefined = $state();
   let coverCanvas: HTMLCanvasElement | undefined = $state();
   
-  const lhTitle = $derived(theme.albumGrid["font-line-height-title"]);
-  const gapLesser = $derived(theme.albumGrid["text-gap-lesser"]);
-  const lhArtist = $derived(theme.albumGrid["font-line-height-artist"]);
-  const textBlockHeight = $derived(lhTitle + gapLesser + lhArtist);
+  const lhTitle = $derived(Math.round(config.album_grid.album_card.text.title.size * 1.2));
+  const gapLesser = $derived(config.album_grid.album_card.text.spacing.middle);
+  const lhArtist = $derived(Math.round(config.album_grid.album_card.text.albumartist.size * 1.2));
+  const textBlockHeight = $derived(config.album_grid.album_card.text.enable ? (lhTitle + gapLesser + lhArtist) : 0);
   
   function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
     if (!text) return "";
@@ -55,7 +55,7 @@
   }
 
   function renderText() {
-    if (!canvas) return;
+    if (!canvas || !config.album_grid.album_card.text.enable) return;
     
     const dpr = window.devicePixelRatio || 1;
     const w = coverSize;
@@ -71,7 +71,7 @@
     ctx.scale(dpr, dpr);
     ctx.translate(0, 1);
     
-    const bgHex = "#333333";
+    const bgHex = config.palette["200"] || "#323232";
     ctx.fillStyle = bgHex;
     ctx.fillRect(0, -1, w, h + 2);
     
@@ -79,12 +79,9 @@
     
     applyEffects(ctx);
 
-    const palette = theme.palette as Record<string, string>;
-    const colors = theme.colors as Record<string, string>;
-
-    const cTitle = palette[colors["text-main"]] || "#ffffff";
-    const sTitle = theme.typography["font-size-title"];
-    const wTitle = theme.typography["font-weight-title"];
+    const cTitle = config.palette["500"] || "#ffffff";
+    const sTitle = config.album_grid.album_card.text.title.size;
+    const wTitle = 400;
     
     ctx.fillStyle = cTitle;
     ctx.font = `${wTitle} ${sTitle}px ${fontStack}`;
@@ -94,9 +91,9 @@
     const titleText = fitText(ctx, album.title, w);
     ctx.fillText(titleText, 0, titleY);
     
-    const cArtist = palette[colors["text-muted"]] || "#cccccc";
-    const sArtist = theme.typography["font-size-artist"];
-    const wArtist = theme.typography["font-weight-artist"];
+    const cArtist = config.palette["400"] || "#cccccc";
+    const sArtist = config.album_grid.album_card.text.albumartist.size;
+    const wArtist = 400;
     
     ctx.fillStyle = cArtist;
     ctx.font = `${wArtist} ${sArtist}px ${fontStack}`;
@@ -112,9 +109,9 @@
       a: album.artist, 
       w: coverSize, 
       h: textBlockHeight,
-      c1: theme.colors["text-main"],
-      c2: theme.colors["text-muted"],
-      bg: theme.colors["background-main"],
+      p500: config.palette["500"],
+      p400: config.palette["400"],
+      p200: config.palette["200"],
       dpr: window.devicePixelRatio 
     };
     renderText();
@@ -140,11 +137,11 @@
   });
 </script>
 
-<div class="album-unit">
+<div class="album-unit" style="width: {coverSize}px; padding-top: {gapY}px;">
   <button 
     class="album-cover" 
     class:active
-    style="z-index: 10;"
+    style="z-index: 10; width: {coverSize}px; height: {coverSize}px; margin-bottom: {textGap}px;"
     {onclick}
     aria-label="Select album {album.title}"
   >
@@ -154,36 +151,42 @@
         alt="" 
         decoding="sync"
         draggable="false"
-        style="opacity: {coverBitmap ? 0 : 1}; position: absolute; inset: 0;"
+        style="opacity: {coverBitmap ? 0 : 1}; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1;"
       />
     {/if}
     <canvas 
         bind:this={coverCanvas}
-        style="opacity: {coverBitmap ? 1 : 0}; width: 100%; height: calc(100% + 2px); position: absolute; top: -1px; left: 0; display: block; pointer-events: none;"
+        style="opacity: {coverBitmap ? 1 : 0}; width: 100%; height: calc(100% + 2px); position: absolute; top: -1px; left: 0; display: block; pointer-events: none; z-index: 2;"
     ></canvas>
+    <div 
+      class="cover-shadow-overlay"
+      style="position: absolute; top: -1px; left: 0; width: 100%; height: calc(100% + 2px); pointer-events: none; z-index: 3;"
+    ></div>
   </button>
   
-  <div 
-    class="album-info" 
-    style="
-      opacity: {opacity};
-      z-index: 1;
-      height: {textBlockHeight}px;
-    "
-  >
-    <canvas 
-      bind:this={canvas}
+  {#if config.album_grid.album_card.text.enable}
+    <div 
+      class="album-info" 
       style="
-        width: {coverSize}px;
-        height: calc(100% + 2px);
-        position: absolute;
-        top: -1px;
-        left: 0;
-        display: block;
-        image-rendering: -webkit-optimize-contrast;
+        opacity: {opacity};
+        z-index: 1;
+        height: {textBlockHeight}px;
       "
-    ></canvas>
-  </div>
+    >
+      <canvas 
+        bind:this={canvas}
+        style="
+          width: {coverSize}px;
+          height: calc(100% + 2px);
+          position: absolute;
+          top: -1px;
+          left: 0;
+          display: block;
+          image-rendering: -webkit-optimize-contrast;
+        "
+      ></canvas>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -191,8 +194,6 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0; 
-    width: var(--cover-size);
-    padding-top: var(--gap-y);
     position: relative;
   }
 
@@ -202,16 +203,16 @@
     cursor: pointer;
     display: block;
     outline: none !important;
-    width: var(--cover-size);
-    height: var(--cover-size);
-    margin-bottom: var(--text-gap-main);
     position: relative;
-    background-color: #323232;
     border-radius: 0px;
-    box-shadow: var(--album-cover-shadow);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.2s ease;
     pointer-events: auto;
     overflow: visible;
+  }
+
+  .cover-shadow-overlay {
+    box-shadow: var(--album-cover-shadow);
+    transition: box-shadow 0.2s ease;
   }
 
   .album-cover img {

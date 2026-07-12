@@ -5,13 +5,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use std::collections::{HashMap, HashSet};
-use crate::server::api::system::get_interface_config_path;
 
 struct ChangeFlags {
     config: bool,
     logic: bool,
     shelf: bool,
-    interfaces_config: HashSet<String>,
     interfaces_asset: HashSet<String>,
 }
 
@@ -63,21 +61,14 @@ async fn run_loop(
         }
     }
 
-    let mut watched_interface_configs = get_initial_interface_configs(&state).await;
-    for p in watched_interface_configs.values() {
-        if p.exists() && !p.starts_with(&config_dir) {
-            let _ = watcher.watch(p, RecursiveMode::NonRecursive);
-        }
-    }
-
     while let Some(mut paths) = rx.recv().await {
         tokio::time::sleep(Duration::from_millis(100)).await;
         while let Ok(more_paths) = rx.try_recv() {
             paths.extend(more_paths);
         }
 
-        let flags = classify_events(&paths, &canon_config_path, &watched_shelves, &watched_interfaces, &watched_interface_configs);
-        process_events(flags, &state, &config_dir, &mut watcher, &mut watched_shelves, &mut watched_interfaces, &mut watched_interface_configs).await;
+        let flags = classify_events(&paths, &canon_config_path, &watched_shelves, &watched_interfaces);
+        process_events(flags, &state, &config_dir, &mut watcher, &mut watched_shelves, &mut watched_interfaces).await;
     }
 }
 
@@ -104,27 +95,16 @@ async fn get_initial_interfaces(state: &Arc<AppState>) -> HashMap<String, PathBu
     }).collect()
 }
 
-async fn get_initial_interface_configs(state: &Arc<AppState>) -> HashMap<String, PathBuf> {
-    let guard = state.config.read().await;
-    guard.interfaces.iter().map(|(name, cfg)| {
-        let config_path = get_interface_config_path(name, Some(cfg), &guard.config_dir);
-        let config_path = config_path.canonicalize().unwrap_or(config_path);
-        (name.clone(), config_path)
-    }).collect()
-}
-
 fn classify_events(
     paths: &[PathBuf],
     canon_config_path: &Path,
     watched_shelves: &[PathBuf],
     watched_interfaces: &HashMap<String, PathBuf>,
-    watched_interface_configs: &HashMap<String, PathBuf>,
 ) -> ChangeFlags {
     let mut flags = ChangeFlags {
         config: false,
         logic: false,
         shelf: false,
-        interfaces_config: HashSet::new(),
         interfaces_asset: HashSet::new(),
     };
 
@@ -150,19 +130,9 @@ fn classify_events(
             flags.logic = true;
         }
 
-        for (name, cfg_path) in watched_interface_configs {
-            if p_canon == *cfg_path {
-                flags.interfaces_config.insert(name.clone());
-            }
-        }
-
         for (name, dir) in watched_interfaces {
             if p_canon.starts_with(dir) {
-                if p_canon.file_name().is_some_and(|n| n == "config.toml") {
-                    flags.interfaces_config.insert(name.clone());
-                } else if !watched_interface_configs.values().any(|c| *c == p_canon) {
-                    flags.interfaces_asset.insert(name.clone());
-                }
+                flags.interfaces_asset.insert(name.clone());
             }
         }
     }
@@ -176,7 +146,6 @@ async fn process_events(
     watcher: &mut RecommendedWatcher,
     watched_shelves: &mut Vec<PathBuf>,
     watched_interfaces: &mut HashMap<String, PathBuf>,
-    watched_interface_configs: &mut HashMap<String, PathBuf>,
 ) {
     if flags.logic {
         *watched_shelves = handle_logic_change(state, config_dir, watcher, watched_shelves).await;
@@ -193,21 +162,6 @@ async fn process_events(
         let _ = state.tx.send(json!({ "type": "LOGIC_UPDATE" }).to_string());
     }
 
-    for intf_name in flags.interfaces_config {
-        log::info!("Interface '{intf_name}' config changed.");
-        if let Some(cfg_path) = watched_interface_configs.get(&intf_name)
-            && let Ok(content) = tokio::fs::read_to_string(cfg_path).await
-            && let Ok(toml_val) = toml::from_str::<toml::Value>(&content)
-        {
-            let json_val = libvellum::types::toml_to_json(toml_val);
-            let _ = state.tx.send(json!({
-                "type": "INTERFACE_CONFIG_UPDATE",
-                "name": intf_name,
-                "config": json_val
-            }).to_string());
-        }
-    }
-
     for intf_name in flags.interfaces_asset {
         log::info!("Interface '{intf_name}' asset changed.");
         let _ = state.tx.send(json!({
@@ -217,9 +171,8 @@ async fn process_events(
     }
 
     if flags.config {
-        let (updated_ints, updated_cfgs) = handle_config_change(state, config_dir, watcher, watched_interfaces, watched_interface_configs).await;
+        let updated_ints = handle_config_change(state, config_dir, watcher, watched_interfaces).await;
         *watched_interfaces = updated_ints;
-        *watched_interface_configs = updated_cfgs;
     }
 }
 
@@ -278,14 +231,13 @@ async fn handle_config_change(
     config_dir: &Path,
     watcher: &mut RecommendedWatcher,
     current_interfaces: &HashMap<String, PathBuf>,
-    current_configs: &HashMap<String, PathBuf>,
-) -> (HashMap<String, PathBuf>, HashMap<String, PathBuf>) {
+) -> HashMap<String, PathBuf> {
     log::info!("Filesystem change: reloading config...");
 
     match libvellum::lua::ResolvedConfig::load() {
         Ok(new_config) => {
             let covers = new_config.covers.clone();
-            let new_interfaces = new_config.app.interfaces.clone();
+            let new_interfaces = new_config.interfaces.clone();
 
             let mut updated_interfaces = HashMap::new();
             for (name, cfg) in &new_interfaces {
@@ -316,23 +268,6 @@ async fn handle_config_change(
                 config_guard.interfaces.clone_from(&new_interfaces);
             }
 
-            let mut updated_configs = HashMap::new();
-            for (name, cfg) in &new_interfaces {
-                let cfg_path = get_interface_config_path(name, Some(cfg), config_dir);
-                let new_cp = cfg_path.canonicalize().unwrap_or(cfg_path);
-
-                if new_cp.exists() && !new_cp.starts_with(config_dir) && !current_configs.values().any(|p| *p == new_cp) {
-                    let _ = watcher.watch(&new_cp, RecursiveMode::NonRecursive);
-                }
-                updated_configs.insert(name.clone(), new_cp);
-            }
-
-            for old_cp in current_configs.values() {
-                if !updated_configs.values().any(|p| p == old_cp) && !old_cp.starts_with(config_dir) {
-                    let _ = watcher.unwatch(old_cp);
-                }
-            }
-
             let _ = state.tx.send(json!({
                 "type": "CONFIG_UPDATE",
                 "config": {
@@ -340,11 +275,19 @@ async fn handle_config_change(
                 }
             }).to_string());
 
-            (updated_interfaces, updated_configs)
+            for (name, cfg) in &new_interfaces {
+                let _ = state.tx.send(json!({
+                    "type": "INTERFACE_CONFIG_UPDATE",
+                    "name": name,
+                    "config": cfg.config
+                }).to_string());
+            }
+
+            updated_interfaces
         }
         Err(e) => {
             log::error!("Failed to reload config: {e:?}");
-            (current_interfaces.clone(), current_configs.clone())
+            current_interfaces.clone()
         }
     }
 }

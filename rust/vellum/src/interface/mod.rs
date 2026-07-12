@@ -3,10 +3,11 @@ use libvellum::utils::expand_path;
 use std::process::Stdio;
 
 pub async fn execute(name: Option<String>) -> Result<()> {
-    let name = name.unwrap_or_else(|| "default".to_string());
+    let raw_name = name.unwrap_or_else(|| "default".to_string());
+    let name = raw_name.replace('-', "_");
     let config = libvellum::lua::ResolvedConfig::load().context("Failed to load config")?;
 
-    let mut intf_cfg = config.app.interfaces
+    let mut intf_cfg = config.interfaces
         .get(&name)
         .cloned()
         .unwrap_or_default();
@@ -16,10 +17,10 @@ pub async fn execute(name: Option<String>) -> Result<()> {
     }
 
     if !intf_cfg.enable {
-        anyhow::bail!("Interface '{name}' is not enabled in config.");
+        anyhow::bail!("Interface '{raw_name}' is not enabled in config.");
     }
 
-    let dir_str = intf_cfg.directory.unwrap_or_else(|| format!("~/.local/share/vellum/interfaces/{name}"));
+    let dir_str = intf_cfg.directory.unwrap_or_else(|| format!("~/.local/share/vellum/interfaces/{raw_name}"));
     let dir_path = expand_path(&dir_str);
 
     let run_str = intf_cfg.run.unwrap_or_else(|| format!("{}/run.sh", dir_path.display()));
