@@ -29,30 +29,20 @@ pub async fn classify_events(
     let shelves: Vec<PathBuf> = guard.resolved_shelf_files.clone();
     let deps: Vec<PathBuf> = guard.resolved_dependencies.clone();
 
-    let mut interface_dirs = std::collections::HashMap::new();
+    let mut interface_assets: Vec<(String, PathBuf, bool)> = Vec::new();
     for (name, cfg) in &guard.interfaces {
-        let dir = cfg.directory.as_ref().map_or_else(
-            || {
-                let p = libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{name}"));
-                p.canonicalize().unwrap_or(p)
-            },
-            |d| {
-                let p = libvellum::utils::expand_path(d);
-                let p = if p.is_absolute() { p } else { config_dir.join(p) };
-                p.canonicalize().unwrap_or(p)
-            },
-        );
-        interface_dirs.insert(name.clone(), dir);
+        for asset_str in cfg.assets.values() {
+            let p = libvellum::utils::expand_path(asset_str);
+            let p = if p.is_absolute() { p } else { config_dir.join(p) };
+            if let Ok(canon) = p.canonicalize() {
+                interface_assets.push((name.clone(), canon.clone(), canon.is_dir()));
+            }
+        }
     }
     drop(guard);
 
     for p in paths {
         let p_canon = p.canonicalize().unwrap_or_else(|_| p.clone());
-        let path_str = p_canon.to_string_lossy();
-
-        if path_str.contains("node_modules") || path_str.contains(".svelte-kit") || path_str.contains(".git") {
-            continue;
-        }
 
         if deps.contains(&p_canon) {
             flags.config = true;
@@ -66,8 +56,12 @@ pub async fn classify_events(
             flags.logic = true;
         }
 
-        for (name, dir) in &interface_dirs {
-            if p_canon.starts_with(dir) {
+        for (name, asset_path, is_dir) in &interface_assets {
+            if *is_dir {
+                if p_canon.starts_with(asset_path) {
+                    flags.interfaces_asset.insert(name.clone());
+                }
+            } else if p_canon == *asset_path {
                 flags.interfaces_asset.insert(name.clone());
             }
         }

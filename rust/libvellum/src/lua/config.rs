@@ -22,6 +22,8 @@ pub struct InterfaceConfig {
     pub run: Option<String>,
     #[serde(default)]
     pub config: serde_json::Value,
+    #[serde(default)]
+    pub assets: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

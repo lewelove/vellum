@@ -59,10 +59,20 @@ async fn sync_watches(
 
     needed_recursive.insert(config_dir.to_path_buf());
 
-    for dir in guard.interfaces.values().filter_map(|c| c.directory.as_ref()) {
-        let p = libvellum::utils::expand_path(dir);
-        let p = if p.is_absolute() { p } else { config_dir.join(p) };
-        needed_recursive.insert(p.canonicalize().unwrap_or(p));
+    for cfg in guard.interfaces.values() {
+        for asset_str in cfg.assets.values() {
+            let p = libvellum::utils::expand_path(asset_str);
+            let p = if p.is_absolute() { p } else { config_dir.join(p) };
+            if let Ok(canon) = p.canonicalize() {
+                if canon.is_dir() {
+                    needed_recursive.insert(canon);
+                } else if canon.is_file()
+                    && let Some(parent) = canon.parent()
+                {
+                    needed_non_recursive.insert(parent.to_path_buf());
+                }
+            }
+        }
     }
 
     for dep in &guard.resolved_dependencies {

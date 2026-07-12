@@ -76,13 +76,9 @@
     return array;
   }
 
-  async function loadExternalShader(path) {
-    if (!path) {
-        shaderSource = internalFragmentShader;
-        return;
-    }
+  async function loadExternalShader() {
     try {
-        const res = await fetch(`/api/interfaces/default/assets/${path}?v=${Date.now()}`);
+        const res = await fetch(`/api/interfaces/default/assets/shader?v=${view.assetVersion}`);
         if (res.ok) {
             shaderSource = await res.text();
         } else {
@@ -94,7 +90,8 @@
   }
 
   $effect(() => {
-    loadExternalShader(config.shader?.path);
+    const _ = view.assetVersion;
+    loadExternalShader();
   });
 
   $effect(() => {

@@ -25,37 +25,59 @@ pub async fn serve_interface_asset(
     Path((name, asset_path)): Path<(String, String)>,
     State(state): State<Arc<AppState>>,
 ) -> Response {
-    let raw_name = name.clone();
     let name = name.replace('-', "_");
     let (intf_cfg, config_dir) = {
         let guard = state.config.read().await;
         (guard.interfaces.get(&name).cloned(), guard.config_dir.clone())
     };
 
-    let dir = intf_cfg.as_ref()
-        .and_then(|c| c.directory.as_ref())
-        .map_or_else(
-            || libvellum::utils::expand_path(&format!("~/.local/share/vellum/interfaces/{raw_name}")),
-            |c| {
-                let p = libvellum::utils::expand_path(c);
-                if p.is_absolute() {
-                    p
-                } else {
-                    config_dir.join(p)
-                }
-            },
-        );
+    let Some(cfg) = intf_cfg else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
 
-    let full_path = dir.join(&asset_path);
+    let parts: Vec<&str> = asset_path.splitn(2, '/').collect();
+    let key = parts[0];
+    let subpath = parts.get(1).copied();
 
-    if !full_path.canonicalize().unwrap_or_default().starts_with(dir.canonicalize().unwrap_or_default()) {
-        return StatusCode::FORBIDDEN.into_response();
-    }
+    let Some(asset_val) = cfg.assets.get(key) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
 
-    if let Ok(mut file) = tokio::fs::File::open(&full_path).await {
+    let p = libvellum::utils::expand_path(asset_val);
+    let resolved = if p.is_absolute() { p } else { config_dir.join(p) };
+    let Ok(resolved_canon) = resolved.canonicalize() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let Ok(meta) = tokio::fs::metadata(&resolved_canon).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let target_path = if meta.is_file() {
+        if subpath.is_some() {
+            return StatusCode::NOT_FOUND.into_response();
+        }
+        resolved_canon
+    } else if meta.is_dir() {
+        let Some(sub) = subpath else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        let full_path = resolved_canon.join(sub);
+        let Ok(full_canon) = full_path.canonicalize() else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        if !full_canon.starts_with(&resolved_canon) || !full_canon.is_file() {
+            return StatusCode::FORBIDDEN.into_response();
+        }
+        full_canon
+    } else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    if let Ok(mut file) = tokio::fs::File::open(&target_path).await {
         let mut buf = Vec::new();
         if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut buf).await.is_ok() {
-            let mime = match full_path.extension().and_then(|e| e.to_str()) {
+            let mime = match target_path.extension().and_then(|e| e.to_str()) {
                 Some("css") => "text/css",
                 Some("frag" | "glsl" | "vert") => "text/plain",
                 Some("js") => "application/javascript",

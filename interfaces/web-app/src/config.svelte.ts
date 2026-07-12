@@ -1,7 +1,6 @@
 export const config = $state({
   shader: {
     order: "original",
-    path: "shaders/mountain_eq.frag",
     speed: 1.7,
     zoom: 0.3,
     blur: 0.8,

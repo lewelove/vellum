@@ -54,12 +54,15 @@ _G.vl = {
             for k, v in pairs(t.interfaces) do
                 if type(v) == "boolean" then
                     if v == true then
-                        REGISTRY.interfaces[k] = { enable = true, config = {} }
+                        REGISTRY.interfaces[k] = { enable = true, config = {}, assets = {} }
                     end
                 elseif type(v) == "table" then
                     v.enable = true
                     if v.config == nil then
                         v.config = {}
+                    end
+                    if v.assets == nil then
+                        v.assets = {}
                     end
                     REGISTRY.interfaces[k] = v
                 end
@@ -72,12 +75,15 @@ _G.vl = {
         for k, v in pairs(t) do
             if type(v) == "boolean" then
                 if v == true then
-                    REGISTRY.interfaces[k] = { enable = true, config = {} }
+                    REGISTRY.interfaces[k] = { enable = true, config = {}, assets = {} }
                 end
             elseif type(v) == "table" then
                 v.enable = true
                 if v.config == nil then
                     v.config = {}
+                end
+                if v.assets == nil then
+                    v.assets = {}
                 end
                 REGISTRY.interfaces[k] = v
             end
