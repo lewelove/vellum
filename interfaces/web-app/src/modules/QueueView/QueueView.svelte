@@ -53,7 +53,7 @@
 
   <div class="queue-layout">
     <div class="left-wing">
-      <NavBar variant={view.isShaderActive && hasPalette ? 'glass' : 'solid'} />
+      <NavBar variant="transparent" />
       {#if showHud}
         <ControlPanel />
       {/if}

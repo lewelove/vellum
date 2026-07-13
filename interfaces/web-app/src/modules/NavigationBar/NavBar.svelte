@@ -32,7 +32,7 @@
   </button>
 {/snippet}
 
-<nav class="nav-bar" class:v-glass={variant === 'glass'}>
+<nav class="nav-bar" class:v-glass={variant === 'glass'} class:transparent={variant === 'transparent'}>
   <div class="nav-top-section">
     <div class="nav-group top">
       {@render NavButton({ icon: "icons/outlined/24px/house.svg", tab: "home" })}
@@ -65,8 +65,14 @@
     flex-shrink: 0;
   }
 
-  .nav-bar:not(:global(.v-glass)) {
+  .nav-bar:not(:global(.v-glass)):not(.transparent) {
     background-color: var(--background-drawer);
+  }
+
+  .nav-bar.transparent {
+    background-color: transparent;
+    box-shadow: none;
+    border-right: 1px solid oklch(100% 0 0 / 0.07);
   }
 
   .nav-top-section {
