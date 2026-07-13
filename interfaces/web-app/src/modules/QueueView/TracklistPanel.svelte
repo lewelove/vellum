@@ -218,8 +218,8 @@
     flex-direction: row;
     justify-content: flex-end;
     align-items: center;
-    gap: 10px;
-    padding: 16px 20px;
+    gap: 8px;
+    padding: 12px 20px 20px;
     flex-shrink: 0;
   }
 

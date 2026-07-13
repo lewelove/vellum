@@ -129,7 +129,7 @@ main {
 
 .v-glass {
   backdrop-filter: blur(0px);
-  background-color: var(--glass-bg);
+  /* background-color: var(--glass-bg); */
   background-color: transparent;
   box-shadow: var(--panel-shadow);
   transition: background-color 0.3s ease;
