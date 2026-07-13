@@ -1,13 +1,13 @@
 # vellum x collect
 
+The moment you decide the album *must* exist in your collection is much more important the the moment you physically acquire it through the digital means, though both moments must be recorded. And the first moment should be historical one, because it reflects the time and the state you were in when you acted upon it. To draw comparison to means of "collecting" (quotes used because you never own it) albums in streaming services: the act of deciding and the act of adding is never separated. It's just a click. A streaming platform serves you the feeling of infinite freedom and abundance, you can just commit to the adding spree whenever you want, without having to do the work of acquiring the albums themselves. That's a real feeling, and the feeling i've been longing for without recognizing it for all the years i separated myself from streaming.
+
 The `collect` is an action used to add album to the collection without the actual audio files. This action consumes the album source url as primary argument.
 
 Url of the album must be one of the services such as:
 
 - Discogs
 - Musicbrainz
-- Bandcamp
-- YouTube
 
 ## How it works
 

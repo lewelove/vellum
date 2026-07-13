@@ -37,7 +37,7 @@ vl.interfaces({
         file_name = "/path/to/file.ext"
 
         -- if path == directory
-        --   serve the file with MIME type resolved from directory path by {dir_name}
+        --   serve the file with MIME type resolved from directory path by {dir_name} + {subpath from api call}
         --   /api/interfaces/{name}/assets/{dir_name}/{file path relative to dir_name}
         dir_name = "/path/to/directory/"
     },

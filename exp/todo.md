@@ -23,7 +23,6 @@
 
 - Remove any kind of terminal messages printing unless `--debug` is used
 - Make `vellum x` drop into process output just like the the `vellum interface` does
-- Replace --intermediary flag with `intermediary` built-in action, so the command looks like `vellum x intermediary`
 
 ### cover-palette
 
