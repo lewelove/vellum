@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, broadcast};
 use indexmap::IndexMap;
-use libvellum::lua::config::{CoversConfig, InterfaceConfig};
+use libvellum::lua::config::{CoversConfig, InterfaceConfig, ActionConfig};
 
 pub struct AppState {
     pub query: Arc<Mutex<QueryEngine>>,
@@ -24,5 +24,7 @@ pub struct AppConfig {
     pub resolved_dependencies: Vec<PathBuf>,
     pub covers: IndexMap<String, CoversConfig>,
     pub interfaces: std::collections::HashMap<String, InterfaceConfig>,
+    pub actions: std::collections::HashMap<String, ActionConfig>,
     pub config_dir: PathBuf,
+    pub app: libvellum::lua::config::AppConfig,
 }

@@ -4,6 +4,7 @@ local REGISTRY = {
     keys = {},
     keys_order = {},
     interfaces = {},
+    actions = {},
     dependencies = {}
 }
 
@@ -89,6 +90,20 @@ _G.vl = {
             end
         end
     end,
+    actions = function(t)
+        for k, v in pairs(t) do
+            if type(v) == "boolean" then
+                if v == true then
+                    REGISTRY.actions[k] = { config = {} }
+                end
+            elseif type(v) == "table" then
+                if v.config == nil then
+                    v.config = {}
+                end
+                REGISTRY.actions[k] = v
+            end
+        end
+    end,
     compiler = {
         covers = function(name, t)
             REGISTRY.covers[name] = t
@@ -168,6 +183,10 @@ end
 
 function __VELLUM_GET_INTERFACES()
     return REGISTRY.interfaces
+end
+
+function __VELLUM_GET_ACTIONS()
+    return REGISTRY.actions
 end
 
 function __VELLUM_GET_DEPENDENCIES()

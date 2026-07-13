@@ -50,63 +50,65 @@
             pkgs.python3Packages.beautifulsoup4
           ];
           doCheck = false;
-        } (builtins.readFile ./actions/get_lyrics/main.py);
+        } (builtins.readFile ./actions/python/get_lyrics/main.py);
 
         search_cover = pkgs.writers.writePython3Bin "search_cover" {
           libraries = [];
           doCheck = false;
-        } (builtins.readFile ./actions/search_cover/main.py);
+        } (builtins.readFile ./actions/python/search_cover/main.py);
 
         build-cli = pkgs.writeShellApplication {
           name = "build";
           runtimeInputs = [ pkgs.cargo pkgs.rustc pkgs.git pkgs.clippy pkgs.nix ];
           text = ''
             ROOT=$(git rev-parse --show-toplevel)
-            ARGS=()
             TARGET=""
-            RELEASE_FLAG=""
+            ARGS=()
 
             for arg in "$@"; do
               case "$arg" in
                 libvellum)  TARGET="libvellum" ;;
                 vellum)     TARGET="vellum" ;;
                 actions)    TARGET="actions" ;;
-                --release)  RELEASE_FLAG="--release" ;;
                 *)          ARGS+=("$arg") ;;
               esac
             done
 
-            if [ "$TARGET" = "actions" ]; then
-              cd "$ROOT"
-              nix build .#get_lyrics --out-link actions/get_lyrics/result
-              nix build .#search_cover --out-link actions/search_cover/result
-              
-              cd "$ROOT/actions"
-              cargo clippy --workspace -- -D warnings
-              
-              CMD=("cargo" "build" "--workspace")
-              if [ -n "$RELEASE_FLAG" ]; then
-                CMD+=("$RELEASE_FLAG")
-              fi
-              
-              CMD+=("''${ARGS[@]}")
-              
-              "''${CMD[@]}"
-            else
+            build_vellum() {
               cd "$ROOT/rust"
               cargo clippy --workspace -- -D warnings
+              cargo build -p vellum --release "''${ARGS[@]}"
+            }
+
+            build_libvellum() {
+              cd "$ROOT/rust"
+              cargo clippy --workspace -- -D warnings
+              cargo build -p libvellum --release "''${ARGS[@]}"
+            }
+
+            build_actions() {
+              cd "$ROOT"
+              nix build .#get_lyrics --out-link actions/python/get_lyrics/result
+              nix build .#search_cover --out-link actions/python/search_cover/result
               
-              CMD=("cargo" "build")
-              if [ -n "$TARGET" ]; then
-                CMD+=("-p" "$TARGET")
-              fi
-              if [ -n "$RELEASE_FLAG" ]; then
-                CMD+=("$RELEASE_FLAG")
-              fi
+              cd "$ROOT/actions/rust"
+              cargo clippy --workspace -- -D warnings
+              cargo build --workspace --release "''${ARGS[@]}"
               
-              CMD+=("''${ARGS[@]}")
-              
-              "''${CMD[@]}"
+              ln -sf "python/get_lyrics/result/bin/get_lyrics" "$ROOT/actions/get_lyrics"
+              ln -sf "python/search_cover/result/bin/search_cover" "$ROOT/actions/search_cover"
+              ln -sf "rust/target/release/cover_palette" "$ROOT/actions/cover_palette"
+            }
+
+            if [ "$TARGET" = "vellum" ]; then
+              build_vellum
+            elif [ "$TARGET" = "libvellum" ]; then
+              build_libvellum
+            elif [ "$TARGET" = "actions" ]; then
+              build_actions
+            else
+              build_vellum
+              build_actions
             fi
           '';
         };
@@ -133,7 +135,7 @@
               cargo check "''${ARGS[@]}"
             fi
 
-            cd "$ROOT/actions"
+            cd "$ROOT/actions/rust"
             if [ "$LINT" = true ]; then
               cargo clippy --workspace -- "''${ARGS[@]}" -D warnings
             else
@@ -184,7 +186,7 @@
                 cd "$ROOT/rust"
                 cargo test "''${TEST_ARGS[@]}"
                 
-                cd "$ROOT/actions"
+                cd "$ROOT/actions/rust"
                 cargo test "''${TEST_ARGS[@]}"
                 ;;
               help|--help|-h)

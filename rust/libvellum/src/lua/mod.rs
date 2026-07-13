@@ -1,7 +1,7 @@
 pub mod config;
 
 use anyhow::{Context, Result};
-use config::{AppConfig, CoversConfig, InterfaceConfig, KeyConfig};
+use config::{AppConfig, CoversConfig, InterfaceConfig, ActionConfig, KeyConfig};
 use indexmap::IndexMap;
 use mlua::{Lua, LuaSerdeExt, Table};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,7 @@ pub struct EvaluatedLuaData {
     pub covers: IndexMap<String, CoversConfig>,
     pub keys: IndexMap<String, KeyConfig>,
     pub interfaces: HashMap<String, InterfaceConfig>,
+    pub actions: HashMap<String, ActionConfig>,
     pub dependencies: Vec<PathBuf>,
 }
 
@@ -109,6 +110,15 @@ impl LuaEngine {
             .from_value(mlua::Value::Table(interfaces_table))
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
+        let get_actions: mlua::Function = globals
+            .get("__VELLUM_GET_ACTIONS")
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let actions_table: Table = get_actions.call(()).map_err(|e| anyhow::anyhow!("{e}"))?;
+        let actions: HashMap<String, ActionConfig> = self
+            .lua
+            .from_value(mlua::Value::Table(actions_table))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
         let get_deps: mlua::Function = globals
             .get("__VELLUM_GET_DEPENDENCIES")
             .map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -129,6 +139,7 @@ impl LuaEngine {
             covers,
             keys,
             interfaces,
+            actions,
             dependencies,
         })
     }
@@ -196,6 +207,7 @@ pub struct ResolvedConfig {
     pub covers: IndexMap<String, CoversConfig>,
     pub keys: IndexMap<String, KeyConfig>,
     pub interfaces: HashMap<String, InterfaceConfig>,
+    pub actions: HashMap<String, ActionConfig>,
     pub dependencies: Vec<PathBuf>,
     pub path: PathBuf,
 }
@@ -239,6 +251,7 @@ impl ResolvedConfig {
             covers: evaluated.covers,
             keys: evaluated.keys,
             interfaces: evaluated.interfaces,
+            actions: evaluated.actions,
             dependencies,
             path,
         })

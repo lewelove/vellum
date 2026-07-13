@@ -1,15 +1,14 @@
 use anyhow::{Context, Result};
 use libvellum::utils::expand_path;
 use mpd_client::Client;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use tokio::net::TcpStream;
 
-fn load_env_vars(config: &libvellum::lua::ResolvedConfig) -> std::collections::HashMap<String, String> {
+pub fn load_env_vars_from_path(env_path: Option<&str>) -> std::collections::HashMap<String, String> {
     let mut env_vars = std::collections::HashMap::new();
-    if let Some(env_path) = &config.app.storage.environment {
-        let expanded = expand_path(env_path);
+    if let Some(path_str) = env_path {
+        let expanded = expand_path(path_str);
         if let Ok(content) = std::fs::read_to_string(&expanded) {
             for line in content.lines() {
                 let line = line.trim();
@@ -28,24 +27,14 @@ fn load_env_vars(config: &libvellum::lua::ResolvedConfig) -> std::collections::H
     env_vars
 }
 
-pub async fn execute(
-    name: String,
+async fn resolve_target_ids(
+    library_root: &Path,
     playing: bool,
     id_arg: Option<String>,
     query_arg: Option<String>,
-) -> Result<()> {
-    let config = libvellum::lua::ResolvedConfig::load().context("Failed to load config")?;
-    let config_dir = config.path.parent().unwrap_or_else(|| Path::new("."));
-
-    if !playing && id_arg.is_none() && query_arg.is_none() {
-        anyhow::bail!("At least one flag (--playing, --id, or --query) must be provided.");
-    }
-
-    let library_root = expand_path(&config.app.storage.library)
-        .canonicalize()
-        .unwrap_or_else(|_| expand_path(&config.app.storage.library));
-
-    let target_ids = if let Some(query_str) = query_arg {
+    file_arg: Option<String>,
+) -> Result<Vec<String>> {
+    if let Some(query_str) = query_arg {
         let client = reqwest::Client::new();
         let res = client
             .post("http://127.0.0.1:8000/api/internal/query")
@@ -61,21 +50,56 @@ pub async fn execute(
             anyhow::bail!("Server rejected query: {err_text}");
         }
 
-        res.json().await.context("Invalid response from server")?
+        res.json().await.context("Invalid response from server")
     } else if let Some(id) = id_arg {
-        vec![id]
+        Ok(vec![id])
     } else if playing {
-        let playing_path = get_playing_album(&config.app.storage.library).await?;
+        let playing_path = get_playing_album(&library_root.to_string_lossy()).await?;
         let id = playing_path
-            .strip_prefix(&library_root)
+            .strip_prefix(library_root)
             .map_or_else(
                 |_| playing_path.to_string_lossy().to_string(),
                 |p| p.to_string_lossy().to_string(),
             );
-        vec![id]
+        Ok(vec![id])
     } else {
-        unreachable!();
-    };
+        let path_str = file_arg.unwrap_or_else(|| ".".to_string());
+        let mut p = expand_path(&path_str);
+        if p.is_dir() {
+            p = p.join("album.lock.json");
+        }
+        if !p.exists() {
+            return Ok(vec![]);
+        }
+        if let Ok(content) = std::fs::read_to_string(&p)
+            && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+            && let Some(id) = json.pointer("/album/id").and_then(|v| v.as_str())
+        {
+            Ok(vec![id.to_string()])
+        } else {
+            Ok(vec![])
+        }
+    }
+}
+
+pub async fn execute(
+    name: String,
+    playing: bool,
+    id_arg: Option<String>,
+    query_arg: Option<String>,
+    file_arg: Option<String>,
+    debug: bool,
+    trailing_args: Vec<String>,
+) -> Result<()> {
+    let name_key = name.replace('-', "_");
+    let config = libvellum::lua::ResolvedConfig::load().context("Failed to load config")?;
+    let config_dir = config.path.parent().unwrap_or_else(|| Path::new("."));
+
+    let library_root = expand_path(&config.app.storage.library)
+        .canonicalize()
+        .unwrap_or_else(|_| expand_path(&config.app.storage.library));
+
+    let target_ids = resolve_target_ids(&library_root, playing, id_arg, query_arg, file_arg).await?;
 
     let mut lock_jsons = Vec::new();
     for target_id in &target_ids {
@@ -87,8 +111,17 @@ pub async fn execute(
         }
     }
 
+    let action_cfg_opt = config.actions.get(&name_key).cloned();
+
     let config_json = serde_json::to_value(&config.app)?;
-    let combined_json = serde_json::json!([lock_jsons, config_json]);
+    let combined_json = serde_json::json!({
+        "albums": lock_jsons,
+        "config": {
+            "vellum": config_json,
+            "action": action_cfg_opt.as_ref().map(|c| c.config.clone()).unwrap_or_default()
+        },
+        "options": trailing_args.join(" ")
+    });
 
     if name == "intermediary" {
         let pretty_json = serde_json::to_string_pretty(&combined_json)?;
@@ -96,12 +129,12 @@ pub async fn execute(
         return Ok(());
     }
 
-    let action_rel_path = config.app
-        .actions
-        .get(&name)
-        .context(format!("Action '{name}' not found in config"))?;
+    let Some(action_cfg) = action_cfg_opt else {
+        anyhow::bail!("Action '{name}' is not declared in configuration.");
+    };
 
-    let expanded_action_path = expand_path(action_rel_path);
+    let run_str = action_cfg.run.unwrap_or_else(|| format!("~/.local/share/vellum/actions/{name_key}.sh"));
+    let expanded_action_path = expand_path(&run_str);
 
     let action_path = if expanded_action_path.is_absolute() {
         expanded_action_path
@@ -113,9 +146,11 @@ pub async fn execute(
         anyhow::bail!("Action path '{}' does not exist.", action_path.display());
     }
 
-    let env_vars = load_env_vars(&config);
+    let env_vars = load_env_vars_from_path(config.app.storage.environment.as_deref());
 
-    log::info!("Executing action '{name}' for {} album(s)", target_ids.len());
+    if debug {
+        log::debug!("Executing action '{name}' for {} album(s)", target_ids.len());
+    }
 
     let cmd = if action_path.extension().is_some_and(|e| e == "py") {
         "python"
@@ -125,7 +160,7 @@ pub async fn execute(
         action_path.to_str().unwrap()
     };
 
-    let mut command = Command::new(cmd);
+    let mut command = tokio::process::Command::new(cmd);
     command.envs(&env_vars);
     if cmd == "python" || cmd == "sh" {
         command.arg(&action_path);
@@ -133,22 +168,31 @@ pub async fn execute(
 
     let mut child = command
         .stdin(Stdio::piped())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
         .spawn()
         .context(format!("Failed to spawn action at {}", action_path.display()))?;
 
     if let Some(mut stdin) = child.stdin.take() {
         let payload = serde_json::to_string(&combined_json)?;
-        stdin
-            .write_all(payload.as_bytes())
-            .context("Failed to write to action stdin")?;
+        tokio::spawn(async move {
+            use tokio::io::AsyncWriteExt;
+            let _ = stdin.write_all(payload.as_bytes()).await;
+        });
     }
 
-    let status = child.wait().context("Failed to wait on action")?;
-
-    if status.success() {
-        log::info!("Action completed successfully.");
-    } else {
-        log::error!("Action failed with status: {status}");
+    tokio::select! {
+        res = child.wait() => {
+            let status = res.context("Failed to wait on action")?;
+            if !status.success() {
+                log::error!("Action failed with status: {status}");
+            } else if debug {
+                log::debug!("Action completed successfully.");
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            let _ = child.wait().await;
+        }
     }
 
     Ok(())

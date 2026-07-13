@@ -44,23 +44,17 @@ fn main() -> Result<()> {
 
     let payload: Value = serde_json::from_str(&stdin_data)?;
 
-    let albums = payload.get(0).and_then(Value::as_array).context("Missing albums array")?;
-    let config = payload.get(1).context("Missing config")?;
+    let albums = payload.get("albums").and_then(Value::as_array).context("Missing albums array")?;
 
-    let library_str = config
-        .pointer("/storage/library")
+    let library_str = payload
+        .pointer("/config/vellum/storage/library")
         .and_then(Value::as_str)
         .context("Missing library in payload")?;
 
     let library = expand_path(library_str);
 
-    let config_path = expand_path("~/dev/vellum/actions/cover_palette/config.toml");
-    let script_config: ScriptConfig = if config_path.exists() {
-        let content = std::fs::read_to_string(&config_path)?;
-        toml::from_str(&content).unwrap_or_default()
-    } else {
-        ScriptConfig::default()
-    };
+    let action_cfg_val = payload.pointer("/config/action").cloned().unwrap_or_default();
+    let script_config: ScriptConfig = serde_json::from_value(action_cfg_val).unwrap_or_default();
 
     for album_lock in albums {
         let album_path_str = album_lock

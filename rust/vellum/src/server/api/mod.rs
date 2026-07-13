@@ -2,11 +2,12 @@ pub mod assets;
 pub mod playback;
 pub mod system;
 pub mod websocket;
+pub mod actions;
 
 use crate::server::state::AppState;
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{get, post, any},
 };
 use std::sync::Arc;
 
@@ -38,5 +39,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/update-album/{*id}", post(system::force_update_album))
         .route("/api/interfaces/{name}/config", get(system::get_interface_config))
         .route("/api/interfaces/{name}/assets/{*path}", get(system::serve_interface_asset))
+        .route("/api/actions/{name}", any(actions::execute_action))
         .with_state(state)
 }

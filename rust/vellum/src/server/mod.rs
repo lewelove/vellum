@@ -71,6 +71,7 @@ pub async fn run(port: u16) -> Result<()> {
 
     let covers = config.covers.clone();
     let interfaces = config.interfaces.clone();
+    let actions = config.actions.clone();
     let resolved_dependencies = config.dependencies.clone();
     
     let logic_path = config_dir.join("logic.toml");
@@ -95,7 +96,9 @@ pub async fn run(port: u16) -> Result<()> {
         resolved_dependencies,
         covers,
         interfaces,
+        actions,
         config_dir: config_dir.clone(),
+        app: config.app.clone(),
     };
 
     let ui_state_val = load_state(&state_root);

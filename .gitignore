@@ -1,7 +1,13 @@
 **/target/
-**/result/
 **/result
 **/node_modules/
+
 .direnv/
 .repomixignore
 .sync.sh
+
+# ignore files without an extension in actions/ root
+actions/*
+!actions/*/
+!actions/*.*
+

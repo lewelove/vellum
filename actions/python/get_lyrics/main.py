@@ -36,8 +36,8 @@ def clean_genius_lyrics(lyrics, title):
 def sanitize_filename(name):
     return re.sub(r'[<>:"/\\|?*]', '_', name)
 
-def get_album_lyrics(config, album_lock, access_token):
-    library_str = config.get("storage", {}).get("library", "")
+def get_album_lyrics(vellum_cfg, album_lock, access_token):
+    library_str = vellum_cfg.get("storage", {}).get("library", "")
     if not library_str:
         print("Error: library not defined in config")
         return
@@ -108,19 +108,22 @@ def main():
         print(f"Error reading JSON from stdin: {e}")
         sys.exit(1)
 
-    albums = data[0]
-    config = data[1]
+    albums = data.get("albums", [])
+    vellum_cfg = data.get("config", {}).get("vellum", {})
+    action_cfg = data.get("config", {}).get("action", {})
 
     token = os.environ.get("GENIUS_ACCESS_TOKEN") or os.environ.get("GENIUS_API_KEY")
     if not token:
-        token = config.get("actions", {}).get("genius_access_token")
+        token = vellum_cfg.get("actions", {}).get("genius_access_token")
+    if not token:
+        token = action_cfg.get("genius_access_token")
     
     if not token:
         print("Error: Genius Access Token is required.")
         sys.exit(1)
 
     for album_lock in albums:
-        get_album_lyrics(config, album_lock, token)
+        get_album_lyrics(vellum_cfg, album_lock, token)
 
 if __name__ == "__main__":
     main()

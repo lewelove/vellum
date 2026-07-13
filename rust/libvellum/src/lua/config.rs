@@ -10,8 +10,6 @@ pub struct AppConfig {
     pub manifest: ManifestConfig,
     #[serde(default)]
     pub compiler: CompilerConfig,
-    #[serde(default)]
-    pub actions: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -24,6 +22,13 @@ pub struct InterfaceConfig {
     pub config: serde_json::Value,
     #[serde(default)]
     pub assets: HashMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ActionConfig {
+    pub run: Option<String>,
+    #[serde(default)]
+    pub config: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

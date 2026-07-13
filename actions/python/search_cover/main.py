@@ -9,7 +9,7 @@ def main():
     except Exception:
         sys.exit(1)
 
-    albums = data[0]
+    albums = data.get("albums", [])
     
     for album_lock in albums:
         album_meta = album_lock.get("album", {})
