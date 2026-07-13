@@ -3,8 +3,40 @@ import os
 import sys
 import json
 import re
+import socket
+import urllib.request
+import urllib.parse
 from pathlib import Path
 import lyricsgenius
+
+def get_playing_file():
+    host = os.environ.get("MPD_HOST", "127.0.0.1")
+    port = int(os.environ.get("MPD_PORT", "6600"))
+    try:
+        s = socket.create_connection((host, port), timeout=2)
+        f = s.makefile("rw")
+        f.readline()
+        f.write("currentsong\n")
+        f.flush()
+        file_path = None
+        for line in f:
+            if line.startswith("file: "):
+                file_path = line[6:].strip()
+            elif line.startswith("OK") or line.startswith("ACK"):
+                break
+        s.close()
+        return file_path
+    except Exception:
+        return None
+
+def trigger_update(album_id):
+    encoded_id = urllib.parse.quote(album_id, safe='')
+    url = f"http://127.0.0.1:8000/api/update-album/{encoded_id}"
+    req = urllib.request.Request(url, method="POST")
+    try:
+        urllib.request.urlopen(req, timeout=2)
+    except Exception:
+        pass
 
 def clean_genius_lyrics(lyrics, title):
     if not lyrics:
@@ -36,7 +68,7 @@ def clean_genius_lyrics(lyrics, title):
 def sanitize_filename(name):
     return re.sub(r'[<>:"/\\|?*]', '_', name)
 
-def get_album_lyrics(vellum_cfg, album_lock, access_token):
+def get_album_lyrics(vellum_cfg, album_lock, access_token, mpd_file):
     library_str = vellum_cfg.get("storage", {}).get("library", "")
     if not library_str:
         print("Error: library not defined in config")
@@ -45,12 +77,12 @@ def get_album_lyrics(vellum_cfg, album_lock, access_token):
     library = Path(library_str).expanduser().resolve()
     
     album_meta = album_lock.get("album", {})
-    album_path = album_meta.get("id", "")
-    if not album_path:
+    album_id = album_meta.get("id", "")
+    if not album_id:
         print("Error: album_path (id) not found in metadata lock")
         return
 
-    root = (library / album_path).resolve()
+    root = (library / album_id).resolve()
     album_artist = album_meta.get("albumartist")
     total_discs = int(album_meta.get("info", {}).get("total_discs", 1))
     tracks = album_lock.get("tracks", [])
@@ -68,13 +100,23 @@ def get_album_lyrics(vellum_cfg, album_lock, access_token):
 
     print(f"Fetching lyrics for: {album_artist} - {album_meta.get('album')}")
 
-    for track in tracks:
+    playing_idx = None
+    if mpd_file:
+        for i, track in enumerate(tracks):
+            t_path = track.get("file", {}).get("path", "")
+            if t_path:
+                full_rel = f"{album_id}/{t_path}"
+                if full_rel == mpd_file:
+                    playing_idx = i
+                    break
+
+    def fetch_for_track(track):
         title = track.get("title")
         track_num = str(track.get("tracknumber", "0")).zfill(2)
         disc_num = str(track.get("discnumber", "1"))
         
         if not title:
-            continue
+            return
 
         safe_title = sanitize_filename(title)
 
@@ -87,7 +129,7 @@ def get_album_lyrics(vellum_cfg, album_lock, access_token):
 
         if dest_path.exists():
             print(f"  Skipping: {title} (File exists)")
-            continue
+            return
 
         try:
             song = genius.search_song(title, album_artist)
@@ -100,6 +142,17 @@ def get_album_lyrics(vellum_cfg, album_lock, access_token):
                 print(f"  Not found: {title}")
         except Exception as e:
             print(f"  Error fetching {title}: {e}")
+
+    if playing_idx is not None:
+        fetch_for_track(tracks[playing_idx])
+        trigger_update(album_id)
+
+    for i, track in enumerate(tracks):
+        if i == playing_idx:
+            continue
+        fetch_for_track(track)
+
+    trigger_update(album_id)
 
 def main():
     try:
@@ -122,8 +175,10 @@ def main():
         print("Error: Genius Access Token is required.")
         sys.exit(1)
 
+    mpd_file = get_playing_file()
+
     for album_lock in albums:
-        get_album_lyrics(vellum_cfg, album_lock, token)
+        get_album_lyrics(vellum_cfg, album_lock, token, mpd_file)
 
 if __name__ == "__main__":
     main()
