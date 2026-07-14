@@ -22,6 +22,7 @@ struct ScriptConfig {
     #[serde(default)]
     args: String,
     threshold: Option<f32>,
+    open_with: Option<String>,
 }
 
 fn expand_path(path_str: &str) -> PathBuf {
@@ -56,6 +57,9 @@ fn main() -> Result<()> {
     let action_cfg_val = payload.pointer("/config/action").cloned().unwrap_or_default();
     let script_config: ScriptConfig = serde_json::from_value(action_cfg_val).unwrap_or_default();
 
+    let options_str = payload.get("options").and_then(Value::as_str).unwrap_or("");
+    let force = options_str.split_whitespace().any(|s| s == "--force");
+
     for album_lock in albums {
         let album_path_str = album_lock
             .pointer("/album/id")
@@ -68,6 +72,12 @@ fn main() -> Result<()> {
             .unwrap_or("cover.jpg");
 
         let album_dir = library.join(album_path_str);
+        let out_path = album_dir.join("cover_palette.toml");
+
+        if out_path.exists() && !force {
+            continue;
+        }
+
         let cover_path = album_dir.join(cover_path_str);
 
         if !cover_path.exists() {
@@ -96,10 +106,20 @@ fn main() -> Result<()> {
                     .join("\n")
             );
 
-            let out_path = album_dir.join("cover_palette.toml");
             if std::fs::write(&out_path, toml_content).is_ok() {
                 let abs_path = out_path.canonicalize().unwrap_or(out_path);
                 println!("Created cover_palette.toml at: {}", abs_path.display());
+
+                if let Some(prog) = &script_config.open_with {
+                    let cmd_str = format!("{} \"{}\"", prog, abs_path.display());
+                    let _ = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(&cmd_str)
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn();
+                }
             }
         }
     }
