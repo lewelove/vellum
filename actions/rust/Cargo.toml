@@ -1,6 +1,7 @@
 [workspace]
 members = [
-  "cover_palette"
+  "cover_palette",
+  "collect"
 ]
 resolver = "2"
 

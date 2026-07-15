@@ -98,6 +98,7 @@
               ln -sf "python/get_lyrics/result/bin/get_lyrics" "$ROOT/actions/get_lyrics"
               ln -sf "python/search_cover/result/bin/search_cover" "$ROOT/actions/search_cover"
               ln -sf "rust/target/release/cover_palette" "$ROOT/actions/cover_palette"
+              ln -sf "rust/target/release/collect" "$ROOT/actions/collect"
             }
 
             if [ "$TARGET" = "vellum" ]; then

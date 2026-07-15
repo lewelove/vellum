@@ -1,0 +1,19 @@
+[package]
+name = "collect"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1.0.103"
+chrono = "0.4.45"
+dirs = "6.0.0"
+discogs-rs = "0.1.0"
+regex = "1.13.0"
+reqwest = { version = "0.13.4", features = ["json", "blocking"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+tokio = { version = "1.52.3", features = ["full"] }
+toml = "1.1.3"
