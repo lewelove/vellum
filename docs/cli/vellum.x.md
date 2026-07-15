@@ -4,9 +4,7 @@
 
 The `vellum x` command is used to run **Vellum Actions** for selected albums or the entire library. Each action is called by `vellum x action_name`.
 
-**Vellum Action** is just a simple executable that reads standard intermediary JSON from stdin (populated with album and config data) and performs some kind of logic based on this data. That's all. You can write actions in any language that supports reading JSONs (or even use simple bash scripts with jq) and use them to infinitely expand Vellum functionality in Unix Philosophy style. For developer provided actions and more context of what they may be useful for look into `actions/` directory.
-
-## Main Arguments
+## Main Argument
 
 #### `<name>`
 
@@ -14,17 +12,45 @@ Provides match to `[vl.actions].<name>` in `vellum.lua`. If `<name>` matches:
 
 - Loads `[vl.config].environment` file
 - Reads the `<name>.run` path of the executable
-- Executes it with JSON palyload passed into its stdin
+- Executes it with JSON payload passed into its stdin
 
-For cli ergonomics the `action_name` can be also called as `action-name` and it will still execute, because all of the `-` in name string will be replaced by `_` before it hitting the lua key.
+For cli ergonomics the `action_name` can be also called as `action-name` and it will still execute, because all of the `-` in name string will be replaced by `_` before it hitting the Lua key.
+
+The action `<name>` must terminate the command, because it provides everything past it as options for the action itself. For example:
+
+- `vellum x action_name string --flag` -> will pass `"options": [ "string", "--flag" ]` in intermediary JSON
+- `vellum x --id "Album/Directory" action_name` -> will consume `--id` as `vellum x` option
+
+This way you can write actions that consume any kind of their own flags, options and arguments.
+
+## Built-In Actions
+
+Built-in actions are provided by vellum binary out of the box.
+
+- Configure them in `vellum.lua` by `vl.actions({ <name> = { config = {} } })`.
+- Override them entirely by `vl.actions({ <name> = { run = "" } })` key with your own scripts if you really want.
 
 #### `intermediary`
 
-Built-in action used to print JSON payload directly into stdout. Useful for debug or development of new actions.
+Used to print JSON payload directly into stdout and exit. Useful for debug or development of new actions. Has no config.
+
+#### `open-album-directory-in-terminal`
+
+Opens the terminal emulator of choice, `cd`s into the album directory.
+
+```lua
+config = {
+  -- sh -c "{open_with} --working-directory {album_directory}"
+  -- defaults to native system terminal emulator
+  open_with = "alacritty"
+}
+```
+
+#### `open-album-directory-in-file-manager`
 
 ## Options
 
-Options are used to specify which compiled albums (`album.lock.json` files) will be provided inside the JSON payload in form of `"albums": []` array. All options except `--` are mutually exclusive.
+Options are used to specify which compiled albums (`album.lock.json` files) will be provided inside the JSON payload in form of `"albums": []` array. All options are mutually exclusive.
 
 #### `--file` / `-f`
 
@@ -35,16 +61,16 @@ Argument: a path string. Defaults to `$(pwd)`.
 Examples:
 
 ```bash
-vellum x action -f '~/music/Path/To/Album/album.lock.json'
+vellum x -f '~/music/Path/To/Album/album.lock.json' action_name
 ```
 
 ```bash
-vellum x action -f '~/music/Path/To/Album/`
+vellum x -f '~/music/Path/To/Album/' action_name
 ```
 
 ```bash
 cd '~/music/Path/To/Album/'
-vellum x action
+vellum x action_name
 ```
 
 #### `--playing` / `-p`
@@ -54,11 +80,11 @@ Provides currently queued (playing or paused) album. Boolean, has no arguments.
 Examples:
 
 ```bash
-vellum x -p action
+vellum x -p action_name
 ```
 
 ```bash
-vellum x action --playing
+vellum x --playing action_name
 ```
 
 #### `--id`
@@ -70,7 +96,7 @@ Argument: a string value of `[album.lock.json].album.id` key.
 Examples:
 
 ```bash
-vellum x action --id 'Library/Relative/Path/To/Album/Directory'
+vellum x --id 'Library/Relative/Path/To/Album/Directory' action_name
 ```
 
 #### `--query` / `-q`
@@ -83,23 +109,19 @@ Examples:
 
 ```bash
 # Selects albums with "total_tracks" > 20 and orders them by "date_added"
-vellum x action -q '
+vellum x -q '
 WHERE ${album.total_tracks} > 20
 ORDER BY ${album.date_added}
-'
+' action_name
 ```
 
 ```bash
 # Selects albums with "Brian Eno" in "albumartist" key and orders them by "original_date"
-vellum x action -q '
+vellum x --query '
 ${album.albumartist} LIKE %{Brian Eno}
 ORDER BY ${album.info.original_date} DESC
-'
+' action_name
 ```
-
-#### `--`
-
-Provides everything past it as options/arguments for the action itself.
 
 ## Specifications
 
@@ -134,8 +156,8 @@ The payload JSON contains three fields: `"albums"`, `"config"` and `"options"`
     "action": {},
   },
 
-  // raw string passed after `--` option
-  "options": ""
+  // string passed after `action_name` -> separated by space -> array
+  "options": []
 }
 ```
 
