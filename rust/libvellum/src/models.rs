@@ -16,9 +16,12 @@ pub struct HashInfo {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FileInfo {
+    #[serde(default)]
     pub path: String,
     pub hash: Option<HashInfo>,
+    #[serde(default)]
     pub mtime: u64,
+    #[serde(default)]
     pub byte_size: u64,
 }
 
@@ -45,6 +48,8 @@ pub struct AlbumInfo {
     pub duration_milliseconds: u64,
     #[serde(default)]
     pub duration_formatted: String,
+    #[serde(default, rename = "virtual")]
+    pub is_virtual: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

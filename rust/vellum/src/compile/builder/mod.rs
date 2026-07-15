@@ -18,6 +18,18 @@ struct PreparedContext {
     library_root: std::path::PathBuf,
 }
 
+fn is_virtual_album(album_root: &Path) -> bool {
+    let local_path = album_root.join("local.toml");
+    if let Ok(content) = std::fs::read_to_string(&local_path)
+        && let Ok(parsed) = toml::from_str::<toml::Value>(&content)
+        && let Some(local) = parsed.get("local")
+        && let Some(virt) = local.get("virtual").and_then(toml::Value::as_bool)
+    {
+        return virt;
+    }
+    false
+}
+
 pub fn build(
     album_root: &Path,
     config: &libvellum::lua::ResolvedConfig,
@@ -40,12 +52,14 @@ pub fn build(
 
     let PreparedContext { audio_files, library_root } = prepare_build_context(config, album_root);
 
+    let is_virtual = is_virtual_album(album_root);
+
     let track_entries = manifest_data.json
         .get("tracks")
         .and_then(Value::as_array)
         .ok_or_else(|| VellumError::MissingTracksBlock { path: album_root.to_path_buf() })?;
 
-    if audio_files.len() != track_entries.len() {
+    if !is_virtual && audio_files.len() != track_entries.len() {
         return Err(VellumError::PhysicalInventoryMismatch {
             path: album_root.to_path_buf(),
             files_count: audio_files.len(),
@@ -79,6 +93,7 @@ pub fn build(
         track_entries,
         album_source,
         album_root,
+        is_virtual,
     )?;
 
     let ctx_json = json!({
@@ -108,6 +123,7 @@ pub fn build(
         config,
         manifests: manifest_entries,
         covers: Value::Object(covers_entry),
+        is_virtual,
     };
 
     let album_obj = build_album(&album_ctx, album_keys)?;
@@ -204,10 +220,13 @@ fn process_tracks(
     track_entries: &[Value],
     album_source: &Value,
     album_root: &Path,
+    is_virtual: bool,
 ) -> Result<(Vec<Value>, Vec<Value>), VellumError> {
     let mut harvested_spine = Vec::new();
-    for path in audio_files {
-        harvested_spine.push(harvest::harvest_file(&path).map_err(|source| VellumError::HarvestError { path: path.clone(), source })?);
+    if !is_virtual {
+        for path in audio_files {
+            harvested_spine.push(harvest::harvest_file(&path).map_err(|source| VellumError::HarvestError { path: path.clone(), source })?);
+        }
     }
 
     let mut total_discs = 1;
@@ -220,27 +239,36 @@ fn process_tracks(
     let mut final_tracks = Vec::new();
     let mut harvested_cache = Vec::new();
 
-    for (idx, h_data) in harvested_spine.into_iter().enumerate() {
-        let track_number: u32 = extract_strict_u32(track_entries[idx].get("tracknumber"), "tracknumber", None)
+    for (idx, track_entry) in track_entries.iter().enumerate() {
+        let track_number: u32 = extract_strict_u32(track_entry.get("tracknumber"), "tracknumber", None)
             .map_err(|_| VellumError::MissingTrackIdentity {
                 manifest: "metadata.toml".to_string(),
                 path: album_root.to_path_buf(),
                 index: idx + 1,
             })?;
-        let disc_number: u32 = extract_strict_u32(track_entries[idx].get("discnumber"), "discnumber", Some(1))?;
+        let disc_number: u32 = extract_strict_u32(track_entry.get("discnumber"), "discnumber", Some(1))?;
+
+        let h_data_opt = if !is_virtual {
+            Some(&harvested_spine[idx])
+        } else {
+            None
+        };
 
         let t_ctx = TrackContext {
             track_number,
             disc_number,
-            harvest: &h_data,
-            source: &track_entries[idx],
+            harvest: h_data_opt,
+            source: track_entry,
             album_source,
             album_root,
+            is_virtual,
         };
 
         let t_obj = build_track(&t_ctx, total_discs)?;
         final_tracks.push(t_obj);
-        harvested_cache.push(serde_json::to_value(h_data)?);
+        if let Some(h_data) = h_data_opt {
+            harvested_cache.push(serde_json::to_value(h_data)?);
+        }
     }
 
     Ok((final_tracks, harvested_cache))
@@ -269,24 +297,29 @@ fn build_track(
         }
     }
 
-    let mut info = serde_json::Map::new();
-    info.insert("sample_rate".to_string(), json!(ctx.harvest.physics.sample_rate));
-    info.insert("bits_per_sample".to_string(), json!(ctx.harvest.physics.bit_depth.unwrap_or(0)));
-    info.insert("bitrate_kbps".to_string(), json!(ctx.harvest.physics.audio_bitrate));
-    info.insert("encoding".to_string(), json!(ctx.harvest.physics.format));
-    info.insert("channels".to_string(), json!(ctx.harvest.physics.channels));
-    info.insert("duration_milliseconds".to_string(), json!(ctx.harvest.physics.duration_ms));
-    info.insert("duration_formatted".to_string(), json!(libvellum::resolvers::format_ms(ctx.harvest.physics.duration_ms)));
-    info.insert("embedded_keys_subset_match".to_string(), json!(false));
-    
-    obj.insert("info".to_string(), Value::Object(info));
+    if ctx.is_virtual {
+        obj.insert("info".to_string(), Value::Object(serde_json::Map::new()));
+        obj.insert("file".to_string(), Value::Object(serde_json::Map::new()));
+    } else if let Some(harvest) = ctx.harvest {
+        let mut info = serde_json::Map::new();
+        info.insert("sample_rate".to_string(), json!(harvest.physics.sample_rate));
+        info.insert("bits_per_sample".to_string(), json!(harvest.physics.bit_depth.unwrap_or(0)));
+        info.insert("bitrate_kbps".to_string(), json!(harvest.physics.audio_bitrate));
+        info.insert("encoding".to_string(), json!(harvest.physics.format));
+        info.insert("channels".to_string(), json!(harvest.physics.channels));
+        info.insert("duration_milliseconds".to_string(), json!(harvest.physics.duration_ms));
+        info.insert("duration_formatted".to_string(), json!(libvellum::resolvers::format_ms(harvest.physics.duration_ms)));
+        info.insert("embedded_keys_subset_match".to_string(), json!(false));
+        
+        obj.insert("info".to_string(), Value::Object(info));
 
-    let track_rel_path = libvellum::resolvers::rel_path(&ctx.harvest.path, ctx.album_root);
-    if let Ok(mut file_info) = libvellum::utils::get_file_info(&ctx.harvest.path, &track_rel_path, false) {
-        if let Some(f_obj) = file_info.as_object_mut() {
-            f_obj.insert("hash".to_string(), Value::Null);
+        let track_rel_path = libvellum::resolvers::rel_path(&harvest.path, ctx.album_root);
+        if let Ok(mut file_info) = libvellum::utils::get_file_info(&harvest.path, &track_rel_path, false) {
+            if let Some(f_obj) = file_info.as_object_mut() {
+                f_obj.insert("hash".to_string(), Value::Null);
+            }
+            obj.insert("file".to_string(), file_info);
         }
-        obj.insert("file".to_string(), file_info);
     }
 
     Ok(Value::Object(obj))
@@ -320,11 +353,17 @@ fn build_album(
     let mut info = serde_json::Map::new();
     info.insert("date_added".to_string(), json!(libvellum::resolvers::resolve_album_info_date_added(ctx.album_root, ctx.source, ctx.config)?));
     
-    let dur_ms: u64 = ctx.tracks.iter()
-        .filter_map(|t| t.get("info").and_then(|i| i.get("duration_milliseconds")).and_then(Value::as_u64))
-        .sum();
-    info.insert("duration_milliseconds".to_string(), json!(dur_ms));
-    info.insert("duration_formatted".to_string(), json!(libvellum::resolvers::format_ms(dur_ms)));
+    if ctx.is_virtual {
+        info.insert("virtual".to_string(), json!(true));
+        info.insert("duration_milliseconds".to_string(), json!(0));
+        info.insert("duration_formatted".to_string(), json!("0:00"));
+    } else {
+        let dur_ms: u64 = ctx.tracks.iter()
+            .filter_map(|t| t.get("info").and_then(|i| i.get("duration_milliseconds")).and_then(Value::as_u64))
+            .sum();
+        info.insert("duration_milliseconds".to_string(), json!(dur_ms));
+        info.insert("duration_formatted".to_string(), json!(libvellum::resolvers::format_ms(dur_ms)));
+    }
     
     obj.insert("info".to_string(), Value::Object(info));
 

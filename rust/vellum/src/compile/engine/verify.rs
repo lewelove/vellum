@@ -5,6 +5,10 @@ pub fn calculate_file_tag_subset_match(
     harvest: &[Value],
     subset_keys: &[String],
 ) {
+    if harvest.is_empty() {
+        return;
+    }
+    
     let mut matches = Vec::new();
     let Some(album_obj) = enriched.get("album").and_then(Value::as_object) else { return; };
     let Some(tracks_arr) = enriched.get("tracks").and_then(Value::as_array) else { return; };

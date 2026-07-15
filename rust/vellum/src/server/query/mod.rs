@@ -280,31 +280,33 @@ impl QueryEngine {
                         for track in tracks {
                             if let Some(tinfo) = track.get("info") {
                                 let rel = track.get("file").and_then(|f| f.get("path")).and_then(Value::as_str).unwrap_or("");
-                                let tp_path = Path::new(id).join(rel);
-                                let tp = tp_path.to_string_lossy().to_string();
+                                if !rel.is_empty() {
+                                    let tp_path = Path::new(id).join(rel);
+                                    let tp = tp_path.to_string_lossy().to_string();
 
-                                let track_no = track.get("tracknumber").cloned().unwrap_or_else(|| json!(0));
-                                let disc_no = track.get("discnumber").cloned().unwrap_or_else(|| json!(1));
-                                let title = track.get("title").cloned().unwrap_or_else(|| json!("Unknown"));
-                                let artist = track.get("artist").cloned().unwrap_or_else(|| json!("Unknown"));
-                                let duration = tinfo.get("duration_formatted").cloned().unwrap_or_else(|| json!("0:00"));
-                                let duration_ms = tinfo.get("duration_milliseconds").and_then(Value::as_u64).unwrap_or(0);
+                                    let track_no = track.get("tracknumber").cloned().unwrap_or_else(|| json!(0));
+                                    let disc_no = track.get("discnumber").cloned().unwrap_or_else(|| json!(1));
+                                    let title = track.get("title").cloned().unwrap_or_else(|| json!("Unknown"));
+                                    let artist = track.get("artist").cloned().unwrap_or_else(|| json!("Unknown"));
+                                    let duration = tinfo.get("duration_formatted").cloned().unwrap_or_else(|| json!("0:00"));
+                                    let duration_ms = tinfo.get("duration_milliseconds").and_then(Value::as_u64).unwrap_or(0);
 
-                                let track_light = json!({
-                                    "path": tp,
-                                    "trackNo": track_no,
-                                    "discNo": disc_no,
-                                    "title": title,
-                                    "artist": artist,
-                                    "duration": duration,
-                                    "durationMs": duration_ms,
-                                    "albumId": id
-                                });
-                                self.track_lookup.insert(tp.clone(), track_light);
+                                    let track_light = json!({
+                                        "path": tp,
+                                        "trackNo": track_no,
+                                        "discNo": disc_no,
+                                        "title": title,
+                                        "artist": artist,
+                                        "duration": duration,
+                                        "durationMs": duration_ms,
+                                        "albumId": id
+                                    });
+                                    self.track_lookup.insert(tp.clone(), track_light);
 
-                                let full_rel_path = Path::new(id).join(rel);
-                                let normalized = full_rel_path.to_string_lossy().trim_start_matches('/').to_string();
-                                self.path_lookup.insert(normalized, id.to_string());
+                                    let full_rel_path = Path::new(id).join(rel);
+                                    let normalized = full_rel_path.to_string_lossy().trim_start_matches('/').to_string();
+                                    self.path_lookup.insert(normalized, id.to_string());
+                                }
                             }
                         }
                     }

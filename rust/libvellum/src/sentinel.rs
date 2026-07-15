@@ -88,6 +88,17 @@ fn check_cover_integrity(album_root: &Path, album_data: &serde_json::Value) -> T
 }
 
 fn check_tracks_integrity(album_root: &Path, lock_json: &serde_json::Value) -> TrustState {
+    let is_virtual = lock_json
+        .get("album")
+        .and_then(|a| a.get("info"))
+        .and_then(|i| i.get("virtual"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+
+    if is_virtual {
+        return TrustState::Valid;
+    }
+
     if let Some(tracks) = lock_json.get("tracks").and_then(serde_json::Value::as_array) {
         for track in tracks {
             if let Some(file) = track.get("file") {
