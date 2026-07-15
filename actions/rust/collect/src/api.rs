@@ -16,14 +16,10 @@ pub async fn fetch_discogs_master(id: u64) -> Result<discogs_rs::Master> {
     Ok(res.data)
 }
 
-pub async fn fetch_discogs_master_from_release(id: u64) -> Result<u64> {
+pub async fn fetch_discogs_release(id: u64) -> Result<discogs_rs::Release> {
     let client = build_client()?;
     let res = client.database().get_release(id, None).await?;
-    if let Some(master_id) = res.data.master_id {
-        Ok(master_id)
-    } else {
-        anyhow::bail!("Release {id} does not have a master release");
-    }
+    Ok(res.data)
 }
 
 pub async fn download_discogs_cover(url: &str, dest: &std::path::Path) -> Result<()> {
