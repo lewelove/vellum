@@ -150,9 +150,12 @@ impl LuaEngine {
             .get("__VELLUM_DISPATCHER")
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
+        let mut cleaned_ctx = ctx_val.clone();
+        strip_nulls(&mut cleaned_ctx);
+
         let lua_ctx = self
             .lua
-            .to_value(ctx_val)
+            .to_value(&cleaned_ctx)
             .map_err(|e| anyhow::anyhow!("{e}"))?;
         let res: mlua::Table = dispatcher.call(lua_ctx).map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -164,7 +167,23 @@ impl LuaEngine {
     }
 }
 
-#[must_use]
+fn strip_nulls(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            map.retain(|_, v| !v.is_null());
+            for v in map.values_mut() {
+                strip_nulls(v);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for v in arr.iter_mut() {
+                strip_nulls(v);
+            }
+        }
+        _ => {}
+    }
+}
+
 pub fn resolve_config_path() -> Option<PathBuf> {
     if let Some(home_config) = dirs::home_dir().map(|h| h.join(".config/vellum/vellum.lua"))
         && home_config.exists()
