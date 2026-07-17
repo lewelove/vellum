@@ -5,7 +5,7 @@
   import { jumpToQueueIndex } from "../../api.ts";
   import { setTab } from "../../navigation.svelte.ts";
 
-  let { showHud, hasPalette } = $props();
+  let { hasPalette } = $props();
 
   let activeId = $derived(player.currentAlbumId);
   let isStopped = $derived(player.state === "stop");
@@ -13,7 +13,7 @@
   async function handleFocus() {
     if (activeId) {
       await setTab("home");
-      await view.setFocus({ id: activeId });
+      await view.setFocus({ id: activeId }, true);
     }
   }
 
@@ -87,14 +87,13 @@
   });
 </script>
 
-{#snippet NavButton({ icon, label, disabled, active, onclick }: { icon: string, label: string, disabled?: boolean, active?: boolean, onclick: () => void })}
-  <button class="v-btn-icon queue-nav-button" class:active {disabled} {onclick} title={label}>
+{#snippet NavButton({ icon, label, disabled, active, round, onclick }: { icon: string, label: string, disabled?: boolean, active?: boolean, round?: boolean, onclick: () => void })}
+  <button class="v-btn-icon queue-nav-button" class:active class:round {disabled} {onclick} title={label}>
     <img src="/{icon}" alt={label} class="nav-icon" />
   </button>
 {/snippet}
 
 {#snippet NavButtons()}
-  {@render NavButton({ icon: "icons/outlined/24px/side_navigation.svg", label: "Toggle HUD", active: showHud, onclick: () => view.toggleQueuePanel('hud') })}
   {#if hasPalette}
     {@render NavButton({ 
       icon: "icons/outlined/24px/colors.svg", 
@@ -108,83 +107,78 @@
     icon: "icons/outlined/24px/album.svg",
     label: "Focus Album",
     disabled: !activeId,
+    round: true,
     onclick: handleFocus
   })}
 {/snippet}
 
-{#if showHud}
-  <div class="module-panel v-glass">
-    <div class="panel-inner">
-      <div class="tracks-list-container">
-        <div class="tracks-list">
-          {#each groupedQueue as group}
-            {#if group.albumMeta}
-              <div class="album-group-header">
-                <div class="header-content">
-                  <div class="header-row">
-                    <span class="v-truncate header-album">{group.albumMeta.album}</span>
-                    <span class="v-mono header-meta">{group.albumMeta.date?.substring(0,4)}</span>
-                  </div>
-                  <div class="header-row">
-                    <span class="v-truncate header-artist">{group.albumMeta.albumartist}</span>
-                    <span class="v-mono header-meta">{group.albumMeta.duration_formatted}</span>
-                  </div>
+<div class="module-panel v-glass">
+  <div class="panel-inner">
+    <div class="tracks-list-container">
+      <div class="tracks-list">
+        {#each groupedQueue as group}
+          {#if group.albumMeta}
+            <div class="album-group-header">
+              <div class="header-content">
+                <div class="header-row">
+                  <span class="v-truncate header-album">{group.albumMeta.album}</span>
+                  <span class="v-mono header-meta">{group.albumMeta.date?.substring(0,4)}</span>
+                </div>
+                <div class="header-row">
+                  <span class="v-truncate header-artist">{group.albumMeta.albumartist}</span>
+                  <span class="v-mono header-meta">{group.albumMeta.duration_formatted}</span>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          {@const isMultiDiscAlbum = group.albumMeta && parseInt(group.albumMeta.total_discs || "1") > 1}
+
+          {#each group.tracks as track, i (track.id)}
+            {@const showDiscHeader = isMultiDiscAlbum && (i === 0 || track.discNo !== group.tracks[i-1].discNo)}
+
+            {#if showDiscHeader}
+              {#if i > 0}
+                <div class="disc-separator"></div>
+              {/if}
+              <div class="disc-header-row" class:first-disc={i === 0}>
+                <span class="disc-label">Disc {track.discNo}</span>
+                <div class="disc-header-right">
+                  <span class="v-mono disc-duration-label">{getDiscDuration(group.tracks, track.discNo)}</span>
                 </div>
               </div>
             {/if}
 
-            {@const isMultiDiscAlbum = group.albumMeta && parseInt(group.albumMeta.total_discs || "1") > 1}
-
-            {#each group.tracks as track, i (track.id)}
-              {@const showDiscHeader = isMultiDiscAlbum && (i === 0 || track.discNo !== group.tracks[i-1].discNo)}
-
-              {#if showDiscHeader}
-                {#if i > 0}
-                  <div class="disc-separator"></div>
+            <div 
+              class="v-track-row track-row" 
+              class:active={track.isPlaying}
+              ondblclick={() => handleJump(track.id)}
+              onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleJump(track.id); } }}
+              role="button"
+              tabindex="0"
+            >
+              <div class="v-track-body track-body">
+                <span class="v-truncate v-track-title track-title">{track.title}</span>
+                {#if track.artist && group.albumMeta && track.artist.toLowerCase() !== group.albumMeta.albumartist.toLowerCase()}
+                  <span class="v-truncate v-track-artist track-artist">{track.artist}</span>
                 {/if}
-                <div class="disc-header-row" class:first-disc={i === 0}>
-                  <span class="disc-label">Disc {track.discNo}</span>
-                  <div class="disc-header-right">
-                    <span class="v-mono disc-duration-label">{getDiscDuration(group.tracks, track.discNo)}</span>
-                  </div>
-                </div>
-              {/if}
-
-              <div 
-                class="v-track-row track-row" 
-                class:active={track.isPlaying}
-                ondblclick={() => handleJump(track.id)}
-                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleJump(track.id); } }}
-                role="button"
-                tabindex="0"
-              >
-                <div class="v-track-body track-body">
-                  <span class="v-truncate v-track-title track-title">{track.title}</span>
-                  {#if track.artist && group.albumMeta && track.artist.toLowerCase() !== group.albumMeta.albumartist.toLowerCase()}
-                    <span class="v-truncate v-track-artist track-artist">{track.artist}</span>
-                  {/if}
-                </div>
-                <span class="v-mono v-track-meta track-meta">
-                  {formatDuration(track.duration)}
-                </span>
               </div>
-            {/each}
+              <span class="v-mono v-track-meta track-meta">
+                {formatDuration(track.duration)}
+              </span>
+            </div>
           {/each}
-        </div>
+        {/each}
       </div>
     </div>
-
-    <div class="panel-splitter"></div>
-
-    <div class="sidebar-buttons">
-      {@render NavButtons()}
-    </div>
   </div>
-{:else}
-  <div class="floating-buttons">
+
+  <div class="panel-splitter"></div>
+
+  <div class="sidebar-buttons">
     {@render NavButtons()}
   </div>
-{/if}
+</div>
 
 <style>
   .module-panel {
@@ -223,16 +217,6 @@
     flex-shrink: 0;
   }
 
-  .floating-buttons {
-    display: flex;
-    flex-direction: row;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 10px;
-    padding: 16px 20px;
-    margin-top: auto;
-  }
-
   .queue-nav-button {
     width: 36px;
     height: 36px;
@@ -240,6 +224,10 @@
     box-shadow: var(--button-shadow-lesser);
     flex-shrink: 0;
     pointer-events: auto;
+  }
+
+  .queue-nav-button.round {
+    border-radius: 18px;
   }
 
   .queue-nav-button:disabled {

@@ -26,6 +26,15 @@
   let showIndex = $derived(activeGrouperDef.index === true);
   let showCount = $derived(activeGrouperDef.count === true);
 
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      isLibraryMenuOpen = false;
+      isLibraryFilterMenuOpen = false;
+      isSortMenuOpen = false;
+      isGroupMenuOpen = false;
+    }
+  }
+
   function toggleLibraryMenu() {
     isLibraryMenuOpen = !isLibraryMenuOpen;
     if (isLibraryMenuOpen) {
@@ -82,6 +91,8 @@
   }
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 {#snippet Item({ index, label, count, active, onclick }: { index: number, label: string, count: number, active: boolean, onclick: () => void })}
   <button id="sidebar-item-{index}" class="sidebar-item" class:active {onclick}>
     <span class="v-truncate label" title={label}>{label}</span>
@@ -107,7 +118,7 @@
         </button>
     
         {#if isLibraryMenuOpen}
-          <div class="control-menu v-panel">
+          <div class="control-menu">
             {#each collection.librariesList as lib}
               <button 
                 class="menu-item" 
@@ -136,7 +147,7 @@
           </button>
       
           {#if isLibraryFilterMenuOpen}
-            <div class="control-menu v-panel">
+            <div class="control-menu">
               {#each allowedFilters as fKey}
                 <button 
                   class="menu-item" 
@@ -168,7 +179,7 @@
         </button>
     
         {#if isGroupMenuOpen}
-          <div class="control-menu v-panel">
+          <div class="control-menu">
             {#each collection.getVisibleFacets(view.activeLibrary) as {key, label}}
               <button 
                 class="menu-item" 
@@ -196,7 +207,7 @@
         </button>
 
         {#if isSortMenuOpen}
-          <div class="control-menu v-panel">
+          <div class="control-menu">
             {#each collection.getVisibleOrders(view.activeLibrary) as {key, label}}
               <button 
                 class="menu-item" 
@@ -333,6 +344,8 @@
     border-radius: 12px;
     padding: 4px;
     box-sizing: border-box;
+    background-color: var(--background-drawer);
+    box-shadow: var(--panel-shadow);
   }
 
   .menu-item {

@@ -24,14 +24,6 @@ export function applyPersistedState(state: any, view: ViewState) {
     view.activeShelf = state.activeShelf || null;
     view.isShaderEnabled = state.isShaderEnabled ?? true;
     view.sidebarWidth = state.sidebarWidth || 280;
-    
-    view.queuePanels = state.queuePanels || { hud: true };
-    if (view.queuePanels.hud === undefined) {
-        view.queuePanels.hud = view.queuePanels.control !== false;
-        delete view.queuePanels.control;
-        delete view.queuePanels.tracks;
-        delete view.queuePanels.lyrics;
-    }
 }
 
 export function persistState(view: ViewState) {
@@ -51,7 +43,6 @@ export function persistState(view: ViewState) {
             filter: $state.snapshot(view.activeFilter),
             activeShelf: view.activeShelf,
             isShaderEnabled: view.isShaderEnabled,
-            queuePanels: $state.snapshot(view.queuePanels),
             sidebarWidth: view.sidebarWidth
         })
     }).catch(err => console.error(err));

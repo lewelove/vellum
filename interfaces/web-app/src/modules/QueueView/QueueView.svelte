@@ -20,7 +20,6 @@
 
   let isViewVisible = $derived(nav.activeTab === 'queue');
   let isPlaying = $derived(player.state === "play");
-  let showHud = $derived(view.queuePanels.hud);
 
   let moduleWidth = $state(0);
 
@@ -54,9 +53,7 @@
   <div class="queue-layout">
     <div class="left-wing">
       <NavBar variant="transparent" />
-      {#if showHud}
-        <ControlPanel />
-      {/if}
+      <ControlPanel />
     </div>
 
     <div class="center-wing">
@@ -64,7 +61,7 @@
     </div>
 
     <div class="right-wing">
-      <TracklistPanel {showHud} {hasPalette} />
+      <TracklistPanel {hasPalette} />
     </div>
   </div>
 </div>

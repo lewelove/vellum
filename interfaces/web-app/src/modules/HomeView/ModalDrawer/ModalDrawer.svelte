@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fade } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
+  import { view } from "../../../library/view.svelte.ts";
   import { 
     playAlbum, 
     queueAlbum, 
@@ -115,7 +116,7 @@
     class="modal-backdrop" 
     onclick={handleBackdropClick} 
     role="presentation"
-    transition:fade={{ duration: 200, easing: cubicOut }}
+    transition:fade={{ duration: view.isFocusInstant ? 0 : 200, easing: cubicOut }}
   >
     <div class="modal-chassis v-panel">
       <div class="modal-content">

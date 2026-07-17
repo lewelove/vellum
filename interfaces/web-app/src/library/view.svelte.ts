@@ -23,9 +23,9 @@ export class ViewState {
   libraryVersion: number = $state(0);
   shelfVersion: number = $state(0);
   isShaderEnabled: boolean = $state(true);
-  queuePanels: Record<string, boolean> = $state({ hud: true });
   assetVersion: number = $state(Date.now());
   sidebarWidth: number = $state(280);
+  isFocusInstant: boolean = $state(false);
   _pendingViewReset: boolean = false;
 
   constructor() {
@@ -231,21 +231,18 @@ export class ViewState {
     this.refreshView(true);
   }
 
-  async setFocus(album: any) {
+  async setFocus(album: any, instant: boolean = false) {
+    this.isFocusInstant = instant;
     this.focusedAlbum = await collection.ensureFullAlbum(album.id);
   }
 
   closeFocus() {
     this.focusedAlbum = null;
+    this.isFocusInstant = false;
   }
 
   toggleShader() {
     this.isShaderEnabled = !this.isShaderEnabled;
-    this.persistState();
-  }
-
-  toggleQueuePanel(key: string) {
-    this.queuePanels[key] = !this.queuePanels[key];
     this.persistState();
   }
 
