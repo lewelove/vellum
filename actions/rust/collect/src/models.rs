@@ -42,7 +42,7 @@ pub struct AlbumData {
     pub date: String,
     pub genre: Vec<String>,
     pub styles: Vec<String>,
-    pub discogs_url: Option<String>,
+    pub discogs_master_url: Option<String>,
     pub tracks: Vec<Track>,
     pub discogs_raw: Option<serde_json::Value>,
     pub discogs_cover_url: Option<String>,

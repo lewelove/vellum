@@ -48,7 +48,7 @@ fn parse_url(opts: &str) -> Option<TargetUrl> {
         let id = extract_id(id_str)?;
         return Some(TargetUrl::DiscogsRelease(id));
     }
-    None
+    Option::None
 }
 
 fn extract_id(s: &str) -> Option<u64> {
@@ -68,7 +68,7 @@ fn extract_id(s: &str) -> Option<u64> {
 async fn fetch_and_fill_discogs_master(id: u64, data: &mut AlbumData) -> Result<()> {
     let master = api::fetch_discogs_master(id).await?;
     data.discogs_raw = Some(serde_json::to_value(&master)?);
-    data.discogs_url = Some(format!("https://discogs.com/master/{id}"));
+    data.discogs_master_url = Some(format!("https://discogs.com/master/{id}"));
     data.album = master.title;
     data.date = master.year.map_or_else(String::new, |y| y.to_string());
 
@@ -123,7 +123,7 @@ async fn fetch_and_fill_discogs_master(id: u64, data: &mut AlbumData) -> Result<
 
 fn fetch_and_fill_discogs_release(id: u64, release: discogs_rs::Release, data: &mut AlbumData) -> Result<()> {
     data.discogs_raw = Some(serde_json::to_value(&release)?);
-    data.discogs_url = Some(format!("https://discogs.com/release/{id}"));
+    data.discogs_master_url = Some(format!("https://discogs.com/release/{id}"));
     data.album = release.title;
     data.date = release.year.map_or_else(String::new, |y| y.to_string());
 

@@ -1,52 +1,8 @@
 use crate::api;
 use crate::models::{AlbumData, FormattingConfig};
 use anyhow::Result;
-use serde::Serialize;
 use std::fs;
 use std::path::Path;
-use std::str::FromStr;
-
-#[derive(Serialize)]
-struct MetadataToml {
-    album: AlbumSection,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    tracks: Vec<TrackSection>,
-}
-
-#[derive(Serialize)]
-struct AlbumSection {
-    albumartist: String,
-    album: String,
-    date: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    genre: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    styles: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    discogs_url: Option<String>,
-}
-
-#[derive(Serialize)]
-struct TrackSection {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    discnumber: Option<u32>,
-    tracknumber: u32,
-    title: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    artist: Option<String>,
-}
-
-#[derive(Serialize)]
-struct LocalToml {
-    local: LocalSection,
-}
-
-#[derive(Serialize)]
-struct LocalSection {
-    date_added: toml::value::Datetime,
-    #[serde(rename = "virtual")]
-    is_virtual: bool,
-}
 
 pub async fn create_album_directory(
     data: &AlbumData,
@@ -85,11 +41,12 @@ pub async fn create_album_directory(
 
     if let Some(url) = &data.discogs_cover_url {
         let ext = extract_extension(url);
-        let dest = covers_dir.join(format!("discogs.{ext}"));
-        if api::download_discogs_cover(url, &dest).await.is_ok() {
-            let cover_root = album_path.join(format!("cover.{ext}"));
-            fs::copy(&dest, cover_root).ok();
+        let cover_root = album_path.join(format!("cover.{ext}"));
+        if let Err(e) = api::download_discogs_cover(url, &cover_root).await {
+            eprintln!("Failed to download cover: {e:?}");
         }
+    } else {
+        eprintln!("No discogs cover URL found in album data.");
     }
 
     Ok(())
@@ -109,55 +66,67 @@ fn extract_extension(url: &str) -> String {
     }
 }
 
+fn escape_toml_string(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn toml_array(arr: &[String]) -> String {
+    let escaped: Vec<String> = arr
+        .iter()
+        .map(|s| format!("\"{}\"", escape_toml_string(s)))
+        .collect();
+    format!("[{}]", escaped.join(", "))
+}
+
 fn write_metadata_toml(data: &AlbumData, path: &Path) -> Result<()> {
-    let total_discs = data.tracks.iter().map(|t| t.discnumber).max().unwrap_or(1);
+    let mut lines = vec![
+        "[album]".to_string(),
+        String::new(),
+        format!("albumartist = \"{}\"", escape_toml_string(&data.albumartist)),
+        format!("album = \"{}\"", escape_toml_string(&data.album)),
+        format!("date = \"{}\"", escape_toml_string(&data.date)),
+        String::new(),
+    ];
 
-    let mut track_sections = Vec::new();
-    for t in &data.tracks {
-        let mut track_artist = None;
-        if let Some(art) = &t.artist
-            && art != &data.albumartist
-        {
-            track_artist = Some(art.clone());
-        }
-
-        track_sections.push(TrackSection {
-            discnumber: if total_discs > 1 { Some(t.discnumber) } else { None },
-            tracknumber: t.tracknumber,
-            title: t.title.clone(),
-            artist: track_artist,
-        });
+    if !data.genre.is_empty() {
+        lines.push("genre = \"\"".to_string());
+        lines.push(format!("genres = {}", toml_array(&data.genre)));
+    }
+    if !data.styles.is_empty() {
+        lines.push(format!("styles = {}", toml_array(&data.styles)));
+    }
+    if let Some(ref durl) = data.discogs_master_url {
+        lines.push(String::new());
+        lines.push(format!("discogs_master_url = \"{}\"", escape_toml_string(durl)));
     }
 
-    let meta = MetadataToml {
-        album: AlbumSection {
-            albumartist: data.albumartist.clone(),
-            album: data.album.clone(),
-            date: data.date.clone(),
-            genre: data.genre.clone(),
-            styles: data.styles.clone(),
-            discogs_url: data.discogs_url.clone(),
-        },
-        tracks: track_sections,
-    };
+    lines.push(String::new());
 
-    let content = toml::to_string(&meta)?;
-    fs::write(path, content)?;
+    let total_discs = data.tracks.iter().map(|t| t.discnumber).max().unwrap_or(1);
+
+    for t in &data.tracks {
+        lines.push("[[tracks]]".to_string());
+        if total_discs > 1 {
+            lines.push(format!("discnumber = {}", t.discnumber));
+        }
+        lines.push(format!("tracknumber = {}", t.tracknumber));
+        lines.push(format!("title = \"{}\"", escape_toml_string(&t.title)));
+
+        if let Some(ref art) = t.artist
+            && art != &data.albumartist
+        {
+            lines.push(format!("artist = \"{}\"", escape_toml_string(art)));
+        }
+        lines.push(String::new());
+    }
+
+    fs::write(path, lines.join("\n"))?;
     Ok(())
 }
 
 fn write_local_toml(path: &Path) -> Result<()> {
     let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-    let dt = toml::value::Datetime::from_str(&now)?;
-
-    let local_meta = LocalToml {
-        local: LocalSection { 
-            date_added: dt,
-            is_virtual: true,
-        },
-    };
-
-    let content = toml::to_string(&local_meta)?;
+    let content = format!("[local]\n\ndate_added = {now}\nvirtual = true\n");
     fs::write(path, content)?;
     Ok(())
 }
