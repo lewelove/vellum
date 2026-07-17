@@ -238,7 +238,48 @@ export class ViewState {
     }
     
     this.isFocusInstant = instant;
-    this.focusedAlbum = await collection.ensureFullAlbum(album.id);
+
+    const cached = collection.fullAlbumCache[album.id];
+    if (cached) {
+      this.focusedAlbum = cached;
+    } else {
+      const dictEntry = collection.dict[album.id];
+      if (dictEntry) {
+        this.focusedAlbum = {
+          id: album.id,
+          album: {
+            id: album.id,
+            album: dictEntry.album,
+            albumartist: dictEntry.albumartist,
+            date: dictEntry.date,
+            genre: dictEntry.genre,
+            total_discs: dictEntry.total_discs,
+            total_tracks: dictEntry.total_tracks,
+            keys: dictEntry.keys,
+            covers: {
+              main: {
+                file: {
+                  hash: {
+                    address: dictEntry.cover_hash
+                  }
+                }
+              }
+            },
+            info: {
+              duration_formatted: dictEntry.duration_formatted
+            }
+          },
+          tracks: []
+        };
+      } else {
+        this.focusedAlbum = { id: album.id, album: {}, tracks: [] };
+      }
+      
+      const full = await collection.ensureFullAlbum(album.id);
+      if (this.focusedAlbum?.id === album.id) {
+        this.focusedAlbum = full;
+      }
+    }
   }
 
   closeFocus() {

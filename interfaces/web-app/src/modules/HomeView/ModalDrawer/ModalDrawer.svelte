@@ -99,6 +99,7 @@
   onclick={handleBackdropClick} 
   role="presentation"
   in:fadeIf={{ duration: 200, easing: cubicOut }}
+  out:fade={{ duration: 50, easing: cubicOut }}
 >
   <div class="modal-chassis v-panel">
     <div class="modal-content">

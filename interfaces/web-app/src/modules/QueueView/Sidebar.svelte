@@ -2,6 +2,7 @@
   import { view } from "../../library/view.svelte.ts";
   import { player } from "../player.svelte.ts";
   import { setTab } from "../../navigation.svelte.ts";
+  import { tick } from "svelte";
 
   let { hasPalette }: { hasPalette: boolean } = $props();
 
@@ -10,8 +11,9 @@
 
   async function handleFocus() {
     if (activeId) {
+      await view.setFocus({ id: activeId }, true);
+      await tick();
       await setTab("home");
-      await view.setFocus({ id: activeId });
     }
   }
 </script>

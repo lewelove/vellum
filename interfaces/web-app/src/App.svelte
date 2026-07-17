@@ -166,13 +166,13 @@
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transition: opacity 0.0s ease-out, visibility 0.0s ease-out;
+    transition: opacity 0.05s ease-out, visibility 0.05s ease-out;
   }
 
   .view-layer.visible {
     opacity: 1;
     visibility: visible;
-    transition: opacity 0.0s ease-out, visibility 0.0s ease-out;
+    transition: opacity 0.05s ease-out, visibility 0s ease-out;
   }
 
   .view-layer.instant {

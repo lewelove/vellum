@@ -19,23 +19,25 @@
 
 <div class="clear-cover-wrapper" style="width: {width}px; height: {height}px;">
   {#if hash}
-    <img
-      src={thumbUrl}
-      class="cover-image placeholder"
-      alt=""
-      draggable="false"
-    />
-    {#if srcUrl}
+    {#key hash}
       <img
-        src={srcUrl}
-        class="cover-image high-res"
-        class:visible={isLoaded || !animate}
-        style={animate ? "" : "transition: none; will-change: auto;"}
+        src={thumbUrl}
+        class="cover-image placeholder"
         alt=""
         draggable="false"
-        onload={() => isLoaded = true}
       />
-    {/if}
+      {#if srcUrl}
+        <img
+          src={srcUrl}
+          class="cover-image high-res"
+          class:visible={isLoaded || !animate}
+          style={animate ? "" : "transition: none; will-change: auto;"}
+          alt=""
+          draggable="false"
+          onload={() => isLoaded = true}
+        />
+      {/if}
+    {/key}
   {:else}
     <div class="empty-cover"></div>
   {/if}
