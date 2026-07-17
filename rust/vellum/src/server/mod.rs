@@ -46,10 +46,6 @@ fn default_state() -> serde_json::Value {
             "key": null,
             "val": null
         },
-        "queuePanels": {
-            "lyrics": false,
-            "tracks": true
-        },
         "sidebarWidth": 280
     })
 }
