@@ -232,6 +232,11 @@ export class ViewState {
   }
 
   async setFocus(album: any, instant: boolean = false) {
+    if (this.focusedAlbum?.id === album.id) {
+      this.isFocusInstant = instant;
+      return;
+    }
+    
     this.isFocusInstant = instant;
     this.focusedAlbum = await collection.ensureFullAlbum(album.id);
   }

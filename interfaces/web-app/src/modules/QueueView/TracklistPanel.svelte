@@ -4,6 +4,7 @@
   import { view } from "../../library/view.svelte.ts";
   import { jumpToQueueIndex } from "../../api.ts";
   import { setTab } from "../../navigation.svelte.ts";
+  import { tick } from "svelte";
 
   let { hasPalette } = $props();
 
@@ -12,8 +13,9 @@
 
   async function handleFocus() {
     if (activeId) {
-      await setTab("home");
       await view.setFocus({ id: activeId }, true);
+      await tick();
+      await setTab("home");
     }
   }
 

@@ -6,74 +6,38 @@
 
   let algo = 'mitchell';
   let srcUrl = $derived(hash && targetWidth > 0 ? `/api/covers/${algo}/${targetWidth}px/${hash}?v=${hash}` : "");
+  let thumbUrl = $derived(hash ? `/api/covers/lanczos/200px/${hash}?v=${hash}` : "");
 
   let isLoaded = $state(false);
-  let blobUrl = $state("");
-  let apiCallStart = 0;
 
   $effect(() => {
-    if (!srcUrl) {
-      blobUrl = "";
+    if (srcUrl) {
       isLoaded = false;
-      return;
     }
-
-    let active = true;
-    let localBlobUrl = "";
-    apiCallStart = performance.now();
-    console.log(`[Cover API] Call initiated for ${targetWidth}px at ${apiCallStart.toFixed(2)}ms`);
-
-    fetch(srcUrl)
-      .then(res => {
-        if (!res.ok) throw new Error("Fetch failed");
-        return res.blob();
-      })
-      .then(blob => {
-        if (!active) return;
-        const coverReceived = performance.now();
-        console.log(`[Cover API] Cover bytes received in ${(coverReceived - apiCallStart).toFixed(2)}ms`);
-
-        localBlobUrl = URL.createObjectURL(blob);
-        blobUrl = localBlobUrl;
-      })
-      .catch(err => {
-        console.error(err);
-      });
-
-    return () => {
-      active = false;
-      isLoaded = false;
-      if (localBlobUrl) {
-        URL.revokeObjectURL(localBlobUrl);
-      }
-    };
   });
-
-  function handleLoad() {
-    isLoaded = true;
-    const renderReady = performance.now();
-    console.log(`[Cover API] Cover fully ready to render. Total pipeline: ${(renderReady - apiCallStart).toFixed(2)}ms`);
-  }
 </script>
 
 <div class="clear-cover-wrapper" style="width: {width}px; height: {height}px;">
-  {#if blobUrl}
-    <div 
-      class="cover-block" 
-      class:visible={isLoaded || !animate}
-      style={animate ? "" : "transition: none; will-change: auto;"}
-    >
+  {#if hash}
+    <img
+      src={thumbUrl}
+      class="cover-image placeholder"
+      alt=""
+      draggable="false"
+    />
+    {#if srcUrl}
       <img
-        src={blobUrl}
-        class="cover-image"
+        src={srcUrl}
+        class="cover-image high-res"
+        class:visible={isLoaded || !animate}
+        style={animate ? "" : "transition: none; will-change: auto;"}
         alt=""
         draggable="false"
-        onload={handleLoad}
+        onload={() => isLoaded = true}
       />
-    </div>
+    {/if}
   {:else}
-    <div class="empty-cover">
-    </div>
+    <div class="empty-cover"></div>
   {/if}
 </div>
 
@@ -86,18 +50,6 @@
     justify-content: center;
   }
 
-  .cover-block {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    will-change: opacity 0.2s ease;
-  }
-
-  .cover-block.visible {
-    opacity: 1;
-  }
-
   .cover-image {
     position: absolute;
     inset: 0;
@@ -105,6 +57,21 @@
     height: 100%;
     object-fit: cover;
     box-shadow: var(--album-cover-shadow);
+  }
+
+  .placeholder {
+    z-index: 1;
+  }
+
+  .high-res {
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    will-change: opacity;
+  }
+
+  .high-res.visible {
+    opacity: 1;
   }
 
   .empty-cover {

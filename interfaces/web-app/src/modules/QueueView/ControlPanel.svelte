@@ -106,9 +106,7 @@
 
       <div class="lyrics-scroll">
         {#key currentFile}
-          {#if isLoading}
-            <div class="status-msg">Loading...</div>
-          {:else if isInstrumental}
+          {#if isInstrumental}
             <div class="instrumental-msg">INSTRUMENTAL</div>
           {:else if lyricsText}
             <div class="lyrics-content">

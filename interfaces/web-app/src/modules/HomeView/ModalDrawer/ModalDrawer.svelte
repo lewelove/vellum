@@ -32,29 +32,12 @@
   let trackCount = $derived(parseInt(albumData.total_tracks || "0"));
   let durationStr = $derived(infoData.duration_formatted || "--:--");
 
-  let coverIsReady = $state(false);
-
-  $effect(() => {
-    if (!coverHash) {
-      coverIsReady = true;
-      return;
+  function fadeIf(node: Element, params: any) {
+    if (view.isFocusInstant) {
+      return { duration: 0, css: () => '' };
     }
-    const dpr = window.devicePixelRatio || 1;
-    const imgWidth = leftColumnWidth - 64;
-    const targetWidth = Math.round(imgWidth * dpr);
-
-    const algo = 'mitchell';
-    const srcUrl = `/api/covers/${algo}/${targetWidth}px/${coverHash}?v=${coverHash}`;
-
-    const img = new Image();
-    img.src = srcUrl;
-    img.onload = () => {
-      coverIsReady = true;
-    };
-    img.onerror = () => {
-      coverIsReady = true;
-    };
-  });
+    return fade(node, params);
+  }
 
   async function handlePlay() {
     try { await playAlbum(album.id); } catch (err) { console.error(err); }
@@ -111,90 +94,88 @@
 
 <svelte:window bind:innerWidth={windowWidth} />
 
-{#if coverIsReady}
-  <div 
-    class="modal-backdrop" 
-    onclick={handleBackdropClick} 
-    role="presentation"
-    transition:fade={{ duration: view.isFocusInstant ? 0 : 200, easing: cubicOut }}
-  >
-    <div class="modal-chassis v-panel">
-      <div class="modal-content">
+<div 
+  class="modal-backdrop" 
+  onclick={handleBackdropClick} 
+  role="presentation"
+  in:fadeIf={{ duration: 200, easing: cubicOut }}
+>
+  <div class="modal-chassis v-panel">
+    <div class="modal-content">
 
-        <div class="column-left">
-          <div class="cover-container" style="height: {leftColumnWidth - 64}px;">
-            <ClearCover 
-              hash={coverHash} 
-              width={leftColumnWidth - 64} 
-              height={leftColumnWidth - 64} 
-              animate={false}
-            />
-          </div>
+      <div class="column-left">
+        <div class="cover-container" style="height: {leftColumnWidth - 64}px;">
+          <ClearCover 
+            hash={coverHash} 
+            width={leftColumnWidth - 64} 
+            height={leftColumnWidth - 64} 
+            animate={false}
+          />
+        </div>
 
-          <div class="meta-container">
-            <h2 class="album-title">{title}</h2>
-            <h3 class="album-artist">{artist}</h3>
+        <div class="meta-container">
+          <h2 class="album-title">{title}</h2>
+          <h3 class="album-artist">{artist}</h3>
 
-            {#if dateString}
-              <span class="v-mono meta-date">{dateString}</span>
-            {/if}
+          {#if dateString}
+            <span class="v-mono meta-date">{dateString}</span>
+          {/if}
 
-            <div class="meta-stack">
-              <div class="v-mono meta-row">
-                <span class="v-truncate meta-val">{durationStr}</span>
+          <div class="meta-stack">
+            <div class="v-mono meta-row">
+              <span class="v-truncate meta-val">{durationStr}</span>
 
-                {#if discCount > 1}
-                  <span class="meta-sep">•</span>
-                  <span class="v-truncate meta-val">{discCount} Discs</span>
-                {/if}
-
+              {#if discCount > 1}
                 <span class="meta-sep">•</span>
-                <span class="v-truncate meta-val">{trackCount} Tracks</span>
-              </div>
+                <span class="v-truncate meta-val">{discCount} Discs</span>
+              {/if}
+
+              <span class="meta-sep">•</span>
+              <span class="v-truncate meta-val">{trackCount} Tracks</span>
             </div>
           </div>
         </div>
-
-        <div class="column-right">
-          <div class="button-bar">
-            <div class="bar-group">
-              <button class="v-btn-icon icon-btn" onclick={handleUpdate} title="Update Album">
-                <img src="/icons/outlined/24px/refresh.svg" alt="Update"/>
-              </button>
-              <button class="v-btn-icon icon-btn" onclick={handleOpenFolder} title="Open Local Folder">
-                <img src="/icons/outlined/24px/folder.svg" alt="Open"/>
-              </button>
-              <button class="v-btn-icon icon-btn" onclick={handleOpenManifest} title="Open Manifest">
-                <img src="/icons/outlined/24px/edit_document.svg" alt="Manifest"/>
-              </button>
-              <button class="v-btn-icon icon-btn" onclick={handleOpenLock} title="Open Data Object">
-                <img src="/icons/outlined/24px/code.svg" alt="Data Object"/>
-              </button>
-            </div>
-
-            <div class="bar-group right">
-              <button class="v-btn-icon icon-btn" onclick={handlePlay} title="Play Album">
-                <img src="/icons/outlined/24px/play_arrow.svg" alt="" />
-              </button>
-            </div>
-          </div>
-          <div class="tracks-scroll-area">
-            <div class="v-scroll-fade-top"></div>
-            <ModalDrawerTracks 
-              tracks={album.tracks || []} 
-              totalDiscs={albumData.total_discs} 
-              albumArtist={artist}
-              onplay={handlePlayTrack} 
-              onplaydisc={handlePlayDisc}
-            />
-            <div class="v-scroll-fade-bottom"></div>
-          </div>
-        </div>
-
       </div>
+
+      <div class="column-right">
+        <div class="button-bar">
+          <div class="bar-group">
+            <button class="v-btn-icon icon-btn" onclick={handleUpdate} title="Update Album">
+              <img src="/icons/outlined/24px/refresh.svg" alt="Update"/>
+            </button>
+            <button class="v-btn-icon icon-btn" onclick={handleOpenFolder} title="Open Local Folder">
+              <img src="/icons/outlined/24px/folder.svg" alt="Open"/>
+            </button>
+            <button class="v-btn-icon icon-btn" onclick={handleOpenManifest} title="Open Manifest">
+              <img src="/icons/outlined/24px/edit_document.svg" alt="Manifest"/>
+            </button>
+            <button class="v-btn-icon icon-btn" onclick={handleOpenLock} title="Open Data Object">
+              <img src="/icons/outlined/24px/code.svg" alt="Data Object"/>
+            </button>
+          </div>
+
+          <div class="bar-group right">
+            <button class="v-btn-icon icon-btn" onclick={handlePlay} title="Play Album">
+              <img src="/icons/outlined/24px/play_arrow.svg" alt="" />
+            </button>
+          </div>
+        </div>
+        <div class="tracks-scroll-area">
+          <div class="v-scroll-fade-top"></div>
+          <ModalDrawerTracks 
+            tracks={album.tracks || []} 
+            totalDiscs={albumData.total_discs} 
+            albumArtist={artist}
+            onplay={handlePlayTrack} 
+            onplaydisc={handlePlayDisc}
+          />
+          <div class="v-scroll-fade-bottom"></div>
+        </div>
+      </div>
+
     </div>
   </div>
-{/if}
+</div>
 
 <style>
   .button-bar {
