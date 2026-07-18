@@ -50,6 +50,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: var(--album-cover-shadow);
   }
 
   .cover-image {
@@ -58,7 +59,6 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    box-shadow: var(--album-cover-shadow);
   }
 
   .placeholder {
