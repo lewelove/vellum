@@ -1,21 +1,37 @@
-## vl.compile.{level}.key
+# vl.compile.{level}.key
 
 This function provides config for `"keys": {}` population in `album.lock.json`. It consumes manifests in album folder, creates intermediary `ctx`, calculates the output and returns the value to be written in lock.
 
-### Specifications
+## Specifications
 
-#### How function() variables are created:
-
-For `manifests`:
-- Resolves the `disknumber` and `tracknumber` for each track.
-- Checks treir duplicates so there's no collisions.
-- Sorts the `tracks` array by `disknumber` and `tracknumber`.
+### How function() variables are created:
 
 For `ctx`:
 - Finds all audio files at any depth.
 - Sorts by file path relative to album root in natural order.
 - Populates `tracks` from `[1]` -> total number of files found.
-- Appends the `info`, `embedded` and `file` tables into each track
+- Appends the `embedded` and `file` tables into each track.
+
+For `manifests.metadata`:
+- Reads `metadata.toml`.
+- Populates `album` table with `[album]` directly.
+- Resolves the `disknumber` and `tracknumber` for each `[[tracks]]` (at least 1 must exist).
+- Checks for tuple duplicates so there's no collisions.
+- Sorts tuples by `disknumber` and `tracknumber`.
+- For each unique tuple the `[idx]` is given from `[1]` to the total number of `[[tracks]]` found.
+- Populates `tracks[idx]` with `[[tracks]]` data.
+
+For each next `manifests.<manifest_name>`:
+- Reads `<manifest_name>.toml`.
+- Populates `album` table with `[album]` directly.
+- Resolves the `disknumber` and `tracknumber` for each `[[tracks]]`.
+- Checks for tuple duplicates so there's no collisions.
+- Sorts tuples by `disknumber` and `tracknumber`.
+- Checks the total number of `[[tracks]]` found -> is either zero or equal to their number in `manifests.metadata`.
+- For each unique tuple the `[idx]` is given from `[1]` to the total number of `[[tracks]]` found.
+- Populates `tracks[idx]` with `[[tracks]]` data.
+
+Before function execution Rust makes sure the number of `tracks` are equal in both `ctx` and `manifests` that have them. Else throw a compile error.
 
 ```lua
 -- Table containing technical and physical info about concrete files on disk.
@@ -24,11 +40,9 @@ local ctx = {
   -- Full `vl.config({})` table
   config = {}
 
-  album = {
-    id = "", -- Album root directory path relative to `config.storage.library`.
-    total_files = 1, -- Total number of audio files.
-    duration_milliseconds = 1, -- Sum of all tracks[idx]
-  },
+  id = "", -- Album root directory path relative to `config.storage.library`.
+  total_files = 1, -- Total number of audio files.
+  duration_milliseconds = 1, -- Sum of all tracks[idx]
 
   -- For every audio file found at any depth -> 
   tracks = {
@@ -65,9 +79,6 @@ local manifests = {
   metadata = { -- Always present since metadata.toml is required.
     album = {
     },
-    -- Each [idx] is sorted & checked by discnumber + tracknumber,
-    -- since every [[tracks]] in any manifest must have them,
-    -- and expressed in [1] -> total number of [[tracks]].
     tracks = {
       [1] = {},
       [2] = {},
@@ -77,125 +88,134 @@ local manifests = {
 }
 ```
 
-#### Album level key specification:
+### Helper Functions
 
-Evaluated once per album:
-- Check if `ctx.album.key_name` exists -> if not, check does it exist in all `ctx.tracks[]` and its values are equal for each -> else pass `nil` value
-- Check if value passed prom previous step matches the `type` definition (skip if `nil`) -> else invalidate
-- If `output = function(value, ctx)` -> run it on the value
-- Write output returned value into `[album.lock.json].album.keys.key_name`
+There is a built-in set of `vl.fn` functions that can be used *inside* `key_name = function()` to execute useful logic without lots of Lua boilerplate.
+
+#### vl.fn.type_check
+
+Checks input value (usually provided by `manifests` table) for one of Vellum Types, else throws error.
 
 ```lua
+vl.fn.type_check(value, "vellum_type")
+```
+
+#### vl.fn.require
+
+Checks if the value passed is `nil` or not. If `nil` throws error.
+
+```lua
+vl.fn.require(value)
+```
+
+### Album level key specification:
+
+The key name provided must be always a `function()` that returns value. For `album` level this function consumes two arguments: `ctx` and `manifests`. The function is evaluated once per album.
+
+#### Examples:
+
+```lua
+-- Simply returns the key from primary manifest
 vl.compile.album.key({
-
-  key_name = {
-
-    -- one of Vellum Types
-    -- defaults to "object"
-    type = "object",
-
-    -- enables the key requirement for lock to compile
-    -- if input value OR output returned value is nil or "" throws the compile error
-    -- defaults to false
-    required = false,
-
-    -- here you can define the function that will perform anything you want to the value
-    -- for album level keys output function takes two parameters:
-    --   value = ctx.album.{key_name}
-    --   ctx = entire album table
-    output = function(value, ctx)
-      -- default expression
-      -- returns itself
-      return ctx.album.key_name
-    end
-  }
+  key_name = function(ctx, manifests)
+    return manifests.metadata.album.key_name
+  end
 })
 ```
 
-#### Track level key specification:
-
-Evaluated for every individual track in the album separately inside a loop (idx = from 1 to ctx.track_count):
-- Check if `ctx.tracks[idx].key_name` exists -> if not, check does `ctx.album.key_name` exist -> if so, inherit -> else pass `nil` value
-- Check if `ctx.tracks[idx].key_name` value matches the `type` definition (skip if `nil`) -> else throw error
-- If `output = function(value, ctx, idx)` -> run it on the value
-- Write output returned value into `[album.lock.json].tracks[idx].keys.key_name`
+The `album` shorthands:
 
 ```lua
-vl.compile.tracks.key({
+-- "album" -> "a"
+vl.compile.a.key({ key_name = function(ctx, m) return "I am truncated!" end })
+```
 
-  key_name = {
+### Track level key specification:
 
-    -- same as in album level
-    type = "object",
-    required = false,
+For `tracks` level key name must be a function that returns value, just like in `album`. The only difference is that it evaluates for each individual track separately, and thus require the additional `idx` argument, that is always equal to `idx` of track evaluated.
 
-    -- inside the tracks level loop output function takes three parameters:
-    --   value = ctx.tracks[idx].{key_name}
-    --   ctx = entire album table
-    --   idx = the index of track in array processed
-    output = function(value, ctx, idx)
-      -- default expression
-      -- for each track returns itself
-      return ctx.tracks[idx].key_name
-    end
-  }
+#### Examples:
+
+```lua
+-- Simply returns the key for each track from primary manifest
+vl.compile.album.key({
+  key_name = function(ctx, manifests, idx)
+    return manifests.metadata.tracks[idx].key_name
+  end
 })
 ```
 
-### Examples
-
-Enables all `key_name_N`:
+The `tracks` shorthands:
 
 ```lua
--- can be expressed only in separate lines
-vl.compile.album.key({ key_name_1 = true })
-vl.compile.album.key({ key_name_2 = true })
+-- "tracks" -> "track" -> "t"
+vl.compile.track.key({ key_name = function(ctx, m, i) return "hi" end  })
+vl.compile.t.key({ key_name = function(ctx, m, i) return "thanks for reading docs..." end })
+```
 
--- also the "album" -> "a" shorthand can be used
-vl.compile.a.key({ key_name_3 = true })
+### More Examples:
 
--- "tracks" -> "track" -> "t" with track level keys
-vl.compile.tracks.key({ key_name_4 = true })
-vl.compile.track.key({ key_name_4 = true })
-vl.compile.t.key({ key_name_5 = true })
+Each function can be expressed only in separate blocks.
+
+```lua
+vl.compile.album.key({ key_name_1 = function(ctx, m) return "Hello, World!" end })
+vl.compile.tracks.key({ key_name_2 = function(ctx, m, i) return 5318008 end })
+```
+
+Invalid syntax. Each `vl.compile.{level}.key({})` must contain single element only.
+
+```lua
+vl.compile.album.key({ 
+  -- Forbidden!
+  key_name_1 = function(ctx, m) return "Oh, No!" end
+  key_name_2 = function(ctx, m) return ":(" end
+})
 ```
 
 Some other cool examples:
 
 ```lua
-vl.compile.tracks.key({
-
-  -- wraps title -> `title`
-  markdown_monospace_title = {
-    output = function(value, ctx, idx)
-      local wrap = "`"
-      return wrap .. ctx.tracks[idx].title .. wrap
-    end
-  },
-
-  -- ... add more ...
+-- Type check for string, require tag to exist in id.toml manifest
+vl.compile.album.key({
+  musicbrainz_release_url = function(ctx, manifests)
+    local id = manifests.id.album.musicbrainz_releaseid
+    local url = "https://musicbrainz.org/release/"
+    vl.fn.require(id) -- `album.musicbrainz_releaseid` in `id.toml` must exist
+    vl.fn.type_check(id, "string") -- `album.musicbrainz_releaseid` in `id.toml` must be a string
+    return url .. id
+    -- Result:
+    -- [album.lock.json].album.keys.musicbrainz_release_url = "https://musicbrainz.org/release/{id}"
+  end
 })
 ```
 
-Removal of `nil` or empty strings from lock:
+```lua
+-- Wraps title -> `title`
+vl.compile.tracks.key({
+  markdown_monospace_title = function(ctx, m, i)
+    local wrap = "`"
+    local title = m.tracks[i].title
+    return wrap .. title .. wrap
+  end
+})
+```
+
+Work in progress...
+
+If value returned was `nil` or an empty string it will be removed from lock
 
 ```lua
+-- Will compile but will be removed from final lock
+vl.compile.album.key({
+  nil_key = function(ctx, m)
+    return nil
+  end
+})
+-- Same with "empty_key"
 vl.compile.tracks.key({
-
-  -- will compile but will be removed from final lock
-  -- reason: output returned nil or "" AND not required
-  nil_key = {
-    output = function(value, ctx, idx)
-      return nil
-    end
-  },
-
-  -- same with "empty_key"
-  empty_key = {
-    output = function(value, ctx, idx)
-      return ""
-    end
-  },
+  empty_key = function(ctx, m, i)
+    return ""
+  end
 })
 ```
 
