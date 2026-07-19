@@ -1,4 +1,4 @@
-use crate::expand_path;
+use libvellum::utils::expand_path;
 pub use fast_image_resize::FilterType;
 use fast_image_resize::{ResizeAlg, ResizeOptions, Resizer};
 use fast_image_resize::PixelType;

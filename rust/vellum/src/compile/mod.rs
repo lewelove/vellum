@@ -1,5 +1,11 @@
-pub mod builder;
-pub mod engine;
+pub mod album;
+pub mod assets;
+pub mod build;
+pub mod context;
+pub mod covers;
+pub mod stream;
+pub mod tracks;
+pub mod utils;
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -29,7 +35,7 @@ pub struct CompileOptions {
     pub flags: Vec<String>,
     pub specific_albums: Option<Vec<PathBuf>>,
     pub jobs: Option<usize>,
-    pub notify_tx: Option<mpsc::Sender<engine::stream::AlbumUpdateSignal>>,
+    pub notify_tx: Option<mpsc::Sender<stream::AlbumUpdateSignal>>,
     pub compile_flags: CompileFlags,
 }
 
@@ -52,7 +58,7 @@ pub async fn run(mut options: CompileOptions) -> Result<()> {
 
     if options.compile_flags.mode == CompileMode::Intermediary {
         for root in &albums {
-            let m = builder::build(
+            let m = build::build(
                 root,
                 &config,
             )?;
@@ -65,7 +71,7 @@ pub async fn run(mut options: CompileOptions) -> Result<()> {
         return Ok(());
     }
 
-    let ctx = engine::stream::StreamContext {
+    let ctx = stream::StreamContext {
         albums: albums.clone(),
         config: Arc::new(config),
         target: options.compile_flags.target,
@@ -73,5 +79,5 @@ pub async fn run(mut options: CompileOptions) -> Result<()> {
         notify_tx: options.notify_tx,
     };
 
-    engine::stream::run(ctx).await
+    stream::run(ctx).await
 }

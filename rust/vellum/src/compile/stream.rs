@@ -1,4 +1,4 @@
-use crate::compile::{ExportTarget, builder, engine::verify};
+use crate::compile::{ExportTarget, build};
 use libvellum::error::VellumError;
 use anyhow::Result;
 use rayon::prelude::*;
@@ -58,7 +58,7 @@ fn spawn_builders(
             .unwrap();
         pool.install(|| {
             albums.par_iter().for_each(|ar| {
-                match builder::build(ar, &cfg) {
+                match build::build(ar, &cfg) {
                     Ok(man) => {
                         let _ = dtx.blocking_send(man);
                     }
@@ -194,22 +194,6 @@ fn finalize(
         .as_object_mut()
         .and_then(|o| o.remove("ctx"))
         .unwrap_or_else(|| json!({}));
-    let harvest = ctx.get("harvest").cloned().unwrap_or_else(|| json!([]));
-    let h_arr = harvest.as_array().map_or(&[][..], Vec::as_slice);
-
-    let default_keys = vec![
-        "album".to_string(),
-        "albumartist".to_string(),
-        "date".to_string(),
-        "genre".to_string(),
-        "comment".to_string(),
-        "title".to_string(),
-        "artist".to_string(),
-        "tracknumber".to_string(),
-        "discnumber".to_string(),
-    ];
-
-    verify::calculate_file_tag_subset_match(&mut v, h_arr, &default_keys);
 
     strip_empty_values(&mut v);
 

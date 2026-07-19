@@ -27,7 +27,7 @@ struct CurrentState {
 }
 
 struct NotificationTaskArgs {
-    notify_rx: mpsc::Receiver<compile::engine::stream::AlbumUpdateSignal>,
+    notify_rx: mpsc::Receiver<compile::stream::AlbumUpdateSignal>,
     cache_for_task: Arc<Mutex<HashMap<String, AlbumCacheEntry>>>,
     exts_for_task: Vec<String>,
     manifests_for_task: Option<Vec<String>>,
@@ -110,7 +110,7 @@ pub async fn run(
     let missing_count = missing_paths.len();
     let start_time = std::time::Instant::now();
 
-    let (notify_tx, notify_rx) = mpsc::channel::<compile::engine::stream::AlbumUpdateSignal>(100);
+    let (notify_tx, notify_rx) = mpsc::channel::<compile::stream::AlbumUpdateSignal>(100);
     let cache_arc = Arc::new(Mutex::new(cache));
 
     let task_args = NotificationTaskArgs {

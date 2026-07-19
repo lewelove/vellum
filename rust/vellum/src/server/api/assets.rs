@@ -87,11 +87,11 @@ async fn ensure_master_cover(
     let gen_result = tokio::task::spawn_blocking(move || {
         let img = image::open(&original_path).ok()?;
         let img_rgb = img.into_rgb8();
-        let filter = crate::compile::builder::assets::parse_interpolation(&master_algo_str_clone);
+        let filter = crate::compile::assets::parse_interpolation(&master_algo_str_clone);
         if let Some(parent) = blob_path_clone.parent() {
             std::fs::create_dir_all(parent).ok()?;
         }
-        if let Some(resized) = crate::compile::builder::assets::resize_image(&img_rgb, master_size, filter) {
+        if let Some(resized) = crate::compile::assets::resize_image(&img_rgb, master_size, filter) {
             resized.save_with_format(&blob_path_clone, image::ImageFormat::Qoi).ok()?;
         } else {
             img_rgb.save_with_format(&blob_path_clone, image::ImageFormat::Qoi).ok()?;
@@ -114,8 +114,8 @@ async fn create_resized_dynamic(
 ) -> Result<Vec<u8>, StatusCode> {
     let result = tokio::task::spawn_blocking(move || {
         let img = image::open(&master_path).ok()?.into_rgb8();
-        let filter = crate::compile::builder::assets::parse_interpolation(&algo);
-        let resized = crate::compile::builder::assets::resize_image(&img, width, filter)?;
+        let filter = crate::compile::assets::parse_interpolation(&algo);
+        let resized = crate::compile::assets::resize_image(&img, width, filter)?;
         let mut bmp_buf = Vec::new();
         let mut cursor = std::io::Cursor::new(&mut bmp_buf);
         resized.write_to(&mut cursor, image::ImageFormat::Bmp).ok()?;
