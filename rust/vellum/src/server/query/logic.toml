@@ -3,13 +3,6 @@ label = "All"
 sql.where = '''
 1 = 1
 '''
-
-[groupers.genre]
-label = "Genre"
-sql.select = '''
-json_extract(metadata, '$.album.genre')
-'''
-
 [groupers.artists]
 label = "Artists"
 index = true
@@ -29,13 +22,13 @@ substr(json_extract(metadata, '$.album.date'), 1, 3) || '0s'
 [groupers.total_tracks]
 label = "Total Tracks"
 sql.select = '''
-CAST(json_extract(metadata, '$.album.total_tracks') AS TEXT)
+CAST(json_extract(metadata, '$.album.info.total_tracks') AS TEXT)
 '''
 
 [groupers.total_discs]
 label = "Total Discs"
 sql.select = '''
-CAST(COALESCE(json_extract(metadata, '$.album.total_discs'), 1) AS TEXT)
+CAST(COALESCE(json_extract(metadata, '$.album.info.total_discs'), 1) AS TEXT)
 '''
 
 [groupers.year_added]
@@ -112,7 +105,7 @@ json_extract(metadata, '$.album.info.date_added') DESC
 [orders.last_edited]
 label = "Last Edited"
 sql.order_by = '''
-COALESCE(json_extract(metadata, '$.album.manifests[0].file.mtime'), 0) DESC
+COALESCE(json_extract(metadata, '$.album.manifests.metadata.file.mtime'), 0) DESC
 '''
 
 [libraries.library]

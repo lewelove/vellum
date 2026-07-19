@@ -316,12 +316,11 @@ impl QueryEngine {
                         "album": album.get("album"),
                         "albumartist": album.get("albumartist"),
                         "date": album.get("date"),
-                        "genre": album.get("genre"),
                         "cover_path": album.get("covers").and_then(|c| c.get("main")).and_then(|m| m.get("file")).and_then(|f| f.get("path")),
-                        "cover_hash": album.get("covers").and_then(|c| c.get("main")).and_then(|m| m.get("file")).and_then(|f| f.get("hash")).and_then(|h| h.get("address")),
+                        "cover_hash": album.get("covers").and_then(|c| c.get("main")).and_then(|m| m.get("file")).and_then(|f| f.get("address")),
                         "duration_formatted": info.get("duration_formatted"),
-                        "total_discs": album.get("total_discs"),
-                        "total_tracks": album.get("total_tracks"),
+                        "total_discs": info.get("total_discs"),
+                        "total_tracks": info.get("total_tracks"),
                         "unix_added": info.get("date_added"),
                         "keys": album.get("keys")
                     });
