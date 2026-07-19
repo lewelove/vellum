@@ -29,6 +29,25 @@ fn is_virtual_album(album_root: &Path) -> bool {
     false
 }
 
+fn sort_json_keys(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            let mut entries: Vec<(String, Value)> = std::mem::take(map).into_iter().collect();
+            entries.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+            for (k, mut v) in entries {
+                sort_json_keys(&mut v);
+                map.insert(k, v);
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                sort_json_keys(v);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn resolve_cover_data(
     album_root: &Path,
     config: &libvellum::lua::ResolvedConfig,
@@ -133,7 +152,8 @@ fn build_final_tracks(
             found_val: "missing".to_string(),
         })?.to_string();
 
-        let t_keys = track_keys_array.and_then(|arr| arr.get(i)).cloned().unwrap_or_else(|| json!({}));
+        let mut t_keys = track_keys_array.and_then(|arr| arr.get(i)).cloned().unwrap_or_else(|| json!({}));
+        sort_json_keys(&mut t_keys);
 
         let ctx_track = &ctx_tracks[i];
 
@@ -197,6 +217,38 @@ fn parse_mandatory_album_fields(
     Ok((albumartist, album, date))
 }
 
+fn validate_audio_files(
+    is_virtual: bool,
+    audio_files: &[std::path::PathBuf],
+    primary_tracks: &[Value],
+    album_root: &Path,
+) -> Result<(), VellumError> {
+    if !is_virtual && audio_files.len() != primary_tracks.len() {
+        return Err(VellumError::PhysicalInventoryMismatch {
+            path: album_root.to_path_buf(),
+            files_count: audio_files.len(),
+            tracks_count: primary_tracks.len(),
+        });
+    }
+    validate_track_indices(primary_tracks, album_root)?;
+    Ok(())
+}
+
+fn generate_lock_manifests(
+    parsed_manifests: &serde_json::Map<String, Value>,
+    album_root: &Path,
+) -> HashMap<String, Value> {
+    let mut lock_manifests = HashMap::new();
+    for (name, _) in parsed_manifests {
+        let file_name = if name == "local" { "local.toml".to_string() } else { format!("{name}.toml") };
+        let abs_p = album_root.join(&file_name);
+        if let Ok(info) = libvellum::utils::get_file_info(&abs_p, &file_name, false) {
+            lock_manifests.insert(name.clone(), json!({ "file": info }));
+        }
+    }
+    lock_manifests
+}
+
 pub fn build(
     album_root: &Path,
     config: &libvellum::lua::ResolvedConfig,
@@ -213,24 +265,9 @@ pub fn build(
 
     let is_virtual = is_virtual_album(album_root);
 
-    if !is_virtual && audio_files.len() != primary_tracks.len() {
-        return Err(VellumError::PhysicalInventoryMismatch {
-            path: album_root.to_path_buf(),
-            files_count: audio_files.len(),
-            tracks_count: primary_tracks.len(),
-        });
-    }
+    validate_audio_files(is_virtual, &audio_files, primary_tracks, album_root)?;
 
-    validate_track_indices(primary_tracks, album_root)?;
-
-    let mut lock_manifests = HashMap::new();
-    for (name, _) in &parsed_manifests {
-        let file_name = if name == "local" { "local.toml".to_string() } else { format!("{name}.toml") };
-        let abs_p = album_root.join(&file_name);
-        if let Ok(info) = libvellum::utils::get_file_info(&abs_p, &file_name, false) {
-            lock_manifests.insert(name.clone(), json!({ "file": info }));
-        }
-    }
+    let lock_manifests = generate_lock_manifests(&parsed_manifests, album_root);
 
     let total_discs = libvellum::resolvers::calculate_total_discs(primary_tracks);
     let total_tracks = primary_tracks.len() as u32;
@@ -256,7 +293,9 @@ pub fn build(
         engine.execute_dispatcher(&ctx, &manifests_json)
     }).map_err(|e| VellumError::ManifestParseError { path: album_root.to_path_buf(), source: toml::de::Error::custom(e.to_string()) })?; 
 
-    let album_keys = lua_res.get("album").cloned().unwrap_or_else(|| json!({}));
+    let mut album_keys = lua_res.get("album").cloned().unwrap_or_else(|| json!({}));
+    sort_json_keys(&mut album_keys);
+
     let track_keys_array = lua_res.get("tracks").and_then(Value::as_array);
 
     let empty_album = json!({});
@@ -264,19 +303,25 @@ pub fn build(
     
     let (albumartist, album, date) = parse_mandatory_album_fields(primary_album, album_root)?;
 
-    let date_added = if is_virtual {
-        chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
-    } else {
-        libvellum::resolvers::resolve_album_info_date_added(album_root, primary_album, config)?
-    };
+    let date_added = libvellum::resolvers::resolve_album_info_date_added(album_root, primary_album, config)?;
 
     let info_obj = json!({
+        "virtual": is_virtual,
         "total_discs": total_discs,
         "total_tracks": total_tracks,
         "date_added": date_added,
         "duration_milliseconds": duration_sum_ms,
         "duration_formatted": libvellum::resolvers::format_ms(duration_sum_ms),
     });
+
+    let final_tracks = build_final_tracks(
+        primary_tracks,
+        &albumartist,
+        track_keys_array,
+        &ctx_tracks,
+        album_root,
+        total_discs,
+    )?;
 
     let mut album_obj = serde_json::Map::new();
     album_obj.insert("albumartist".to_string(), json!(albumartist));
@@ -293,15 +338,6 @@ pub fn build(
         json!({ "main": { "file": cover_file_info } })
     };
     album_obj.insert("covers".to_string(), covers_entry);
-
-    let final_tracks = build_final_tracks(
-        primary_tracks,
-        &albumartist,
-        track_keys_array,
-        &ctx_tracks,
-        album_root,
-        total_discs,
-    )?;
 
     let mut final_json = serde_json::Map::new();
     final_json.insert("album".to_string(), Value::Object(album_obj));
