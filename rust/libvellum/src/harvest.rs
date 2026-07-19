@@ -31,15 +31,18 @@ pub struct PhysicsData {
 
 #[must_use] 
 pub fn sanitize_key(key: &str) -> String {
-    key.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c.to_ascii_lowercase()
-            } else {
-                '_'
-            }
-        })
-        .collect()
+    let mut out = String::new();
+    let mut last_was_under = false;
+    for c in key.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+            last_was_under = false;
+        } else if !last_was_under {
+            out.push('_');
+            last_was_under = true;
+        }
+    }
+    out.trim_matches('_').to_string()
 }
 
 pub fn harvest_file(path: &Path) -> Result<TrackJson> {

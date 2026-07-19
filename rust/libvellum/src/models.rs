@@ -18,7 +18,10 @@ pub struct HashInfo {
 pub struct FileInfo {
     #[serde(default)]
     pub path: String,
-    pub hash: Option<HashInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
     #[serde(default)]
     pub mtime: u64,
     #[serde(default)]
@@ -42,6 +45,8 @@ pub struct CoversEntry {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AlbumInfo {
+    pub total_discs: u32,
+    pub total_tracks: u32,
     #[serde(default)]
     pub date_added: String,
     #[serde(default)]
@@ -56,26 +61,13 @@ pub struct AlbumInfo {
 pub struct AlbumLock {
     pub albumartist: String,
     pub album: String,
-    #[serde(default)]
-    pub comment: String,
-    #[serde(default)]
     pub date: String,
-    #[serde(default)]
-    pub original_date: String,
-    #[serde(default)]
-    pub release_date: String,
-    #[serde(default)]
-    pub genre: Vec<String>,
-    #[serde(default)]
-    pub styles: Vec<String>,
-    pub total_discs: u32,
-    pub total_tracks: u32,
     pub id: String,
     #[serde(default)]
     pub keys: HashMap<String, serde_json::Value>,
     pub info: AlbumInfo,
     #[serde(default)]
-    pub manifests: Vec<ManifestEntry>,
+    pub manifests: HashMap<String, ManifestEntry>,
     pub covers: Option<CoversEntry>,
 }
 
@@ -110,11 +102,12 @@ pub struct TrackLock {
     pub tracknumber: u32,
     pub artist: String,
     pub title: String,
-    pub lyrics: Option<LyricsEntry>,
     #[serde(default)]
     pub keys: HashMap<String, serde_json::Value>,
     pub info: TrackInfo,
     pub file: FileInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lyrics: Option<LyricsEntry>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

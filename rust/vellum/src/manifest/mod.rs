@@ -6,7 +6,6 @@ use libvellum::utils::expand_path;
 use libvellum::harvest::harvest_file;
 use anyhow::{Context, Result};
 use rayon::prelude::*;
-use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -32,7 +31,6 @@ pub fn run(target_path: Option<PathBuf>, options: &ManifestOptions) -> Result<()
         .as_ref().map_or_else(|| vec![".flac".to_string()], |exts: &Vec<String>| exts.iter().map(|e| e.to_lowercase()).collect());
 
     let grouping_keys = vec!["albumartist".to_string(), "album".to_string()];
-    let manifest_layout = config.app.manifest.keys.as_ref();
 
     let scan_root = match options.mode {
         ManifestMode::Library => target_path.unwrap_or_else(|| lib_root.clone()),
@@ -57,40 +55,17 @@ pub fn run(target_path: Option<PathBuf>, options: &ManifestOptions) -> Result<()
     }
 
     let buckets = grouper::group_tracks(harvested, &grouping_keys);
-    let unique_manifests = get_unique_manifests(manifest_layout);
 
     for (_group_id, tracks) in buckets {
-        process_album_group(tracks, &unique_manifests, &supported_exts, manifest_layout, options)?;
+        process_album_group(tracks, &supported_exts, options)?;
     }
 
     Ok(())
 }
 
-fn get_unique_manifests(layout: Option<&indexmap::IndexMap<String, libvellum::lua::config::ManifestKeyConfig>>) -> Vec<String> {
-    let mut unique_manifests = HashSet::new();
-    unique_manifests.insert("metadata".to_string());
-    if let Some(lay) = layout {
-        for cfg in lay.values() {
-            if let Some(manifests_str) = &cfg.manifests {
-                for m in manifests_str.split(',') {
-                    let m = m.trim();
-                    if !m.is_empty() {
-                        unique_manifests.insert(m.to_string());
-                    }
-                }
-            }
-        }
-    }
-    let mut sorted = unique_manifests.into_iter().collect::<Vec<_>>();
-    sorted.sort();
-    sorted
-}
-
 fn process_album_group(
     mut tracks: Vec<(PathBuf, serde_json::Map<String, serde_json::Value>)>,
-    manifest_names: &[String],
     supported_exts: &[String],
-    manifest_layout: Option<&indexmap::IndexMap<String, libvellum::lua::config::ManifestKeyConfig>>,
     options: &ManifestOptions,
 ) -> Result<()> {
     let validate_exclusivity = match options.mode {
@@ -114,33 +89,27 @@ fn process_album_group(
         })
         .collect();
 
-    for manifest_name in manifest_names {
-        let (album_pool, track_pools) =
-            compressor::compress(clean_tracks.clone(), manifest_layout, manifest_name);
+    let (album_pool, track_pools) = compressor::compress(clean_tracks);
 
-        let toml_content = serialize_manifest(&album_pool, &track_pools, manifest_layout, manifest_name);
-        if toml_content.trim().is_empty() {
-            continue;
+    let toml_content = serialize_manifest(&album_pool, &track_pools);
+    if toml_content.trim().is_empty() {
+        return Ok(());
+    }
+
+    if options.stdout {
+        println!("{toml_content}");
+    } else {
+        let out_path = anchor.join("metadata.toml");
+        if !options.force && out_path.exists() {
+            log::warn!(
+                "Existing metadata.toml detected in {}. Use --force to overwrite.",
+                anchor.display()
+            );
+            return Ok(());
         }
 
-        if options.stdout {
-            if manifest_names.len() > 1 {
-                println!("--- {manifest_name}.toml ---");
-            }
-            println!("{toml_content}");
-        } else {
-            let out_path = anchor.join(format!("{manifest_name}.toml"));
-            if !options.force && out_path.exists() {
-                log::warn!(
-                    "Existing {manifest_name}.toml detected in {}. Use --force to overwrite.",
-                    anchor.display()
-                );
-                continue;
-            }
-
-            fs::write(&out_path, &toml_content)?;
-            log::info!("Generated {manifest_name} manifest: {}", out_path.display());
-        }
+        fs::write(&out_path, &toml_content)?;
+        log::info!("Generated metadata manifest: {}", out_path.display());
     }
 
     if !options.stdout {
@@ -244,11 +213,9 @@ fn harvest_audio_files(
 fn serialize_manifest(
     album_pool: &serde_json::Map<String, serde_json::Value>,
     track_pools: &[serde_json::Map<String, serde_json::Value>],
-    manifest_layout: Option<&indexmap::IndexMap<String, libvellum::lua::config::ManifestKeyConfig>>,
-    target_manifest: &str,
 ) -> String {
     let mut toml_content = String::new();
-    let album_lines = engine::render_toml_block(album_pool, manifest_layout, "album", target_manifest);
+    let album_lines = engine::render_toml_block(album_pool);
     if !album_lines.is_empty() {
         toml_content.push_str("[album]\n");
         toml_content.push_str(&album_lines.join("\n"));
@@ -256,7 +223,7 @@ fn serialize_manifest(
     }
 
     for tp in track_pools {
-        let track_lines = engine::render_toml_block(tp, manifest_layout, "track", target_manifest);
+        let track_lines = engine::render_toml_block(tp);
         if !track_lines.is_empty() {
             toml_content.push_str("[[tracks]]\n");
             toml_content.push_str(&track_lines.join("\n"));

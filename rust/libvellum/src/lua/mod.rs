@@ -1,32 +1,25 @@
 pub mod config;
 
 use anyhow::{Context, Result};
-use config::{AppConfig, CoversConfig, InterfaceConfig, ActionConfig, KeyConfig};
+use config::{ActionConfig, AppConfig, CoversConfig, InterfaceConfig};
 use indexmap::IndexMap;
 use mlua::{Lua, LuaSerdeExt, Table};
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-const BOOTSTRAP: &str = include_str!("bootstrap.lua");
+const LUA_CORE: &str = include_str!("core.lua");
+const LUA_UTILS: &str = include_str!("utils.lua");
+const LUA_CONFIG: &str = include_str!("config.lua");
+const LUA_COMPILER: &str = include_str!("compiler.lua");
 
 pub struct LuaEngine {
     pub lua: Lua,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct KeyConfigRaw {
-    pub name: String,
-    pub level: String,
-    #[serde(rename = "type")]
-    pub type_: crate::types::VellumDataType,
-}
-
 pub struct EvaluatedLuaData {
     pub app: AppConfig,
     pub covers: IndexMap<String, CoversConfig>,
-    pub keys: IndexMap<String, KeyConfig>,
     pub interfaces: HashMap<String, InterfaceConfig>,
     pub actions: HashMap<String, ActionConfig>,
     pub dependencies: Vec<PathBuf>,
@@ -35,10 +28,22 @@ pub struct EvaluatedLuaData {
 impl LuaEngine {
     pub fn new() -> Result<Self> {
         let lua = Lua::new();
-        lua.load(BOOTSTRAP)
+        lua.load(LUA_CORE)
             .exec()
             .map_err(|e| anyhow::anyhow!("{e}"))
-            .context("Failed to load Lua bootstrap")?;
+            .context("Failed to load core.lua")?;
+        lua.load(LUA_UTILS)
+            .exec()
+            .map_err(|e| anyhow::anyhow!("{e}"))
+            .context("Failed to load utils.lua")?;
+        lua.load(LUA_CONFIG)
+            .exec()
+            .map_err(|e| anyhow::anyhow!("{e}"))
+            .context("Failed to load config.lua")?;
+        lua.load(LUA_COMPILER)
+            .exec()
+            .map_err(|e| anyhow::anyhow!("{e}"))
+            .context("Failed to load compiler.lua")?;
         Ok(Self { lua })
     }
 
@@ -81,26 +86,6 @@ impl LuaEngine {
             .from_value(mlua::Value::Table(covers_table))
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-        let get_keys: mlua::Function = globals
-            .get("__VELLUM_GET_KEYS")
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
-        let keys_table: Table = get_keys.call(()).map_err(|e| anyhow::anyhow!("{e}"))?;
-        let keys_raw: Vec<KeyConfigRaw> = self
-            .lua
-            .from_value(mlua::Value::Table(keys_table))
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
-
-        let mut keys = IndexMap::new();
-        for k in keys_raw {
-            keys.insert(
-                k.name,
-                KeyConfig {
-                    level: k.level,
-                    type_: k.type_,
-                },
-            );
-        }
-
         let get_interfaces: mlua::Function = globals
             .get("__VELLUM_GET_INTERFACES")
             .map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -137,14 +122,13 @@ impl LuaEngine {
         Ok(EvaluatedLuaData {
             app: app_config,
             covers,
-            keys,
             interfaces,
             actions,
             dependencies,
         })
     }
 
-    pub fn execute_dispatcher(&self, ctx_val: &serde_json::Value) -> Result<serde_json::Value> {
+    pub fn execute_dispatcher(&self, ctx_val: &serde_json::Value, manifests_val: &serde_json::Value) -> Result<serde_json::Value> {
         let globals = self.lua.globals();
         let dispatcher: mlua::Function = globals
             .get("__VELLUM_DISPATCHER")
@@ -152,12 +136,21 @@ impl LuaEngine {
 
         let mut cleaned_ctx = ctx_val.clone();
         strip_nulls(&mut cleaned_ctx);
+        
+        let mut cleaned_manifests = manifests_val.clone();
+        strip_nulls(&mut cleaned_manifests);
 
         let lua_ctx = self
             .lua
             .to_value(&cleaned_ctx)
             .map_err(|e| anyhow::anyhow!("{e}"))?;
-        let res: mlua::Table = dispatcher.call(lua_ctx).map_err(|e| anyhow::anyhow!("{e}"))?;
+            
+        let lua_manifests = self
+            .lua
+            .to_value(&cleaned_manifests)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+            
+        let res: mlua::Table = dispatcher.call((lua_ctx, lua_manifests)).map_err(|e| anyhow::anyhow!("{e}"))?;
 
         let json_res: serde_json::Value = self
             .lua
@@ -224,7 +217,6 @@ pub fn resolve_config_path() -> Option<PathBuf> {
 pub struct ResolvedConfig {
     pub app: AppConfig,
     pub covers: IndexMap<String, CoversConfig>,
-    pub keys: IndexMap<String, KeyConfig>,
     pub interfaces: HashMap<String, InterfaceConfig>,
     pub actions: HashMap<String, ActionConfig>,
     pub dependencies: Vec<PathBuf>,
@@ -268,7 +260,6 @@ impl ResolvedConfig {
         Ok(Self {
             app: evaluated.app,
             covers: evaluated.covers,
-            keys: evaluated.keys,
             interfaces: evaluated.interfaces,
             actions: evaluated.actions,
             dependencies,

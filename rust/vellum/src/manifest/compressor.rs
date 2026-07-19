@@ -1,50 +1,14 @@
-use crate::harvest::sanitize_key;
-use indexmap::IndexMap;
-use libvellum::lua::config::ManifestKeyConfig;
 use serde_json::Value;
 use std::collections::HashSet;
 
-pub fn get_key_manifests(key: &str, layout: Option<&IndexMap<String, ManifestKeyConfig>>) -> Vec<String> {
-    let s_key = sanitize_key(key);
-    if let Some(lay) = layout {
-        for (k, cfg) in lay {
-            if sanitize_key(k) == s_key {
-                if let Some(manifests_str) = &cfg.manifests {
-                    return manifests_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-                }
-                break;
-            }
-        }
-    }
-    vec!["metadata".to_string()]
-}
-
 pub fn compress(
     mut raw_tracks: Vec<serde_json::Map<String, Value>>,
-    manifest_layout: Option<&IndexMap<String, ManifestKeyConfig>>,
-    target_manifest: &str,
 ) -> (
     serde_json::Map<String, Value>,
     Vec<serde_json::Map<String, Value>>,
 ) {
     if raw_tracks.is_empty() {
         return (serde_json::Map::new(), Vec::new());
-    }
-
-    let mut forced_track_keys = HashSet::new();
-    if let Some(layout) = manifest_layout {
-        for (key, cfg) in layout {
-            if cfg.level == "track" || cfg.level == "tracks" {
-                forced_track_keys.insert(sanitize_key(key));
-            }
-        }
-    }
-
-    for track in &mut raw_tracks {
-        track.retain(|k, _| {
-            let manifest_names = get_key_manifests(k, manifest_layout);
-            manifest_names.contains(&target_manifest.to_string())
-        });
     }
 
     let first_track = &raw_tracks[0];
@@ -57,14 +21,15 @@ pub fn compress(
     let mut album_pool = serde_json::Map::new();
     let mut keys_to_promote = Vec::new();
 
+    let forced_track_keys: HashSet<&str> = ["tracknumber", "discnumber", "title"].into_iter().collect();
+
     for key in candidate_keys {
         let is_identical = raw_tracks
             .iter()
             .all(|t| t.get(&key) == first_track.get(&key));
 
         if is_identical {
-            let s_key = sanitize_key(&key);
-            if forced_track_keys.contains(&s_key) {
+            if forced_track_keys.contains(key.as_str()) {
                 continue;
             }
             keys_to_promote.push(key.clone());

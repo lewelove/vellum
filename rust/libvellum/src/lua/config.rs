@@ -1,4 +1,3 @@
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -63,17 +62,6 @@ impl Default for StorageConfig {
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ManifestConfig {
     pub audio_files: Option<Vec<String>>,
-    pub keys: Option<IndexMap<String, ManifestKeyConfig>>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ManifestKeyConfig {
-    pub level: String,
-    #[serde(rename = "type")]
-    pub type_: Option<String>,
-    #[serde(default)]
-    pub newline: bool,
-    pub manifests: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -88,11 +76,4 @@ pub struct CompilerConfig {
 pub struct CoversConfig {
     pub interpolation: Option<String>,
     pub size: u32,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct KeyConfig {
-    pub level: String,
-    #[serde(rename = "type")]
-    pub type_: crate::types::VellumDataType,
 }

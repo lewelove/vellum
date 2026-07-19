@@ -65,8 +65,7 @@ fn spawn_builders(
                     Err(e) => match e {
                         VellumError::ManifestIoError(_) 
                         | VellumError::ManifestParseError { .. }
-                        | VellumError::JsonError(_) 
-                        | VellumError::MissingCompilerRegistry => {
+                        | VellumError::JsonError(_) => {
                             log::error!("SYSTEM FAILURE: {e}");
                         }
                         _ => {
