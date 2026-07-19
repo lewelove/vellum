@@ -92,8 +92,6 @@ pub struct TrackInfo {
     pub duration_milliseconds: u64,
     #[serde(default)]
     pub duration_formatted: String,
-    #[serde(default)]
-    pub embedded_keys_subset_match: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

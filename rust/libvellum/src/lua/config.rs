@@ -67,7 +67,6 @@ pub struct ManifestConfig {
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct CompilerConfig {
     pub date_added: Option<Vec<String>>,
-    pub file_subset_match: Option<Vec<String>>,
     pub manifests: Option<Vec<String>>,
     pub scan_depth: Option<usize>,
 }
