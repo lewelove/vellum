@@ -2,9 +2,7 @@
 
 This function provides config for `"keys": {}` population in `album.lock.json`. It consumes manifests in album folder, creates intermediary `ctx`, calculates the output and returns the value to be written in lock.
 
-## Specifications
-
-### How function() variables are created:
+## How function() variables are created
 
 For `ctx`:
 - Finds all audio files at any depth.
@@ -41,7 +39,8 @@ local ctx = {
   config = {}
 
   id = "", -- Album root directory path relative to `config.storage.library`.
-  total_files = 1, -- Total number of audio files.
+  total_discs = 1, -- Total number of discs from manifests.
+  total_tracks = 1, -- Total number of audio files.
   duration_milliseconds = 1, -- Sum of all tracks[idx]
 
   -- For every audio file found at any depth -> 
@@ -88,13 +87,13 @@ local manifests = {
 }
 ```
 
-### Helper Functions
+## Helper Functions
 
 There is a built-in set of `vl.fn` functions that can be used *inside* `key_name = function()` to execute useful logic without lots of Lua boilerplate.
 
 #### vl.fn.type_check
 
-Checks input value (usually provided by `manifests` table) for one of Vellum Types, else throws error.
+Checks input value (usually provided by `manifests` table) for one of Vellum Types, else throws error. Can be used on empty (nil or "") values, which will pass it, as this logic is delegated to `vl.fn.require()`.
 
 ```lua
 vl.fn.type_check(value, "vellum_type")
@@ -108,7 +107,7 @@ Checks if the value passed is `nil` or not. If `nil` throws error.
 vl.fn.require(value)
 ```
 
-### Album level key specification:
+### Album level key specification
 
 The key name provided must be always a `function()` that returns value. For `album` level this function consumes two arguments: `ctx` and `manifests`. The function is evaluated once per album.
 
@@ -123,14 +122,14 @@ vl.compile.album.key({
 })
 ```
 
-The `album` shorthands:
+The `album` short-hands:
 
 ```lua
 -- "album" -> "a"
 vl.compile.a.key({ key_name = function(ctx, m) return "I am truncated!" end })
 ```
 
-### Track level key specification:
+## Track level key specification
 
 For `tracks` level key name must be a function that returns value, just like in `album`. The only difference is that it evaluates for each individual track separately, and thus require the additional `idx` argument, that is always equal to `idx` of track evaluated.
 
@@ -145,7 +144,7 @@ vl.compile.album.key({
 })
 ```
 
-The `tracks` shorthands:
+The `tracks` short-hands:
 
 ```lua
 -- "tracks" -> "track" -> "t"
@@ -153,7 +152,7 @@ vl.compile.track.key({ key_name = function(ctx, m, i) return "hi" end  })
 vl.compile.t.key({ key_name = function(ctx, m, i) return "thanks for reading docs..." end })
 ```
 
-### More Examples:
+## More Examples
 
 Each function can be expressed only in separate blocks.
 
@@ -219,18 +218,7 @@ vl.compile.tracks.key({
 })
 ```
 
-This will never compile:
+## Built-In Lock Values Logic
 
-```lua
-vl.compile.tracks.key({
+This section describes Lua logic for the basic `album.lock.json` values (not `"keys": {}`), which computation is fully delegated to Lua from the same `ctx` and `manifests` tables passed into compile function. For this purpose `vl.compile` is used also, each function can be overridden in config, which is not recommended, but still it is possible. Each of them holds single album / tracks level `function()` that returns a value.
 
-  -- will always throw a compile error
-  -- reason: output returned nil AND is required
-  error_key = {
-    required = true,
-    output = function(value, ctx, idx)
-      return nil
-    end
-  },
-})
-```
