@@ -21,15 +21,16 @@
 
   let albumData = $derived(album.album || {});
   let infoData = $derived(albumData.info || {});
+  let keysData = $derived(albumData.keys || {});
 
-  let coverHash = $derived(albumData.covers?.main?.file?.hash?.address || "");
+  let coverHash = $derived(albumData.covers?.main?.file?.address || "");
   let title = $derived(albumData.album || "Untitled");
   let artist = $derived(albumData.albumartist || "Unknown");
-  let genreString = $derived(Array.isArray(albumData.genre) ? albumData.genre.join(" ; ") : (albumData.genre || ""));
+  let genreString = $derived(Array.isArray(keysData.genre) ? keysData.genre.join(" ; ") : (keysData.genre || ""));
   let dateString = $derived(albumData.date || "");
 
-  let discCount = $derived(parseInt(albumData.total_discs || "1"));
-  let trackCount = $derived(parseInt(albumData.total_tracks || "0"));
+  let discCount = $derived(Number(infoData.total_discs) || 1);
+  let trackCount = $derived(Number(infoData.total_tracks) || 0);
   let durationStr = $derived(infoData.duration_formatted || "--:--");
 
   function fadeIf(node: Element, params: any) {
@@ -165,7 +166,7 @@
           <div class="v-scroll-fade-top"></div>
           <ModalDrawerTracks 
             tracks={album.tracks || []} 
-            totalDiscs={albumData.total_discs} 
+            totalDiscs={infoData.total_discs} 
             albumArtist={artist}
             onplay={handlePlayTrack} 
             onplaydisc={handlePlayDisc}

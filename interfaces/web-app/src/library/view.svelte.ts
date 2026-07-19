@@ -252,20 +252,17 @@ export class ViewState {
             album: dictEntry.album,
             albumartist: dictEntry.albumartist,
             date: dictEntry.date,
-            genre: dictEntry.genre,
-            total_discs: dictEntry.total_discs,
-            total_tracks: dictEntry.total_tracks,
             keys: dictEntry.keys,
             covers: {
               main: {
                 file: {
-                  hash: {
-                    address: dictEntry.cover_hash
-                  }
+                  address: dictEntry.cover_hash
                 }
               }
             },
             info: {
+              total_discs: dictEntry.total_discs,
+              total_tracks: dictEntry.total_tracks,
               duration_formatted: dictEntry.duration_formatted
             }
           },

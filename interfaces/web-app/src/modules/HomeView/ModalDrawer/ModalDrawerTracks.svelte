@@ -1,20 +1,20 @@
 <script lang="ts">
   let { 
     tracks =[], 
-    totalDiscs = "1", 
+    totalDiscs = 1, 
     albumArtist = "",
     onplay, 
     onplaydisc 
   }: { 
     tracks?: any[], 
-    totalDiscs?: string, 
+    totalDiscs?: string | number, 
     albumArtist?: string, 
     onplay?: (index: number) => void, 
     onplaydisc?: (disc: number) => void 
   } = $props();
 
   let selectedIndex = $state(-1);
-  let multiDisc = $derived(parseInt(totalDiscs) > 1);
+  let multiDisc = $derived(Number(totalDiscs) > 1);
 
   function formatDuration(str: string) {
     if (!str) return "0:00";

@@ -134,7 +134,7 @@
             </div>
           {/if}
 
-          {@const isMultiDiscAlbum = group.albumMeta && parseInt(group.albumMeta.total_discs || "1") > 1}
+          {@const isMultiDiscAlbum = group.albumMeta && Number(group.albumMeta.total_discs || 1) > 1}
 
           {#each group.tracks as track, i (track.id)}
             {@const showDiscHeader = isMultiDiscAlbum && (i === 0 || track.discNo !== group.tracks[i-1].discNo)}
