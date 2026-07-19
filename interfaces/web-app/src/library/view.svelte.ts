@@ -261,6 +261,7 @@ export class ViewState {
               }
             },
             info: {
+              virtual: dictEntry.virtual,
               total_discs: dictEntry.total_discs,
               total_tracks: dictEntry.total_tracks,
               duration_formatted: dictEntry.duration_formatted

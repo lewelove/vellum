@@ -62,6 +62,7 @@ class CollectionStore {
           total_discs: a.total_discs,
           total_tracks: a.total_tracks,
           duration_formatted: a.duration_formatted,
+          virtual: a.virtual,
           keys: a.keys
       } : null;
     }).filter(Boolean);
