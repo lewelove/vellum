@@ -3,6 +3,14 @@
   import ClearCover from "../ClearCover.svelte";
 
   let { coverHash = "", width = $bindable(0) }: { coverHash?: string, width?: number } = $props();
+
+  let persistentHash = $state(coverHash);
+
+  $effect(() => {
+    if (player.currentFile) {
+      persistentHash = coverHash;
+    }
+  });
 </script>
 
 <div class="cover-wrapper v-glass">
@@ -13,7 +21,7 @@
     <div class="cover-absolute-wrapper">
       {#if width > 0}
         <ClearCover 
-          hash={coverHash} 
+          hash={persistentHash} 
           width={width} 
           height={width} 
         />
