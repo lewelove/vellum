@@ -87,26 +87,6 @@ local manifests = {
 }
 ```
 
-## Helper Functions
-
-There is a built-in set of `vl.fn` functions that can be used *inside* `key_name = function()` to execute useful logic without lots of Lua boilerplate.
-
-#### vl.fn.type_check
-
-Checks input value (usually provided by `manifests` table) for one of Vellum Types, else throws error. Can be used on empty (nil or "") values, which will pass it, as this logic is delegated to `vl.fn.require()`.
-
-```lua
-vl.fn.type_check(value, "vellum_type")
-```
-
-#### vl.fn.require
-
-Checks if the value passed is `nil` or not. If `nil` throws error.
-
-```lua
-vl.fn.require(value)
-```
-
 ### Album level key specification
 
 The key name provided must be always a `function()` that returns value. For `album` level this function consumes two arguments: `ctx` and `manifests`. The function is evaluated once per album.
@@ -149,10 +129,29 @@ The `tracks` short-hands:
 ```lua
 -- "tracks" -> "track" -> "t"
 vl.compile.track.key({ key_name = function(ctx, m, i) return "hi" end  })
-vl.compile.t.key({ key_name = function(ctx, m, i) return "thanks for reading docs..." end })
+vl.compile.t.key({ key_name = function(ctx, m, i) return "thank you for reading docs..." end })
 ```
 
-## More Examples
+## More Cool Examples
+
+If `id.toml` is present and it has `album.musicbrainz_releaseid`, generate the MusicBrainz URL.
+
+```lua
+-- Result:
+-- [album.lock.json].album.keys.musicbrainz_release_url = "https://musicbrainz.org/release/{id}"
+vl.compile.album.key({
+  musicbrainz_release_url = function(ctx, manifests)
+    local id = manifests.id.album.musicbrainz_releaseid
+    local url = "https://musicbrainz.org/release/"
+    vl.fn.type_check(id, "string") -- `album.musicbrainz_releaseid` in `id.toml` must be a string
+    return id and (url .. id)
+  end
+})
+```
+
+Work in progress...
+
+## Syntax Specs
 
 Each function can be expressed only in separate blocks.
 
@@ -171,37 +170,7 @@ vl.compile.album.key({
 })
 ```
 
-Some other cool examples:
-
-```lua
--- Type check for string, require tag to exist in id.toml manifest
-vl.compile.album.key({
-  musicbrainz_release_url = function(ctx, manifests)
-    local id = manifests.id.album.musicbrainz_releaseid
-    local url = "https://musicbrainz.org/release/"
-    vl.fn.require(id) -- `album.musicbrainz_releaseid` in `id.toml` must exist
-    vl.fn.type_check(id, "string") -- `album.musicbrainz_releaseid` in `id.toml` must be a string
-    return url .. id
-    -- Result:
-    -- [album.lock.json].album.keys.musicbrainz_release_url = "https://musicbrainz.org/release/{id}"
-  end
-})
-```
-
-```lua
--- Wraps title -> `title`
-vl.compile.tracks.key({
-  markdown_monospace_title = function(ctx, m, i)
-    local wrap = "`"
-    local title = m.tracks[i].title
-    return wrap .. title .. wrap
-  end
-})
-```
-
-Work in progress...
-
-If value returned was `nil` or an empty string it will be removed from lock
+If value returned was `nil` or an empty string it will be removed from lock.
 
 ```lua
 -- Will compile but will be removed from final lock
@@ -217,8 +186,3 @@ vl.compile.tracks.key({
   end
 })
 ```
-
-## Built-In Lock Values Logic
-
-This section describes Lua logic for the basic `album.lock.json` values (not `"keys": {}`), which computation is fully delegated to Lua from the same `ctx` and `manifests` tables passed into compile function. For this purpose `vl.compile` is used also, each function can be overridden in config, which is not recommended, but still it is possible. Each of them holds single album / tracks level `function()` that returns a value.
-
