@@ -1,7 +1,7 @@
 use libvellum::error::VellumError;
 use serde_json::{Value, json};
 use std::path::Path;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 pub fn is_virtual_album(album_root: &Path) -> bool {
     let system_path = album_root.join("system.toml");
@@ -44,8 +44,8 @@ pub fn parse_mandatory_album_fields(
 pub fn generate_lock_manifests(
     parsed_manifests: &serde_json::Map<String, Value>,
     album_root: &Path,
-) -> HashMap<String, Value> {
-    let mut lock_manifests = HashMap::new();
+) -> BTreeMap<String, Value> {
+    let mut lock_manifests = BTreeMap::new();
     for (name, _) in parsed_manifests {
         let file_name = format!("{name}.toml");
         let abs_p = album_root.join(&file_name);

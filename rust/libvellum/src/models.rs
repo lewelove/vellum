@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CoverMetrics {
@@ -64,10 +64,10 @@ pub struct AlbumLock {
     pub date: String,
     pub id: String,
     #[serde(default)]
-    pub keys: HashMap<String, serde_json::Value>,
+    pub keys: BTreeMap<String, serde_json::Value>,
     pub info: AlbumInfo,
     #[serde(default)]
-    pub manifests: HashMap<String, ManifestEntry>,
+    pub manifests: BTreeMap<String, ManifestEntry>,
     pub covers: Option<CoversEntry>,
 }
 
@@ -101,7 +101,7 @@ pub struct TrackLock {
     pub artist: String,
     pub title: String,
     #[serde(default)]
-    pub keys: HashMap<String, serde_json::Value>,
+    pub keys: BTreeMap<String, serde_json::Value>,
     pub info: TrackInfo,
     pub file: FileInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
