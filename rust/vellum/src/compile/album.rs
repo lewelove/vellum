@@ -4,11 +4,12 @@ use std::path::Path;
 use std::collections::HashMap;
 
 pub fn is_virtual_album(album_root: &Path) -> bool {
-    let local_path = album_root.join("local.toml");
-    if let Ok(content) = std::fs::read_to_string(&local_path)
+    let system_path = album_root.join("system.toml");
+    if let Ok(content) = std::fs::read_to_string(&system_path)
         && let Ok(parsed) = toml::from_str::<toml::Value>(&content)
-        && let Some(local) = parsed.get("local")
-        && let Some(virt) = local.get("virtual").and_then(toml::Value::as_bool)
+        && let Some(album) = parsed.get("album")
+        && let Some(system) = album.get("system")
+        && let Some(virt) = system.get("virtual").and_then(toml::Value::as_bool)
     {
         return virt;
     }
@@ -46,7 +47,7 @@ pub fn generate_lock_manifests(
 ) -> HashMap<String, Value> {
     let mut lock_manifests = HashMap::new();
     for (name, _) in parsed_manifests {
-        let file_name = if name == "local" { "local.toml".to_string() } else { format!("{name}.toml") };
+        let file_name = format!("{name}.toml");
         let abs_p = album_root.join(&file_name);
         if let Ok(info) = libvellum::utils::get_file_info(&abs_p, &file_name, false) {
             lock_manifests.insert(name.clone(), json!({ "file": info }));

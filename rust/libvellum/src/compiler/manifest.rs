@@ -33,10 +33,10 @@ pub fn load_manifests(
         }
     }
 
-    let local_path = album_root.join("local.toml");
-    if local_path.exists() && !result_manifests.contains_key("local") {
-        let local_json = parse_single_manifest(&local_path, album_root, "local", Some(expected_tracks))?;
-        result_manifests.insert("local".to_string(), local_json);
+    let system_path = album_root.join("system.toml");
+    if system_path.exists() && !result_manifests.contains_key("system") {
+        let system_json = parse_single_manifest(&system_path, album_root, "system", Some(expected_tracks))?;
+        result_manifests.insert("system".to_string(), system_json);
     }
 
     Ok(result_manifests)
@@ -55,11 +55,6 @@ fn parse_single_manifest(
     let mut json_val = toml_to_json(parsed_toml);
 
     let album_obj = json_val.get("album").cloned().unwrap_or_else(|| json!({}));
-    let album_obj = if name == "local" {
-        json_val.get("local").cloned().unwrap_or(album_obj)
-    } else {
-        album_obj
-    };
 
     let tracks_obj = if let Some(tracks_arr) = json_val.get_mut("tracks").and_then(Value::as_array_mut) {
         if tracks_arr.is_empty() && expected_tracks.is_some() {

@@ -26,34 +26,6 @@ pub fn calculate_total_discs(tracks: &[serde_json::Value]) -> u32 {
     }
 }
 
-pub fn resolve_album_info_date_added(album_root: &Path, source: &serde_json::Value, config: &crate::lua::ResolvedConfig) -> Result<String, crate::error::VellumError> {
-    let local_toml_path = album_root.join("local.toml");
-    if local_toml_path.exists()
-        && let Ok(content) = std::fs::read_to_string(&local_toml_path)
-        && let Ok(parsed) = toml::from_str::<toml::Value>(&content)
-        && let Some(lib) = parsed.get("local")
-        && let Some(da) = lib.get("date_added")
-    {
-        let dt_str = match da {
-            toml::Value::Datetime(dt) => dt.to_string(),
-            toml::Value::String(s) => s.clone(),
-            _ => String::new(),
-        };
-        let json_val = serde_json::Value::String(dt_str);
-        return Ok(crate::types::parse_time(Some(&json_val)));
-    }
-
-    if let Some(fallbacks) = &config.app.compiler.date_added {
-        for f in fallbacks {
-            if let Some(val) = source.get(f) {
-                return Ok(crate::types::parse_time(Some(val)));
-            }
-        }
-    }
-
-    Ok(crate::types::parse_time(None))
-}
-
 #[must_use]
 pub fn resolve_lyrics_path(
     album_root: &Path,

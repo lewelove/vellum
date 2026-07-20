@@ -30,8 +30,8 @@ pub async fn create_album_directory(
     let meta_path = album_path.join("metadata.toml");
     write_metadata_toml(data, &meta_path)?;
 
-    let local_path = album_path.join("local.toml");
-    write_local_toml(&local_path)?;
+    let system_path = album_path.join("system.toml");
+    write_system_toml(&system_path)?;
 
     let covers_dir = album_path.join("Digital Covers");
 
@@ -124,9 +124,9 @@ fn write_metadata_toml(data: &AlbumData, path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn write_local_toml(path: &Path) -> Result<()> {
+fn write_system_toml(path: &Path) -> Result<()> {
     let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-    let content = format!("[local]\n\ndate_added = {now}\nvirtual = true\n");
+    let content = format!("[album.system]\n\ndate_generated = {now}\nvirtual = true\n");
     fs::write(path, content)?;
     Ok(())
 }

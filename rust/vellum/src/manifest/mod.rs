@@ -113,19 +113,19 @@ fn process_album_group(
     }
 
     if !options.stdout {
-        write_local_toml(&anchor)?;
+        write_system_toml(&anchor)?;
     }
 
     Ok(())
 }
 
-fn write_local_toml(anchor: &Path) -> Result<()> {
-    let local_toml_path = anchor.join("local.toml");
-    if !local_toml_path.exists() {
+fn write_system_toml(anchor: &Path) -> Result<()> {
+    let system_toml_path = anchor.join("system.toml");
+    if !system_toml_path.exists() {
         let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-        let local_toml_content = format!("[local]\n\ndate_added = {now}\n");
-        fs::write(&local_toml_path, local_toml_content)?;
-        log::info!("Generated local manifest: {}", local_toml_path.display());
+        let system_toml_content = format!("[album.system]\n\ndate_generated = {now}\n");
+        fs::write(&system_toml_path, system_toml_content)?;
+        log::info!("Generated system manifest: {}", system_toml_path.display());
     }
     Ok(())
 }

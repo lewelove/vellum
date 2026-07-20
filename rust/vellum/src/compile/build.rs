@@ -9,6 +9,13 @@ pub fn build(
     album_root: &Path,
     config: &libvellum::lua::ResolvedConfig,
 ) -> Result<Value, VellumError> {
+    let system_path = album_root.join("system.toml");
+    if !system_path.exists() {
+        let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let system_toml_content = format!("[album.system]\n\ndate_generated = {now}\n");
+        let _ = std::fs::write(&system_path, system_toml_content);
+    }
+
     let manifest_names = config.app.compiler.manifests.as_ref().map(|v| v.iter().map(|s| Value::String(s.clone())).collect::<Vec<_>>());
     let parsed_manifests = load_manifests(album_root, manifest_names.as_ref())?;
 
@@ -59,7 +66,8 @@ pub fn build(
     
     let (albumartist, album_title, date) = album::parse_mandatory_album_fields(primary_album, album_root)?;
 
-    let date_added = libvellum::resolvers::resolve_album_info_date_added(album_root, primary_album, config)?;
+    let date_added_val = lua_res.pointer("/info/album/date_added");
+    let date_added = libvellum::types::parse_time(date_added_val);
 
     let info_obj = json!({
         "virtual": is_virtual,
