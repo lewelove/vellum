@@ -6,7 +6,7 @@ use mpd_client::Client;
 use mpd_client::client::{ConnectionEvent, Subsystem};
 use std::sync::Arc;
 use tokio::net::TcpStream;
-use tokio::sync::{Mutex, broadcast, mpsc};
+use tokio::sync::{RwLock, broadcast, mpsc};
 
 #[derive(Clone)]
 pub struct MpdEngine {
@@ -21,7 +21,7 @@ impl MpdEngine {
 
 pub fn start_actor(
     broadcast_tx: broadcast::Sender<String>,
-    query: Arc<Mutex<QueryEngine>>,
+    query: Arc<RwLock<QueryEngine>>,
     _app_config: Arc<AppConfig>,
 ) -> MpdEngine {
     let (tx, mut rx) = mpsc::channel::<MpdCommand>(32);

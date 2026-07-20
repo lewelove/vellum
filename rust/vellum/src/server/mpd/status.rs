@@ -4,12 +4,12 @@ use mpd_client::Client;
 use mpd_client::commands;
 use mpd_client::responses::PlayState;
 use std::sync::Arc;
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::{RwLock, broadcast};
 
 pub async fn broadcast_status(
     client: &Client,
     tx: &broadcast::Sender<String>,
-    query: &Arc<Mutex<QueryEngine>>,
+    query: &Arc<RwLock<QueryEngine>>,
 ) -> Result<()> {
     let (status, current_song, queue) = client
         .command_list((commands::Status, commands::CurrentSong, commands::Queue))
@@ -26,7 +26,7 @@ pub async fn broadcast_status(
     };
 
     let (queue_json, album_id) = {
-        let q = query.lock().await;
+        let q = query.read().await;
         let album_id = q.path_lookup.get(&file_path).cloned();
         let track_metas: Vec<Option<serde_json::Value>> = queue
             .iter()

@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock, broadcast};
+use tokio::sync::{RwLock, broadcast};
 use tower_http::cors::{Any, CorsLayer};
 
 use self::state::{AppConfig as ServerConfig, AppState};
@@ -102,7 +102,7 @@ pub async fn run(port: u16) -> Result<()> {
     let lib_scanner = library::scanner::Library::new(library_root.clone());
     lib_scanner.scan(&mut query_engine);
     
-    let query_arc = Arc::new(Mutex::new(query_engine));
+    let query_arc = Arc::new(RwLock::new(query_engine));
     let (tx, _) = broadcast::channel(100);
 
     let mpd_engine = mpd::start_actor(

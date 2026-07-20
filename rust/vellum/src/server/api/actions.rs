@@ -19,7 +19,7 @@ async fn resolve_target_ids(
     let file_arg = params.get("file").cloned();
 
     if let Some(q) = query_arg {
-        let query_guard = state.query.lock().await;
+        let query_guard = state.query.read().await;
         let expanded = crate::server::query::expand_shorthand(&q);
         if let Ok(ids) = query_guard.query_ids(&expanded) {
             target_ids = ids;

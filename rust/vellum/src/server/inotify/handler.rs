@@ -14,7 +14,7 @@ pub async fn process_events(
     if flags.shelf && !flags.logic {
         log::info!("Filesystem change: reloading shelf files...");
         {
-            let mut query = state.query.lock().await;
+            let mut query = state.query.write().await;
             if let Err(e) = query.build_cache() {
                 log::error!("Failed to rebuild query cache: {e}");
             }
@@ -51,7 +51,7 @@ async fn handle_logic_change(state: &Arc<AppState>) {
     }
 
     if let Some(ref lp) = resolved {
-        let mut query = state.query.lock().await;
+        let mut query = state.query.write().await;
         if let Err(e) = query.reload_manifest(lp) {
             log::error!("Failed to reload logic.toml: {e}");
         } else {

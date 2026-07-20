@@ -1,3 +1,5 @@
+#![allow(clippy::significant_drop_tightening)]
+
 use anyhow::Result;
 use indexmap::IndexMap;
 use rusqlite::Connection;
@@ -5,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Mutex;
 
 pub use libvellum::sql::expand_shorthand;
 
@@ -184,7 +187,7 @@ pub struct ShelfDef {
 }
 
 pub struct QueryEngine {
-    conn: Connection,
+    conn: Mutex<Connection>,
     pub manifest: LogicManifest,
     libraries_cache: HashMap<String, HashSet<u32>>,
     filters_cache: HashMap<String, HashSet<u32>>,
@@ -215,12 +218,12 @@ impl QueryEngine {
             "CREATE TABLE albums (
                 uid INTEGER PRIMARY KEY AUTOINCREMENT,
                 id TEXT UNIQUE,
-                metadata TEXT
+                metadata BLOB
             )",[],
         )?;
 
         Ok(Self {
-            conn,
+            conn: Mutex::new(conn),
             manifest,
             libraries_cache: HashMap::new(),
             filters_cache: HashMap::new(),
@@ -244,7 +247,7 @@ impl QueryEngine {
     }
 
     pub fn clear(&mut self) -> Result<()> {
-        self.conn.execute("DELETE FROM albums",[])?;
+        self.conn.lock().unwrap().execute("DELETE FROM albums",[])?;
         self.libraries_cache.clear();
         self.filters_cache.clear();
         self.facets_cache.clear();
@@ -258,7 +261,7 @@ impl QueryEngine {
     }
 
     pub fn remove_album(&mut self, id: &str) -> Result<()> {
-        self.conn.execute("DELETE FROM albums WHERE id = ?1", [&id])?;
+        self.conn.lock().unwrap().execute("DELETE FROM albums WHERE id = ?1", [&id])?;
         self.dict.remove(id);
         self.uid_to_id.retain(|_, v| v != id);
         self.path_lookup.retain(|_, v| v != id);
@@ -267,10 +270,12 @@ impl QueryEngine {
     }
 
     pub fn ingest(&mut self, id: &str, metadata_json: &str) -> Result<()> {
-        self.conn.execute(
-            "INSERT INTO albums (id, metadata) VALUES (?1, ?2)",[id, metadata_json],
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO albums (id, metadata) VALUES (?1, jsonb(?2))",[id, metadata_json],
         )?;
-        let uid = u32::try_from(self.conn.last_insert_rowid()).unwrap_or(0);
+        let uid = u32::try_from(conn.last_insert_rowid()).unwrap_or(0);
+        drop(conn);
         self.uid_to_id.insert(uid, id.to_string());
 
         if let Ok(parsed) = serde_json::from_str::<Value>(metadata_json)
@@ -332,7 +337,8 @@ impl QueryEngine {
     }
 
     pub fn query_ids(&self, sql: &str) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare(sql)?;
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(sql)?;
         let ids: Vec<String> = stmt
             .query_map([], |row| row.get(0))?
             .filter_map(Result::ok)
@@ -342,11 +348,13 @@ impl QueryEngine {
 
     pub fn build_cache(&mut self) -> Result<()> {
         self.filters_cache.clear();
+        let conn = self.conn.lock().unwrap();
+
         for (key, filter) in &self.manifest.filters {
             let where_str = filter.sql.where_.as_deref().unwrap_or("1=1");
             let expanded = expand_shorthand(where_str);
             let sql = format!("SELECT uid FROM albums WHERE {expanded}");
-            if let Ok(mut stmt) = self.conn.prepare(&sql) {
+            if let Ok(mut stmt) = conn.prepare(&sql) {
                 let uids: HashSet<u32> = stmt.query_map([], |row| row.get(0))?.filter_map(Result::ok).collect();
                 self.filters_cache.insert(key.clone(), uids);
             }
@@ -357,7 +365,7 @@ impl QueryEngine {
             let where_str = library.sql.as_ref().and_then(|s| s.where_.as_deref()).unwrap_or("1=1");
             let expanded_filter = expand_shorthand(where_str);
             let sql = format!("SELECT uid FROM albums WHERE {expanded_filter}");
-            let mut stmt = self.conn.prepare(&sql)?;
+            let mut stmt = conn.prepare(&sql)?;
             let uids: HashSet<u32> = stmt.query_map([], |row| row.get(0))?.filter_map(Result::ok).collect();
             self.libraries_cache.insert(key.clone(), uids);
         }
@@ -367,7 +375,7 @@ impl QueryEngine {
             let order_str = order.sql.order_by.as_deref().unwrap_or("uid ASC");
             let expanded_order = expand_shorthand(order_str);
             let sql = format!("SELECT uid FROM albums ORDER BY {expanded_order}");
-            let mut stmt = self.conn.prepare(&sql)?;
+            let mut stmt = conn.prepare(&sql)?;
             let uids: Vec<u32> = stmt.query_map([], |row| row.get(0))?.filter_map(Result::ok).collect();
             self.orders_cache.insert(key.clone(), uids);
         }
@@ -384,7 +392,7 @@ impl QueryEngine {
 
                     if let Ok(json_arr) = serde_json::to_string(&lines) {
                         let sql = "SELECT a.uid FROM json_each(?1) j JOIN albums a ON a.id = j.value ORDER BY j.key";
-                        if let Ok(mut stmt) = self.conn.prepare(sql) {
+                        if let Ok(mut stmt) = conn.prepare(sql) {
                             let uids: Vec<u32> = stmt.query_map([json_arr], |row| row.get(0))
                                 .map(|rows| rows.filter_map(Result::ok).collect())
                                 .unwrap_or_default();
@@ -398,7 +406,7 @@ impl QueryEngine {
                 let expanded_filter = expand_shorthand(sql_def.where_.as_deref().unwrap_or("1=1"));
                 let order_clause = sql_def.order_by.as_deref().map(|o| format!(" ORDER BY {}", expand_shorthand(o))).unwrap_or_default();
                 let sql = format!("SELECT uid FROM albums WHERE {expanded_filter}{order_clause}");
-                if let Ok(mut stmt) = self.conn.prepare(&sql) {
+                if let Ok(mut stmt) = conn.prepare(&sql) {
                     let uids: Vec<u32> = stmt.query_map([], |row| row.get(0))
                         .map(|rows| rows.filter_map(Result::ok).collect())
                         .unwrap_or_default();
@@ -412,7 +420,7 @@ impl QueryEngine {
             let select_str = grouper.sql.select.as_deref().unwrap_or("''");
             let expanded_select = expand_shorthand(select_str);
             let sql = format!("SELECT uid, {expanded_select} FROM albums");
-            let mut stmt = self.conn.prepare(&sql)?;
+            let mut stmt = conn.prepare(&sql)?;
             let mut rows = stmt.query([])?;
 
             let mut map: HashMap<String, HashSet<u32>> = HashMap::new();
@@ -460,7 +468,8 @@ impl QueryEngine {
         if let (Some(fk), Some(fv)) = (filter_key, filter_val) {
             if fk == "search" {
                 let sql = "SELECT uid FROM albums WHERE {$.album.album} LIKE ?1 OR {$.album.albumartist} LIKE ?1";
-                if let Ok(mut stmt) = self.conn.prepare(&expand_shorthand(sql)) {
+                let conn = self.conn.lock().unwrap();
+                if let Ok(mut stmt) = conn.prepare(&expand_shorthand(sql)) {
                     let pattern = format!("%{fv}%");
                     if let Ok(match_uids_iter) = stmt.query_map([pattern], |row| row.get::<_, u32>(0)) {
                         let match_uids: HashSet<u32> = match_uids_iter.filter_map(Result::ok).collect();
@@ -531,7 +540,8 @@ impl QueryEngine {
     }
 
     pub fn get_album_json(&self, id: &str) -> Option<String> {
-        let mut stmt = self.conn.prepare("SELECT metadata FROM albums WHERE id = ?1").ok()?;
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT json(metadata) FROM albums WHERE id = ?1").ok()?;
         let mut rows = stmt.query([id]).ok()?;
         if let Some(row) = rows.next().ok()? {
             return row.get(0).ok();

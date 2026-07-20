@@ -65,7 +65,7 @@ async fn ensure_master_cover(
     }
 
     let source_info = {
-        let query = state.query.lock().await;
+        let query = state.query.read().await;
         query.dict.values().find(|v| {
             v.get("cover_hash").and_then(|h| h.as_str()) == Some(hash)
         }).map(|v| {
@@ -201,7 +201,7 @@ pub async fn get_album_metadata(
     State(state): State<Arc<AppState>>,
 ) -> Response {
     let json_str = {
-        let query = state.query.lock().await;
+        let query = state.query.read().await;
         query.get_album_json(&id)
     };
     if let Some(data) = json_str {
@@ -217,7 +217,7 @@ pub async fn get_album_cover(
     State(state): State<Arc<AppState>>,
 ) -> Response {
     let path_opt = {
-        let query = state.query.lock().await;
+        let query = state.query.read().await;
         let config_guard = state.config.read().await;
         
         query.dict.get(&id).map(|meta| {

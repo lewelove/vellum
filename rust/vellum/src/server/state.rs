@@ -2,12 +2,12 @@ use crate::server::mpd::MpdEngine;
 use crate::server::query::QueryEngine;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock, broadcast};
+use tokio::sync::{RwLock, broadcast};
 use indexmap::IndexMap;
 use libvellum::lua::config::{CoversConfig, InterfaceConfig, ActionConfig};
 
 pub struct AppState {
-    pub query: Arc<Mutex<QueryEngine>>,
+    pub query: Arc<RwLock<QueryEngine>>,
     pub ui_state: RwLock<serde_json::Value>,
     pub tx: broadcast::Sender<String>,
     pub config: RwLock<AppConfig>,

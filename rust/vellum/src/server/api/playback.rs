@@ -89,7 +89,7 @@ async fn get_tracks_internal(
     let target_disc = disc_filter.and_then(|s| s.parse::<u32>().ok());
 
     let json_str = {
-        let query = state.query.lock().await;
+        let query = state.query.read().await;
         query.get_album_json(id)
     };
 

@@ -136,7 +136,7 @@ pub async fn trigger_full_reset(State(state): State<Arc<AppState>>) -> Response 
     let album_count = {
         let library_root = state.config.read().await.library_root.clone();
         let scanner = crate::server::library::scanner::Library::new(library_root);
-        let mut query = state.query.lock().await;
+        let mut query = state.query.write().await;
         scanner.scan(&mut query);
         query.dict.len()
     };
@@ -162,7 +162,7 @@ pub async fn trigger_batch_reload(
     let mut removed_ids = Vec::new();
 
     {
-        let mut query = state.query.lock().await;
+        let mut query = state.query.write().await;
         let scanner = crate::server::library::scanner::Library::new(library_root);
         for path in &paths {
             let res = scanner.update_album(path, &mut query);
@@ -183,7 +183,7 @@ pub async fn trigger_batch_reload(
 
         if processed_ids.len() == 1 && removed_ids.is_empty() {
             let (dict_entry, shelves) = {
-                let query = state.query.lock().await;
+                let query = state.query.read().await;
                 let entry = query.dict.get(&processed_ids[0]).cloned();
                 let mut s = std::collections::HashMap::new();
                 for key in query.manifest.shelves.keys() {
@@ -200,7 +200,7 @@ pub async fn trigger_batch_reload(
             }).to_string());
         } else if removed_ids.len() == 1 && processed_ids.is_empty() {
             let shelves = {
-                let query = state.query.lock().await;
+                let query = state.query.read().await;
                 let mut s = std::collections::HashMap::new();
                 for key in query.manifest.shelves.keys() {
                     s.insert(key.clone(), query.request_shelf_view(key));
@@ -230,7 +230,7 @@ pub async fn trigger_reload(
         let library_root = state.config.read().await.library_root.clone();
 
         let (update_res, dict_entry, shelves) = {
-            let mut query = state.query.lock().await;
+            let mut query = state.query.write().await;
             let scanner = crate::server::library::scanner::Library::new(library_root);
             let res = scanner.update_album(path, &mut query);
 
@@ -347,7 +347,7 @@ pub async fn run_query(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Response {
-    let query = state.query.lock().await;
+    let query = state.query.read().await;
     let q_str = payload.get("query").and_then(|v| v.as_str()).unwrap_or("").trim();
 
     let sql = if q_str.is_empty() {
