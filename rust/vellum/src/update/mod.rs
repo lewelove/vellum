@@ -83,7 +83,7 @@ pub async fn run(
         log::info!("Verifying {} albums...", all_albums.len());
     }
 
-    let results = verify_albums_parallel(all_albums, &cache, force, jobs, &exts, manifests.as_ref())?;
+    let results = verify_albums_parallel(all_albums, &cache, force, jobs, &exts, manifests.as_ref(), &library_root)?;
 
     let mut work_queue = Vec::new();
 
@@ -260,6 +260,7 @@ fn verify_albums_parallel(
     jobs: Option<usize>,
     exts: &[String],
     manifests: Option<&Vec<String>>,
+    library_root: &Path,
 ) -> Result<Vec<(PathBuf, u64, bool)>> {
     let default_parallelism = std::thread::available_parallelism()
         .map_or(1, std::num::NonZero::get);
@@ -279,12 +280,18 @@ fn verify_albums_parallel(
                     return (album_root, mtime_sum, true);
                 }
 
-                if let Some(entry) = cache.get(&album_path_str)
-                    && entry.mtime_sum == mtime_sum && mtime_sum != 0 {
-                         return (album_root, mtime_sum, false);
-                    }
+                let expected_id = libvellum::resolvers::rel_path(&album_root, library_root);
 
-                match verify_trust(&album_root) {
+                if let Some(entry) = cache.get(&album_path_str)
+                    && entry.mtime_sum == mtime_sum && mtime_sum != 0
+                {
+                    match verify_trust(&album_root, Some(&expected_id)) {
+                        Ok(TrustState::Valid) => return (album_root, mtime_sum, false),
+                        _ => return (album_root, mtime_sum, true),
+                    }
+                }
+
+                match verify_trust(&album_root, Some(&expected_id)) {
                     Ok(TrustState::Valid) => (album_root, mtime_sum, false),
                     Ok(_) => (album_root, mtime_sum, true),
                     Err(e) => {
@@ -341,7 +348,7 @@ fn get_mtime_sum(dir: &Path, meta: &Path, exts: &[String], manifests: Option<&Ve
     }
 
     let mut c_mtime = 0;
-    let cover_candidates =["cover.jpg", "cover.png", "folder.jpg", "front.jpg"];
+    let cover_candidates = ["cover.jpg", "cover.png", "folder.jpg", "front.jpg"];
 
     for c in cover_candidates {
         let cp = dir.join(c);

@@ -13,7 +13,7 @@ pub enum TrustState {
     BrokenAssets,
 }
 
-pub fn verify_trust(album_root: &Path) -> Result<TrustState, VellumError> {
+pub fn verify_trust(album_root: &Path, expected_id: Option<&str>) -> Result<TrustState, VellumError> {
     let lock_path = album_root.join("album.lock.json");
     if !lock_path.exists() {
         return Ok(TrustState::Missing);
@@ -28,6 +28,13 @@ pub fn verify_trust(album_root: &Path) -> Result<TrustState, VellumError> {
     let Some(album_data) = lock_json.get("album") else {
         return Ok(TrustState::Missing);
     };
+
+    if let Some(expected) = expected_id {
+        let lock_id = album_data.get("id").and_then(serde_json::Value::as_str).unwrap_or("");
+        if lock_id != expected {
+            return Ok(TrustState::BrokenIntent);
+        }
+    }
 
     if check_manifest_mtimes(album_root, album_data) == TrustState::BrokenIntent {
         return Ok(TrustState::BrokenIntent);

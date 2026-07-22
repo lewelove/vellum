@@ -32,7 +32,13 @@ impl Library {
         for lock_path in entries {
             if let Ok(content) = std::fs::read_to_string(&lock_path)
                 && let Ok(lock_data) = serde_json::from_str::<LockFile>(&content) {
-                    let alb_id = lock_data.album.id.clone();
+                    let album_dir = lock_path.parent().unwrap_or(&lock_path);
+                    let expected_id = libvellum::resolvers::rel_path(album_dir, &self.root);
+                    let alb_id = if lock_data.album.id == expected_id {
+                        lock_data.album.id
+                    } else {
+                        expected_id
+                    };
                     let _ = query_engine.ingest(&alb_id, &content);
                 }
         }
@@ -56,8 +62,9 @@ impl Library {
                 && let Ok(lock_data) = serde_json::from_str::<LockFile>(&content) {
                     let parsed_alb_id = lock_data.album.id;
                     let _ = query_engine.remove_album(&parsed_alb_id);
-                    let _ = query_engine.ingest(&parsed_alb_id, &content);
-                    return UpdateResult::Updated(parsed_alb_id);
+                    let _ = query_engine.remove_album(&alb_id);
+                    let _ = query_engine.ingest(&alb_id, &content);
+                    return UpdateResult::Updated(alb_id);
                 }
 
         let _ = query_engine.remove_album(&alb_id);

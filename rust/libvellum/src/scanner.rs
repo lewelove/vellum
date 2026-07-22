@@ -4,7 +4,7 @@ use walkdir::WalkDir;
 
 pub fn find_target_albums(path: &Path, max_depth: usize) -> Result<Vec<PathBuf>, VellumError> {
     let mut results = std::collections::HashSet::new();
-    if path.join("metadata.toml").exists() || path.join("album.nix").exists() {
+    if path.join("metadata.toml").exists() {
         results.insert(path.to_path_buf());
     } else {
         for entry in WalkDir::new(path)
@@ -13,10 +13,11 @@ pub fn find_target_albums(path: &Path, max_depth: usize) -> Result<Vec<PathBuf>,
         {
             match entry {
                 Ok(e) => {
-                    if (e.file_name() == "metadata.toml" || e.file_name() == "album.nix")
-                        && let Some(parent) = e.path().parent() {
-                            results.insert(parent.to_path_buf());
-                        }
+                    if e.file_name() == "metadata.toml"
+                        && let Some(parent) = e.path().parent()
+                    {
+                        results.insert(parent.to_path_buf());
+                    }
                 }
                 Err(e) => {
                     log::debug!("Skipping path during scan due to error: {e}");
