@@ -65,6 +65,11 @@
           doCheck = false;
         } (builtins.readFile ./actions/python/embed/main.py);
 
+        rename = pkgs.writers.writePython3Bin "rename" {
+          libraries = [];
+          doCheck = false;
+        } (builtins.readFile ./actions/python/rename/main.py);
+
         build-cli = pkgs.writeShellApplication {
           name = "build";
           runtimeInputs = [ pkgs.cargo pkgs.rustc pkgs.git pkgs.clippy pkgs.nix ];
@@ -99,6 +104,7 @@
               nix build .#get_lyrics --out-link actions/python/get_lyrics/result
               nix build .#search_cover --out-link actions/python/search_cover/result
               nix build .#embed --out-link actions/python/embed/result
+              nix build .#rename --out-link actions/python/rename/result
               
               cd "$ROOT/actions/rust"
               cargo clippy --workspace -- -D warnings
@@ -107,6 +113,7 @@
               ln -sf "python/get_lyrics/result/bin/get_lyrics" "$ROOT/actions/get_lyrics"
               ln -sf "python/search_cover/result/bin/search_cover" "$ROOT/actions/search_cover"
               ln -sf "python/embed/result/bin/embed" "$ROOT/actions/embed"
+              ln -sf "python/rename/result/bin/rename" "$ROOT/actions/rename"
               ln -sf "rust/target/release/cover_palette" "$ROOT/actions/cover_palette"
               ln -sf "rust/target/release/collect" "$ROOT/actions/collect"
             }
@@ -242,6 +249,7 @@
         packages.get_lyrics = get_lyrics;
         packages.search_cover = search_cover;
         packages.embed = embed;
+        packages.rename = rename;
 
         devShells.default = pkgs.mkShell {
           buildInputs = devPackages;
