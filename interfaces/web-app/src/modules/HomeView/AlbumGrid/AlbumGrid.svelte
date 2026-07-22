@@ -212,11 +212,11 @@
     const diff = Math.abs(snappedTargetY - ctrl.scroll.currentY);
 
     if (delta !== 0 || diff > 0.01) {
-      ctrl.update(null, dpr);
+      ctrl.update(dpr);
       renderCanvas();
       rafId = requestAnimationFrame(loop);
     } else {
-      ctrl.update(null, dpr);
+      ctrl.update(dpr);
       renderCanvas();
       isAnimating = false;
       rafId = null;

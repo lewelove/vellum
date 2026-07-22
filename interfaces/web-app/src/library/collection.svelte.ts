@@ -75,16 +75,6 @@ class CollectionStore {
     return `/api/covers/${algo}/${size}px/${album.cover_hash}`;
   }
 
-  getAlbumCoverUrl(albumId: string): string {
-    const album = this.dict[albumId];
-    if (!album || !album.cover_hash) return "";
-    return `/api/assets/cover/${encodeURIComponent(albumId)}?v=${album.cover_hash}`;
-  }
-
-  getTrackByPath(path: string): any {
-    return this.trackPathMap[path];
-  }
-
   async ensureFullAlbum(id: string): Promise<any> {
     if (!id) return null;
     if (this.fullAlbumCache[id]) return this.fullAlbumCache[id];

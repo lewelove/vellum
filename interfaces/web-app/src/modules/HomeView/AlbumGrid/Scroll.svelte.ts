@@ -39,11 +39,4 @@ export class ScrollEngine {
   syncToSlot(slot: number) {
     this.targetSlot = slot;
   }
-
-  shiftPosition(deltaY: number, rowHeight: number, maxSlots: number) {
-    this.currentY += deltaY;
-    const slotDelta = deltaY / rowHeight;
-    this.targetSlot = Math.max(0, Math.min(this.targetSlot + slotDelta, maxSlots));
-  }
 }
-

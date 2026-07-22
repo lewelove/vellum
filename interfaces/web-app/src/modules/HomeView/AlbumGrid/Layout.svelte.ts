@@ -25,10 +25,6 @@ export class LayoutManager {
 
   get topOffset() { return this.creaseHeight - this.gapY; }
 
-  getTotalHeight(rowCount: number): number {
-    return (rowCount * this.rowHeight) + this.topOffset;
-  }
-
   getRowY(index: number): number {
     return (index * this.rowHeight) + this.topOffset;
   }

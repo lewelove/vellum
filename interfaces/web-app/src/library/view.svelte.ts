@@ -207,11 +207,6 @@ export class ViewState {
     this.persistState();
   }
 
-  applySort(key: string) {
-    this.activeSort = { key, order: "default" };
-    this.refreshView(true);
-  }
-
   setUserSort(key: string) {
     this.userSortPreference = key;
     this.activeSort = { key, order: this.userSortOrder };
@@ -224,11 +219,6 @@ export class ViewState {
     this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
     this.refreshView(true);
     this.persistState();
-  }
-
-  restoreUserSort() {
-    this.activeSort = { key: this.userSortPreference, order: this.userSortOrder };
-    this.refreshView(true);
   }
 
   async setFocus(album: any, instant: boolean = false) {

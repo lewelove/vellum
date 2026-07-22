@@ -14,10 +14,6 @@ export class GridController {
 
   maxSlots = $derived(Math.max(0, (this.allRows.length + 1 - this.visibleRows)));
 
-  contentHeight = $derived(
-    this.layout.getTotalHeight(this.allRows.length) + this.layout.rowHeight
-  );
-
   virtualRows = $derived.by(() => {
     if (this.allRows.length === 0) return [];
 
@@ -39,12 +35,8 @@ export class GridController {
     }));
   });
 
-  update(mainEl: HTMLElement | null, dpr: number = 1) {
+  update(dpr: number = 1) {
     this.scroll.update(this.layout.rowHeight, dpr);
-    
-    if (mainEl) {
-      mainEl.scrollTop = this.scroll.currentY;
-    }
   }
 
   handleWheel(e: WheelEvent) {
