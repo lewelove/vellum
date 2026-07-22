@@ -2,8 +2,9 @@
 
 - Remove all hardcoded fallbacks from rust and create `vellum.lua` file to spec all of available values, and propagate them to rust from it
 - Rewrite ALL default key resolution logic from rust to Lua
-- Rewrite ALL type check systems in Lua
-- Rename `vl.compiler.keys.album` and `vl.compiler.keys.tracks` -> `vl.compiler.album.keys` and `vl.compiler.tracks.keys`
+- Add album hot-reload upon each registered manifest mtime change
+- Register manifests like `name` and directory paths as `directory.name`
+
 
 # cli
 
@@ -14,12 +15,15 @@
 ### compile
 
 - Add subcommand (`vellum compile album` / `vellum compile library`) that will compile either single album in pwd or all albums across library root
-- Fix `track[].info.bitrate` kbps
+- Add `--force` flag
+
+### update
+
+- Reject target album if it's not in `storage.library`
 
 # theming
 
-- Make dropdown menus shadow same as panel shadow. Make them close on `esc`
-- Add a way to render modal drawer at the home tab instantly, with zero animations. Tie it up to `open album` button in queue tab, so when pressed, the home tab is presented in view with drawer already fully open. ALso finally decire and remake their borders
+- Make absolutely all white elements derived from single `oklab` white value using alpha channel
 
 # api
 
