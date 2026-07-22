@@ -6,13 +6,9 @@ export class GridController {
   scroll = new ScrollEngine();
   viewportHeight: number = $state(0);
   
-  getAlbums: () => any[] = () => [];
+  albums: any[] = $state([]);
 
-  constructor(getAlbums: () => any[]) {
-    this.getAlbums = getAlbums;
-  }
-
-  allRows = $derived(this.layout.chunk(this.getAlbums()));
+  allRows = $derived(this.layout.chunk(this.albums));
   
   visibleRows = $derived(Math.ceil(this.viewportHeight / this.layout.rowHeight));
 
@@ -23,13 +19,15 @@ export class GridController {
   );
 
   virtualRows = $derived.by(() => {
+    if (this.allRows.length === 0) return [];
+
     const { start, end } = this.layout.getVisibleIndices(
       this.scroll.currentY, 
       this.viewportHeight, 
       this.allRows.length
     );
 
-    const indicesToRender: number[] =[];
+    const indicesToRender: number[] = [];
     for (let i = start; i <= end; i++) {
       indicesToRender.push(i);
     }
